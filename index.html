@@ -83,6 +83,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .trace-topbar button.connect { background: var(--warn); color: #1a1a2e; }
 .trace-topbar button.connect:hover { background: #e0d050; }
 .trace-main { display: flex; flex: 1; overflow: hidden; }
+.trace-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 /* APDU list */
 .apdu-list { flex: 1; overflow-y: auto; padding: 8px; }
@@ -94,6 +95,19 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .apdu-type.atr { color: var(--green); }
 .apdu-type.pps { color: var(--yellow); }
 .apdu-data { font-family: monospace; color: var(--text-dim); word-break: break-all; flex: 1; }
+
+/* APDU detail panel */
+.apdu-detail { display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; border-top: 2px solid var(--accent); background: var(--bg-panel); flex-shrink: 0; }
+.apdu-detail .detail-empty { padding: 24px; color: var(--text-muted); text-align: center; }
+.detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-input); border-bottom: 1px solid var(--border); }
+.detail-header strong { font-size: 13px; }
+.detail-body { padding: 8px 12px; font-family: monospace; font-size: 12px; line-height: 1.6; }
+.detail-body table { width: 100%; border-collapse: collapse; }
+.detail-body td { padding: 3px 8px; vertical-align: top; }
+.detail-body td.label { color: var(--text-muted); white-space: nowrap; width: 80px; }
+.detail-body td.value { color: var(--text); }
+.detail-body td.hex { color: var(--text-dim); word-break: break-all; }
+.detail-body td.name { color: var(--accent); font-weight: 600; }
 
 /* Side panel */
 .side-panel { width: 260px; background: var(--bg-panel); padding: 12px; overflow-y: auto; flex-shrink: 0; border-left: 1px solid var(--bg-input); }
@@ -191,12 +205,15 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <span id="session-name-display" style="display:none;" font-size:13px;"></span>
     </div>
     <div class="trace-main">
-        <div class="apdu-list" id="apdu-list"></div>
+        <div class="trace-left">
+            <div class="apdu-list" id="apdu-list"></div>
+            <div class="apdu-detail" id="apdu-detail">
+                <div class="detail-empty">Click an APDU to see details</div>
+            </div>
+        </div>
         <div class="side-panel" id="side-panel">
             <h3>Command Types</h3>
             <div id="type-counts">—</div>
-            <h3 style="margin-top:16px;">Flags</h3>
-            <div id="flag-info"  >—</div>
         </div>
     </div>
     <div class="status-bar">
@@ -278,21 +295,16 @@ const INS_NAMES = {
     '44': 'ACTIVATE FILE',
 };
 
-function ins_name(hex) {
-    if (!hex) return '?';
-    const b = hex.slice(0, 2).toLowerCase();
-    return INS_NAMES[b] || '0x' + b.toUpperCase();
-}
-
-function ins_label(msg) {
+// ──────────────────── UI Helpers ────────────────────
+    if (msg.decoded && msg.decoded.ins_name) return msg.decoded.ins_name;
     if (msg.type === 'atr') return 'ATR';
     if (msg.type === 'pps') return 'PPS';
     if (msg.type === 'change') return 'CHANGE';
     if (msg.type === 'fidi') return 'FIDI';
     const d = msg.data;
-    if (d.length >= 10) {
+    if (d && d.length >= 2) {
         const ins = d.slice(2, 4);
-        return ins_name(ins);
+        return INS_NAMES[ins.toLowerCase()] || '0x' + ins.toUpperCase();
     }
     return 'TPDU';
 }
@@ -339,7 +351,63 @@ const API = {
 function el(id) { return document.getElementById(id); }
 function $on(id, ev, fn) { el(id).addEventListener(ev, fn); }
 
-function buildTypeCounts() {
+function showDetail(msg, entry) {
+    // Highlight clicked entry
+    document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
+    if (entry) entry.classList.add('selected');
+
+    const d = el('apdu-detail');
+    const decoded = msg.decoded;
+    if (!decoded) {
+        d.innerHTML = `<div class="detail-header"><strong>${ins_label(msg)}</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
+            <div class="detail-body" style="color:var(--text-muted);">No decoded data available for this message type.</div>`;
+        return;
+    }
+
+    let body = '';
+    if (decoded.body) {
+        const note = decoded.body.note ? ` <span style="color:var(--accent);">${decoded.body.note}</span>` : '';
+        body = `<tr><td class="label">${decoded.body.label || 'Body'}</td><td class="hex">${decoded.body.hex}${note}</td></tr>`;
+    }
+
+    let p1p2 = '';
+    if (decoded.p1p2) {
+        p1p2 = `<tr><td class="label">P1-P2</td><td class="value">${decoded.p1p2.label}: ${decoded.p1p2.value}</td></tr>`;
+    }
+    let p1 = '';
+    if (decoded.p1) {
+        const n = decoded.p1.name || (decoded.p1.label && decoded.p1.value != null ? `${decoded.p1.label}: ${decoded.p1.value}` : '');
+        p1 = `<tr><td class="label">P1 (0x${decoded.p1.raw})</td><td class="name">${n}</td></tr>`;
+    }
+    let p2 = '';
+    if (decoded.p2) {
+        const n = decoded.p2.name || (decoded.p2.bits ? decoded.p2.bits.join(', ') : '');
+        p2 = `<tr><td class="label">P2 (0x${decoded.p2.raw})</td><td class="name">${n}</td></tr>`;
+    }
+
+    let sw = '';
+    if (decoded.sw) {
+        const sn = decoded.sw.name || '';
+        sw = `<tr><td class="label">SW</td><td class="value">${decoded.sw.sw1} ${decoded.sw.sw2} <span style="color:${sn ? 'var(--accent)' : 'var(--text-muted)'}">${sn}</span></td></tr>`;
+    }
+
+    const cla = decoded.cla;
+    const claInfo = `${cla.interclass}, ch${cla.channel}, ${cla.secure_messaging}, chain: ${cla.chain}`;
+
+    d.innerHTML = `<div class="detail-header">
+        <strong>${decoded.ins_name}</strong>
+        <span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span>
+    </div>
+    <div class="detail-body">
+        <table>
+            <tr><td class="label">CLA</td><td class="value">${claInfo}</td></tr>
+            <tr><td class="label">INS</td><td class="name">0x${decoded.ins_hex} — ${decoded.ins_name}</td></tr>
+            ${p1p2}${p1}${p2}
+            <tr><td class="label">P3</td><td class="value">${decoded.p3} bytes</td></tr>
+            ${body}${sw}
+        </table>
+    </div>`;
+}
     const counts = {};
     for (const m of STATE.messages) {
         const lbl = ins_label(m);
@@ -792,9 +860,7 @@ function init() {
         const idx = parseInt(entry.dataset.idx);
         const msg = STATE.messages[idx];
         if (!msg) return;
-        el('flag-info').textContent = `Elapsed: ${fmt_elapsed(msg.elapsed)}
-Type: ${msg.type}
-Length: ${msg.data.length / 2} bytes`;
+        showDetail(msg, entry);
     });
 
     updateCaptureButton();
