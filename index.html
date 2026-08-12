@@ -572,12 +572,21 @@ async function checkConnection() {
                 <li>Clone and install simtrace2-pysniff:<br>
                     <code>git clone https://github.com/anttro/simtrace2-pysniff.git</code><br>
                     <code>cd simtrace2-pysniff && pip install -e .</code></li>
+                <li>Start the server in <strong>direct mode</strong> (recommended):<br>
+                    <code>./server-start.sh --capture direct</code><br>
+                    <span style="color:#888;">Requires SIMtrace2 hardware connected via USB; captures directly from the device.</span></li>
+            </ol>
+            <p style="margin-top:8px;">Then set the URL above to <code>http://127.0.0.1:8081</code> and return to the Trace tab.</p>
+            <h3 style="margin-top:20px;">Alternative: GSMTAP mode</h3>
+            <p style="color:#888; margin-top:4px;">Use an external sniffer alongside the server. This mode is compatible with the original Osmocom <code>simtrace2-sniff</code>.</p>
+            <ol style="margin-top:4px;">
                 <li>Start the server:<br>
                     <code>./server-start.sh --capture gsmtap</code></li>
-                <li>Start the sniffer (in another terminal):<br>
-                    <code>./sniff-start.sh --gsmtap 127.0.0.1</code></li>
-            </ol>
-            <p>Then set the URL above to <code>http://127.0.0.1:8081</code> and return to the Trace tab.</p>`;
+                <li>Start a GSMTAP source in another terminal — either:<br>
+                    <code>./sniff-start.sh --gsmtap 127.0.0.1</code> &nbsp;(simtrace2-pysniff)<br>
+                    &nbsp;or<br>
+                    <code>simtrace2-sniff --gsmtap-ip 127.0.0.1</code> &nbsp;(original Osmocom tool)</li>
+            </ol>`;
         el('status-dot').className = 'status-dot off';
         el('status-text').textContent = 'Not connected';
         updateCaptureButton();
