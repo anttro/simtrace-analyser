@@ -189,7 +189,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
     <div class="header-right">
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
-        <button id="install-btn" style="display:none;">Install PWA</button>
+        <button id="install-btn">Install PWA</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
@@ -901,6 +901,8 @@ function init() {
     } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
         applyTheme('light');
     }
+
+    if (isInstalled()) hideInstallBtn();
 
     el('server-url').value = STATE.serverUrl;
 
