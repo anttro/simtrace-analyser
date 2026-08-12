@@ -297,6 +297,7 @@ const INS_NAMES = {
 
 // ──────────────────── UI Helpers ────────────────────
 function ins_label(msg) {
+    if (msg.decoded && msg.decoded.cat_command) return msg.decoded.cat_command;
     if (msg.decoded && msg.decoded.ins_name) return msg.decoded.ins_name;
     if (msg.type === 'atr') return 'ATR';
     if (msg.type === 'pps') return 'PPS';
@@ -427,14 +428,19 @@ function showDetail(msg, entry) {
     const cla = decoded.cla;
     const claInfo = `${cla.interclass}, ch${cla.channel}, ${cla.secure_messaging}, chain: ${cla.chain}`;
 
+    const catRow = decoded.cat_command
+        ? `<tr><td class="label">CAT</td><td class="name">${decoded.cat_command}</td></tr>`
+        : '';
+
     d.innerHTML = `<div class="detail-header">
-        <strong>${decoded.ins_name}</strong>
+        <strong>${decoded.cat_command || decoded.ins_name}</strong>
         <span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span>
     </div>
     <div class="detail-body">
         <table>
             <tr><td class="label">CLA</td><td class="value">${claInfo}</td></tr>
             <tr><td class="label">INS</td><td class="name">0x${decoded.ins_hex} — ${decoded.ins_name}</td></tr>
+            ${catRow}
             ${p1p2}${p1}${p2}
             <tr><td class="label">P3</td><td class="value">${decoded.p3} bytes</td></tr>
             ${body}${sw}
