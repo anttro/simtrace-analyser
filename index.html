@@ -409,6 +409,7 @@ function showDetail(msg, entry) {
         </table>
     </div>`;
 }
+function buildTypeCounts() {
     const counts = {};
     for (const m of STATE.messages) {
         const lbl = ins_label(m);
