@@ -337,11 +337,16 @@ function fmt_elapsed(e) {
 
 function fmt_data(hex, limit) {
     limit = limit || 32;
-    const pairs = hex.match(/.{1,2}/g) || [];
+    const pairs = (hex || '').match(/.{1,2}/g) || [];
     const shown = pairs.slice(0, limit);
     let s = shown.join(' ');
     if (pairs.length > limit) s += ' ...';
-    return s;
+    return s.toUpperCase();
+}
+
+function hx(n, len) {
+    len = len || 2;
+    return n.toString(16).toUpperCase().padStart(len, '0');
 }
 
 function data_text(m) {
@@ -407,7 +412,7 @@ function showDetail(msg, entry) {
                 <table>
                     <tr><td class="label">Fi</td><td class="value">${decoded.fi_val} (index ${decoded.fi})</td></tr>
                     <tr><td class="label">Di</td><td class="value">${decoded.di_val} (index ${decoded.di})</td></tr>
-                    <tr><td class="label">Raw</td><td class="hex">0x${decoded.fidi}</td></tr>
+                    <tr><td class="label">Raw</td><td class="hex">0x${(decoded.fidi || '').toUpperCase()}</td></tr>
                 </table>
             </div>`;
         return;
@@ -417,7 +422,7 @@ function showDetail(msg, entry) {
         d.innerHTML = `<div class="detail-header"><strong>${decoded.type.toUpperCase()}</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
             <div class="detail-body">
                 <table>
-                    <tr><td class="label">Data</td><td class="hex">${decoded.hex}</td></tr>
+                    <tr><td class="label">Data</td><td class="hex">${(decoded.hex || '').toUpperCase()}</td></tr>
                 </table>
             </div>`;
         return;
@@ -426,28 +431,28 @@ function showDetail(msg, entry) {
     let body = '';
     if (decoded.body) {
         const note = decoded.body.note ? ` <span style="color:var(--accent);">${decoded.body.note}</span>` : '';
-        body = `<tr><td class="label">${decoded.body.label || 'Body'}</td><td class="hex">${decoded.body.hex}${note}</td></tr>`;
+        body = `<tr><td class="label">${decoded.body.label || 'Body'}</td><td class="hex">${(decoded.body.hex || '').toUpperCase()}${note}</td></tr>`;
     }
 
     let p1p2 = '';
     if (decoded.p1p2) {
-        p1p2 = `<tr><td class="label">P1-P2</td><td class="value">${decoded.p1p2.label}: ${decoded.p1p2.value}</td></tr>`;
+        p1p2 = `<tr><td class="label">P1-P2</td><td class="value">0x${hx(decoded.p1p2.value, 4)} — ${decoded.p1p2.label}: ${decoded.p1p2.value}</td></tr>`;
     }
     let p1 = '';
     if (decoded.p1) {
         const n = decoded.p1.name || (decoded.p1.label && decoded.p1.value != null ? `${decoded.p1.label}: ${decoded.p1.value}` : '');
-        p1 = `<tr><td class="label">P1 (0x${decoded.p1.raw})</td><td class="name">${n}</td></tr>`;
+        p1 = `<tr><td class="label">P1</td><td class="value">0x${(decoded.p1.raw || '').toUpperCase()} — <span class="name">${n}</span></td></tr>`;
     }
     let p2 = '';
     if (decoded.p2) {
         const n = decoded.p2.name || (decoded.p2.bits ? decoded.p2.bits.join(', ') : '');
-        p2 = `<tr><td class="label">P2 (0x${decoded.p2.raw})</td><td class="name">${n}</td></tr>`;
+        p2 = `<tr><td class="label">P2</td><td class="value">0x${(decoded.p2.raw || '').toUpperCase()} — <span class="name">${n}</span></td></tr>`;
     }
 
     let sw = '';
     if (decoded.sw) {
         const sn = decoded.sw.name || '';
-        sw = `<tr><td class="label">SW</td><td class="value">${decoded.sw.sw1} ${decoded.sw.sw2} <span style="color:${sn ? 'var(--accent)' : 'var(--text-muted)'}">${sn}</span></td></tr>`;
+        sw = `<tr><td class="label">SW</td><td class="value">${(decoded.sw.sw1 || '').toUpperCase()} ${(decoded.sw.sw2 || '').toUpperCase()} <span style="color:${sn ? 'var(--accent)' : 'var(--text-muted)'}">${sn}</span></td></tr>`;
     }
 
     const cla = decoded.cla;
@@ -471,11 +476,11 @@ function showDetail(msg, entry) {
     </div>
     <div class="detail-body">
         <table>
-            <tr><td class="label">CLA</td><td class="value">${claInfo}</td></tr>
-            <tr><td class="label">INS</td><td class="name">0x${decoded.ins_hex} — ${decoded.ins_name}</td></tr>
+            <tr><td class="label">CLA</td><td class="value">0x${(cla.hex || '').toUpperCase()} — ${claInfo}</td></tr>
+            <tr><td class="label">INS</td><td class="name">0x${(decoded.ins_hex || '').toUpperCase()} — ${decoded.ins_name}</td></tr>
             ${catRow}${respRow}${trRow}
             ${p1p2}${p1}${p2}
-            <tr><td class="label">P3</td><td class="value">${decoded.p3} bytes</td></tr>
+            <tr><td class="label">P3</td><td class="value">0x${hx(decoded.p3, 2)} — ${decoded.p3} bytes</td></tr>
             ${body}${sw}
         </table>
     </div>`;
