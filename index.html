@@ -192,7 +192,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
     <div class="header-right">
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
-        <button id="install-btn" style="display:none;">Install PWA</button>
+        <button id="install-btn">Install PWA</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
@@ -887,7 +887,6 @@ window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     _deferredInstallPrompt = e;
     console.log('beforeinstallprompt fired — install prompt available');
-    document.getElementById('install-btn').style.display = '';
 });
 
 window.addEventListener('appinstalled', () => {
@@ -897,14 +896,19 @@ window.addEventListener('appinstalled', () => {
 });
 
 async function promptInstall() {
-    if (!_deferredInstallPrompt) return;
-    _deferredInstallPrompt.prompt();
-    const choice = await _deferredInstallPrompt.userChoice;
-    console.log('install userChoice:', choice.outcome);
-    if (choice.outcome === 'accepted') {
-        _deferredInstallPrompt = null;
-        hideInstallBtn();
+    if (_deferredInstallPrompt) {
+        _deferredInstallPrompt.prompt();
+        const choice = await _deferredInstallPrompt.userChoice;
+        console.log('install userChoice:', choice.outcome);
+        if (choice.outcome === 'accepted') {
+            _deferredInstallPrompt = null;
+            hideInstallBtn();
+        }
+        return;
     }
+    alert('Install from the address bar:\n' +
+        'click the install icon (⊕ / monitor icon) at the right\n' +
+        'end of Chrome\'s address bar, then "Install SIMtrace Analyser".');
 }
 
 // ──────────────────── Init ────────────────────
