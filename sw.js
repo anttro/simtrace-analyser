@@ -1,4 +1,4 @@
-const CACHE = 'simtrace-analyser-v2';
+const CACHE = 'simtrace-analyser-v3';
 
 const PRECACHE = [
     '/',
@@ -6,6 +6,8 @@ const PRECACHE = [
     '/manifest.json',
     '/icon-192.png',
     '/icon-512.png',
+    '/favicon.png',
+    '/sim-analyser.svg',
 ];
 
 self.addEventListener('install', e => {
