@@ -932,11 +932,14 @@ async function promptInstall() {
         return;
     }
 
-    alert('The native install prompt is not available right now.\n\n' +
-        'Service worker controlling page: ' + (!!navigator.serviceWorker.controller) + '\n' +
-        'This usually means the service worker has not activated yet.\n' +
-        'Hard-reload (Ctrl+Shift+R), wait a moment, then try again.\n\n' +
-        'Alternatively, install from the browser menu: Chrome ⋮ → "Install SIMtrace Analyser".');
+    alert('This browser does not offer an in-page install prompt\n' +
+        '(common on desktop Chrome).\n\n' +
+        'Service worker: ' + (navigator.serviceWorker.controller ? 'active' : 'not controlling page') + '\n\n' +
+        'Install from the address bar instead:\n' +
+        'look for the install icon (⊕ or a monitor icon) at the\n' +
+        'right end of the address bar, click it and choose\n' +
+        '"Install SIMtrace Analyser".\n\n' +
+        'On Android: Chrome menu ⋮ → "Install app".');
 }
 
 // ──────────────────── Init ────────────────────

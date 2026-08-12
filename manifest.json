@@ -1,8 +1,10 @@
 {
+  "id": "/",
   "name": "SIMtrace Analyser",
   "short_name": "SIMtrace",
   "description": "PWA frontend for browsing SIMtrace2 APDU traces",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
