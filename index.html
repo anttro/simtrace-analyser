@@ -26,6 +26,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0
 .trace-topbar button:hover { background: #c73652; }
 .trace-topbar button.stop { background: #0f3460; }
 .trace-topbar button.stop:hover { background: #16213e; }
+.trace-topbar button.connect { background: #f9ed69; color: #1a1a2e; }
+.trace-topbar button.connect:hover { background: #e0d050; }
 .trace-main { display: flex; flex: 1; overflow: hidden; }
 
 /* APDU list */
@@ -179,6 +181,7 @@ const STATE = {
     messages: [],
     typeCounts: [],
     pendingDeleteId: null,
+    serverAvailable: false,
 };
 
 const API_BASE = () => STATE.serverUrl;
@@ -418,12 +421,15 @@ async function stopCapture() {
 
 function updateCaptureButton() {
     const btn = el('capture-btn');
-    if (STATE.captureActive) {
+    btn.classList.remove('stop', 'connect');
+    if (!STATE.serverAvailable) {
+        btn.textContent = 'Connect to server';
+        btn.classList.add('connect');
+    } else if (STATE.captureActive) {
         btn.textContent = 'Stop Capture';
         btn.classList.add('stop');
     } else {
         btn.textContent = 'Start Capture';
-        btn.classList.remove('stop');
     }
 }
 
@@ -538,6 +544,7 @@ async function confirmDelete() {
 async function checkConnection() {
     try {
         const data = await API.status();
+        STATE.serverAvailable = true;
         const elStatus = el('conn-status');
         elStatus.textContent = '⬤ Connected — ' + data.server;
         elStatus.className = 'conn-status connected';
@@ -549,11 +556,13 @@ async function checkConnection() {
             updateCaptureButton();
         }
     } catch (e) {
+        STATE.serverAvailable = false;
         const elStatus = el('conn-status');
         elStatus.textContent = '⬤ Not connected — ensure the server is running on the URL above';
         elStatus.className = 'conn-status disconnected';
         el('status-dot').className = 'status-dot off';
         el('status-text').textContent = 'Not connected';
+        updateCaptureButton();
     }
 }
 
@@ -586,6 +595,10 @@ function init() {
     });
 
     $on('capture-btn', 'click', () => {
+        if (!STATE.serverAvailable) {
+            switchTab('settings');
+            return;
+        }
         if (STATE.captureActive) return stopCapture();
         if (STATE.sessionViewId) {
             el('session-name-display').style.display = 'none';
