@@ -269,6 +269,15 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 </div>
 
 <script>
+// ──────────────────── Service worker ────────────────────
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+        console.log('SW registered, scope:', reg.scope);
+    }).catch(err => {
+        console.error('SW registration failed:', err);
+    });
+}
+
 // ──────────────────── State ────────────────────
 const STATE = {
     serverUrl: localStorage.getItem('serverUrl') || 'http://127.0.0.1:8081',
@@ -883,24 +892,46 @@ function hideInstallBtn() {
 window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     _deferredInstallPrompt = e;
+    console.log('beforeinstallprompt fired — install prompt available');
     showInstallBtn();
 });
 
 window.addEventListener('appinstalled', () => {
+    console.log('appinstalled fired');
     _deferredInstallPrompt = null;
     hideInstallBtn();
 });
 
-function promptInstall() {
+async function promptInstall() {
     if (_deferredInstallPrompt) {
         _deferredInstallPrompt.prompt();
-        _deferredInstallPrompt.userChoice.then(() => {
-            _deferredInstallPrompt = null;
-            hideInstallBtn();
-        });
-    } else {
-        alert('Install is not available via this prompt. Use your browser menu: Chrome ⋮ → "Install SIMtrace Analyser" (or equivalent).');
+        const choice = await _deferredInstallPrompt.userChoice;
+        console.log('install userChoice:', choice.outcome);
+        _deferredInstallPrompt = null;
+        hideInstallBtn();
+        return;
     }
+
+    // No beforeinstallprompt available: the browser hasn't marked the app
+    // installable (service worker not active yet, or unsupported browser).
+    let installed = false;
+    try {
+        if (navigator.getInstalledRelatedApps) {
+            const apps = await navigator.getInstalledRelatedApps();
+            installed = apps.length > 0;
+        }
+    } catch (e) {}
+
+    if (installed) {
+        alert('The app is already installed.');
+        hideInstallBtn();
+        return;
+    }
+
+    alert('The native install prompt is not available right now.\n\n' +
+        'This usually means the service worker has not finished activating yet.\n' +
+        'Reload the page once, wait a moment, then try again.\n\n' +
+        'Alternatively, install from the browser menu: Chrome ⋮ → "Install SIMtrace Analyser".');
 }
 
 // ──────────────────── Init ────────────────────
@@ -967,10 +998,6 @@ function init() {
     });
 
     $on('install-btn', 'click', promptInstall);
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-    }
 
     $on('delete-cancel', 'click', () => {
         el('delete-modal').classList.remove('show');
