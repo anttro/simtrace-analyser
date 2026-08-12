@@ -370,7 +370,7 @@ const API = {
     status()        { return this._fetch('GET', '/api/status'); },
     listSessions()  { return this._fetch('GET', '/api/sessions'); },
     getSession(id, offset)  { return this._fetch('GET', `/api/sessions/${id}?offset=${offset || 0}&limit=500`); },
-    renameSession(id, name) { return this._fetch('PATCH', `/api/sessions/${id}`, { name }); },
+    renameSession(id, name) { return this._fetch('PATCH', `/api/sessions/${id}/name`, { name }); },
     deleteSession(id)       { return this._fetch('DELETE', `/api/sessions/${id}`); },
     startCapture()          { return this._fetch('POST', '/api/capture/start'); },
     stopCapture()           { return this._fetch('POST', '/api/capture/stop'); },
