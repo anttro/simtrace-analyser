@@ -445,6 +445,44 @@ function responseRows(resp) {
         rows.map(([l, v]) => `<tr><td class="label">${l}</td><td class="value">${v}</td></tr>`).join('');
 }
 
+function cmdRows(cmd) {
+    if (!cmd) return '';
+    const rows = [];
+
+    // AUTHENTICATE command body
+    if (cmd.context !== undefined) {
+        rows.push(['Auth context', cmd.context]);
+        if (cmd.rand) rows.push(['RAND', cmd.rand]);
+        if (cmd.autn) rows.push(['AUTN', cmd.autn]);
+    }
+
+    // ENVELOPE fields
+    if (cmd.events) rows.push(['Event', cmd.events.join(', ')]);
+    if (cmd.location_status) rows.push(['Location status', cmd.location_status]);
+    if (cmd.location_info) rows.push(['Location info', cmd.location_info]);
+    if (cmd.smsc) rows.push(['SMSC', cmd.smsc]);
+    if (cmd.tp_da) rows.push(['TP-DA', cmd.tp_da]);
+    if (cmd.device_ids) rows.push(['Device IDs', cmd.device_ids]);
+
+    // SM TPDU (nested in SMS-PP download)
+    const t = cmd.tpdu;
+    if (t) {
+        rows.push(['SMS TPDU', t.mti]);
+        if (t.oa) rows.push(['Originating addr', t.oa]);
+        if (t.da) rows.push(['Destination addr', t.da]);
+        if (t.mr !== undefined) rows.push(['Message ref', '0x' + hx(t.mr, 2)]);
+        if (t.pid !== undefined) rows.push(['PID', '0x' + hx(t.pid, 2) + (t.pid_name ? ' — ' + t.pid_name : '')]);
+        if (t.dcs !== undefined) rows.push(['DCS', '0x' + hx(t.dcs, 2) + ' — ' + t.encoding + (t.msg_class ? ' (class ' + t.msg_class + ')' : '')]);
+        if (t.text !== undefined) rows.push(['Text', t.text]);
+        if (t.payload) rows.push(['Payload', t.payload]);
+        if (t.udh) rows.push(['UDH', t.udh]);
+    }
+
+    if (!rows.length) return '';
+    return `<tr><td class="label" colspan="2" style="padding-top:10px; border-top:1px solid var(--border);">Command</td></tr>` +
+        rows.map(([l, v]) => `<tr><td class="label">${l}</td><td class="value">${v}</td></tr>`).join('');
+}
+
 function showDetail(msg, entry) {
     // Highlight clicked entry
     document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
@@ -545,6 +583,7 @@ function showDetail(msg, entry) {
             ${p1p2}${p1}${p2}
             <tr><td class="label">P3</td><td class="value">0x${hx(decoded.p3, 2)} — ${decoded.p3} bytes</td></tr>
             ${body}
+            ${cmdRows(decoded.cmd)}
             ${responseRows(decoded.response)}
             ${sw}
         </table>
