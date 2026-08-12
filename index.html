@@ -141,7 +141,10 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .session-name .edit-hint { color: var(--text-muted); font-size: 12px; }
 .session-meta { display: flex; gap: 16px; color: var(--text-muted); font-size: 12px; }
 .session-meta span { display: flex; align-items: center; gap: 4px; }
-.session-delete { margin-top: 12px; padding: 4px 12px; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; }
+.session-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.session-download { padding: 4px 12px; background: none; border: 1px solid var(--text-muted); color: var(--text-muted); border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 13px; display: inline-block; }
+.session-download:hover { border-color: var(--accent); color: var(--accent); }
+.session-delete { padding: 4px 12px; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; font-size: 13px; }
 .session-delete:hover { background: var(--accent); color: #fff; }
 
 /* Settings */
@@ -740,13 +743,16 @@ async function loadSessions() {
                     <span>${s.message_count} msgs</span>
                     <span>${s.mode}</span>
                 </div>
-                <button class="session-delete" data-sid="${s.id}">Delete</button>
+                <div class="session-actions">
+                    <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">Download PCAP</a>
+                    <button class="session-delete" data-sid="${s.id}">Delete</button>
+                </div>
             </div>`;
         }).join('');
 
         grid.querySelectorAll('.session-card').forEach(card => {
             card.addEventListener('click', e => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
                 loadSession(parseInt(card.dataset.id));
             });
         });
