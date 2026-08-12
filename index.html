@@ -326,6 +326,13 @@ function fmt_data(hex, limit) {
     return s;
 }
 
+function data_text(m) {
+    if (m.type === 'change' && m.decoded && Array.isArray(m.decoded.flags)) {
+        return m.decoded.flags.join(', ');
+    }
+    return fmt_data(m.data);
+}
+
 // ──────────────────── API ────────────────────
 const API = {
     async _fetch(method, path, body) {
@@ -512,7 +519,7 @@ function renderMessages() {
         return `<div class="apdu-entry" data-idx="${i}">
             <span class="apdu-time">${fmt_elapsed(m.elapsed)}</span>
             <span class="apdu-type ${typeCls}">${label}</span>
-            <span class="apdu-data">${fmt_data(m.data)}</span>
+            <span class="apdu-data">${data_text(m)}</span>
         </div>`;
     }).join('');
 
