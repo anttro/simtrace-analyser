@@ -296,6 +296,7 @@ const INS_NAMES = {
 };
 
 // ──────────────────── UI Helpers ────────────────────
+function ins_label(msg) {
     if (msg.decoded && msg.decoded.ins_name) return msg.decoded.ins_name;
     if (msg.type === 'atr') return 'ATR';
     if (msg.type === 'pps') return 'PPS';
