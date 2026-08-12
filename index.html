@@ -119,12 +119,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0
         <span id="session-name-display" style="display:none; color:#888; font-size:13px;"></span>
     </div>
     <div class="trace-main">
-        <div class="apdu-list" id="apdu-list">
-            <div class="empty-state" id="trace-empty">
-                <p>No capture active</p>
-                <button id="trace-start-btn">Start Capture</button>
-            </div>
-        </div>
+        <div class="apdu-list" id="apdu-list"></div>
         <div class="side-panel" id="side-panel">
             <h3>Command Types</h3>
             <div id="type-counts">—</div>
@@ -319,10 +314,12 @@ function renderMessages() {
     renderSidePanel();
 
     if (!STATE.captureActive && !STATE.sessionViewId) {
-        el('trace-empty').style.display = 'flex';
+        list.innerHTML = `<div class="empty-state"><p>No capture active</p>
+            <button id="trace-start-btn">Start Capture</button></div>`;
+        $('#trace-start-btn', list).addEventListener('click', startCapture);
+        updateStatus();
         return;
     }
-    el('trace-empty').style.display = 'none';
 
     list.innerHTML = filtered.map((m, i) => {
         const label = ins_label(m);
@@ -334,8 +331,11 @@ function renderMessages() {
         </div>`;
     }).join('');
 
+    list.scrollTop = list.scrollHeight;
     updateStatus();
 }
+
+function $(selector, root) { return (root || document).querySelector(selector); }
 
 function updateStatus() {
     const dot = el('status-dot');
@@ -365,11 +365,14 @@ function startPolling() {
     STATE.livePoller = setInterval(async () => {
         try {
             const data = await API.getLatest(_lastAfter);
-            if (data.active && data.messages.length > 0) {
+            if (data.active) {
+                STATE.captureActive = true;
+                STATE.currentSessionId = data.session_id;
+            }
+            if (data.messages && data.messages.length > 0) {
                 STATE.messages.push(...data.messages);
                 _lastAfter = data.next_after;
                 renderMessages();
-                el('apdu-list').scrollTop = el('apdu-list').scrollHeight;
             }
             if (!data.active && STATE.captureActive) {
                 STATE.captureActive = false;
@@ -592,7 +595,6 @@ function init() {
         }
         startCapture();
     });
-    $on('trace-start-btn', 'click', startCapture);
 
     $on('search-input', 'input', onSearchChange);
     $on('filter-select', 'change', onFilterChange);
