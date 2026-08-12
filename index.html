@@ -69,12 +69,18 @@ body { font: 14px/1.5 system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0
 .session-delete:hover { background: #e94560; color: #fff; }
 
 /* Settings */
-.settings-view { padding: 24px; max-width: 500px; }
+.settings-view { padding: 24px; max-width: 600px; }
 .settings-view label { display: block; margin-bottom: 6px; color: #888; }
 .settings-view input { width: 100%; padding: 8px 12px; background: #0f3460; border: 1px solid #1a1a4e; color: #e0e0e0; border-radius: 4px; margin-bottom: 16px; }
 .settings-view .conn-status { padding: 12px; border-radius: 4px; margin-bottom: 12px; }
 .settings-view .conn-status.connected { background: #1a3a1a; color: #4ecca3; }
 .settings-view .conn-status.disconnected { background: #3a1a1a; color: #e94560; }
+.conn-instructions { margin-top: 16px; font-size: 13px; color: #ccc; line-height: 1.7; }
+.conn-instructions h3 { color: #e94560; margin-bottom: 8px; font-size: 14px; }
+.conn-instructions ol { padding-left: 20px; }
+.conn-instructions li { margin-bottom: 8px; }
+.conn-instructions code { background: #0f3460; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+.conn-instructions p { margin-top: 12px; }
 
 /* Empty state */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #888; gap: 16px; }
@@ -153,6 +159,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0
         <div class="conn-status disconnected" id="conn-status">
             ⬤ Not connected — ensure the server is running on the URL above
         </div>
+        <div class="conn-instructions" id="conn-instructions"></div>
     </div>
 </div>
 
@@ -545,9 +552,9 @@ async function checkConnection() {
     try {
         const data = await API.status();
         STATE.serverAvailable = true;
-        const elStatus = el('conn-status');
-        elStatus.textContent = '⬤ Connected — ' + data.server;
-        elStatus.className = 'conn-status connected';
+        el('conn-status').textContent = '⬤ Connected — ' + data.server;
+        el('conn-status').className = 'conn-status connected';
+        el('conn-instructions').innerHTML = '';
         el('status-dot').className = 'status-dot ' + (data.capture_active ? 'live' : 'paused');
         el('status-text').textContent = data.capture_active ? 'Capturing' : 'Connected';
         if (data.capture_active) {
@@ -557,9 +564,20 @@ async function checkConnection() {
         }
     } catch (e) {
         STATE.serverAvailable = false;
-        const elStatus = el('conn-status');
-        elStatus.textContent = '⬤ Not connected — ensure the server is running on the URL above';
-        elStatus.className = 'conn-status disconnected';
+        el('conn-status').textContent = '⬤ Not connected — ensure the server is running on the URL above';
+        el('conn-status').className = 'conn-status disconnected';
+        el('conn-instructions').innerHTML = `
+            <h3>Setup</h3>
+            <ol>
+                <li>Clone and install simtrace2-pysniff:<br>
+                    <code>git clone https://github.com/anttro/simtrace2-pysniff.git</code><br>
+                    <code>cd simtrace2-pysniff && pip install -e .</code></li>
+                <li>Start the server:<br>
+                    <code>./server-start.sh --capture gsmtap</code></li>
+                <li>Start the sniffer (in another terminal):<br>
+                    <code>./sniff-start.sh --gsmtap 127.0.0.1</code></li>
+            </ol>
+            <p>Then set the URL above to <code>http://127.0.0.1:8081</code> and return to the Trace tab.</p>`;
         el('status-dot').className = 'status-dot off';
         el('status-text').textContent = 'Not connected';
         updateCaptureButton();
