@@ -210,12 +210,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     <div class="trace-topbar">
         <input type="text" id="search-input" placeholder="Search hex bytes..." autocomplete="off">
         <select id="filter-select">
-            <option value="">All types</option>
-            <option value="tpdu">TPDU</option>
-            <option value="atr">ATR</option>
-            <option value="pps">PPS</option>
-            <option value="change">Change</option>
-            <option value="fidi">FiDi</option>
+            <option value="">All commands</option>
         </select>
         <button id="capture-btn">Start Capture</button>
         <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:13px;"></span>
@@ -228,7 +223,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
             </div>
         </div>
         <div class="side-panel" id="side-panel">
-            <h3>Command Types</h3>
+            <h3>Command Stats</h3>
             <div id="type-counts">—</div>
         </div>
     </div>
@@ -338,6 +333,42 @@ function ins_label(msg) {
         return INS_NAMES[ins.toLowerCase()] || '0x' + ins.toUpperCase();
     }
     return 'TPDU';
+}
+
+function _fallback_label(msg) {
+    if (msg.type === 'atr') return 'ATR';
+    if (msg.type === 'pps') return 'PPS';
+    if (msg.type === 'change') return 'STATE CHANGE';
+    if (msg.type === 'fidi') return 'FIDI';
+    const data = msg.data;
+    if (data && data.length >= 2) {
+        const ins = data.slice(2, 4);
+        return INS_NAMES[ins.toLowerCase()] || '0x' + ins.toUpperCase();
+    }
+    return 'TPDU';
+}
+
+function stat_label(msg) {
+    const d = msg.decoded;
+    if (d) {
+        if (d.ins_name === 'ENVELOPE') return 'ENVELOPE';
+        if (d.cat_command) {
+            if (d.cat_command.startsWith('PROVIDE LOCAL INFORMATION')) return 'PROVIDE LOCAL INFORMATION';
+            return d.cat_command;
+        }
+        if (d.ins_name) return d.ins_name;
+    }
+    return _fallback_label(msg);
+}
+
+function filter_label(msg) {
+    const d = msg.decoded;
+    if (d) {
+        if (d.ins_name === 'ENVELOPE') return 'ENVELOPE';
+        if (d.ins_name === 'FETCH' || d.ins_name === 'TERMINAL RESPONSE') return 'FETCH: ANY PROACTIVE';
+        if (d.ins_name) return d.ins_name;
+    }
+    return _fallback_label(msg);
 }
 
 function fmt_elapsed(e) {
@@ -592,7 +623,7 @@ function showDetail(msg, entry) {
 function buildTypeCounts() {
     const counts = {};
     for (const m of STATE.messages) {
-        const lbl = ins_label(m);
+        const lbl = stat_label(m);
         counts[lbl] = (counts[lbl] || 0) + 1;
     }
     STATE.typeCounts = counts;
@@ -607,13 +638,29 @@ function renderSidePanel() {
     ).join('') || 'No commands';
 }
 
+function populateFilterOptions() {
+    const sel = el('filter-select');
+    const counts = {};
+    for (const m of STATE.messages) {
+        const lbl = filter_label(m);
+        counts[lbl] = (counts[lbl] || 0) + 1;
+    }
+    const keys = Object.keys(counts).sort((a, b) => a.localeCompare(b));
+    const existing = Array.from(sel.options).slice(1).map(o => o.value);
+    if (existing.length === keys.length && existing.every((k, i) => k === keys[i])) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All commands</option>' +
+        keys.map(k => `<option value="${escapeHtml(k).replace(/"/g, '&quot;')}">${escapeHtml(k)}</option>`).join('');
+    sel.value = keys.includes(cur) ? cur : '';
+}
+
 function scrollToType(typeKey) {
     const apduList = el('apdu-list');
     let targetEl = null;
     for (const el of apduList.querySelectorAll('.apdu-entry')) {
         const msgIdx = parseInt(el.dataset.idx);
         const msg = STATE.messages[msgIdx];
-        if (msg && ins_label(msg) === typeKey) {
+        if (msg && stat_label(msg) === typeKey) {
             targetEl = el;
             break;
         }
@@ -626,19 +673,42 @@ function scrollToType(typeKey) {
 }
 
 // ──────────────────── Render Trace ────────────────────
+function isOriginalCommand(i) {
+    if (STATE.messages[i].type !== 'tpdu') return false;
+    for (let j = i + 1; j < STATE.messages.length; j++) {
+        if (STATE.messages[j].type !== 'tpdu') continue;
+        const d = STATE.messages[j].decoded;
+        return !!d && d.ins_name === 'GET RESPONSE' && !!d.response_for;
+    }
+    return false;
+}
+
+function matchesFilter(m, i, filterType) {
+    if (!filterType) return true;
+    if (filter_label(m) === filterType) return true;
+    const d = m.decoded;
+    const isGR = m.type === 'tpdu' && d && d.ins_name === 'GET RESPONSE';
+    if (isGR && d.response_for === filterType) return true;
+    if (filterType === 'GET RESPONSE' && isOriginalCommand(i)) return true;
+    return false;
+}
+
 function renderMessages() {
     const list = el('apdu-list');
     const searchQ = el('search-input').value.toLowerCase();
     const filterType = el('filter-select').value;
 
-    const filtered = STATE.messages.filter(m => {
-        if (filterType && m.type !== filterType) return false;
-        if (searchQ) return m.data.toLowerCase().includes(searchQ);
-        return true;
-    });
+    const filtered = [];
+    for (let i = 0; i < STATE.messages.length; i++) {
+        const m = STATE.messages[i];
+        if (!matchesFilter(m, i, filterType)) continue;
+        if (searchQ && !m.data.toLowerCase().includes(searchQ)) continue;
+        filtered.push({ m, idx: i });
+    }
 
     buildTypeCounts();
     renderSidePanel();
+    populateFilterOptions();
 
     if (!STATE.captureActive && !STATE.sessionViewId) {
         list.innerHTML = `<div class="empty-state"><p>No capture active</p>
@@ -648,10 +718,10 @@ function renderMessages() {
         return;
     }
 
-    list.innerHTML = filtered.map((m, i) => {
+    list.innerHTML = filtered.map(({ m, idx }) => {
         const label = ins_label(m);
         const typeCls = m.type === 'atr' ? 'atr' : m.type === 'pps' ? 'pps' : '';
-        return `<div class="apdu-entry" data-idx="${i}">
+        return `<div class="apdu-entry" data-idx="${idx}">
             <span class="apdu-time">${fmt_elapsed(m.elapsed)}</span>
             <span class="apdu-type ${typeCls}">${label}</span>
             <span class="apdu-data">${data_text(m)}</span>
