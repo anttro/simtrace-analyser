@@ -192,7 +192,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
     <div class="header-right">
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
-        <button id="install-btn">Install PWA</button>
+        <button id="install-btn" style="display:none;">Install PWA</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
@@ -878,16 +878,6 @@ function toggleTheme() {
 // ──────────────────── PWA Install ────────────────────
 let _deferredInstallPrompt = null;
 
-function isInstalled() {
-    return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true;
-}
-
-function showInstallBtn() {
-    const btn = document.getElementById('install-btn');
-    if (btn && !isInstalled()) btn.style.display = '';
-}
-
 function hideInstallBtn() {
     const btn = document.getElementById('install-btn');
     if (btn) btn.style.display = 'none';
@@ -897,7 +887,7 @@ window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     _deferredInstallPrompt = e;
     console.log('beforeinstallprompt fired — install prompt available');
-    showInstallBtn();
+    document.getElementById('install-btn').style.display = '';
 });
 
 window.addEventListener('appinstalled', () => {
@@ -907,39 +897,14 @@ window.addEventListener('appinstalled', () => {
 });
 
 async function promptInstall() {
-    if (_deferredInstallPrompt) {
-        _deferredInstallPrompt.prompt();
-        const choice = await _deferredInstallPrompt.userChoice;
-        console.log('install userChoice:', choice.outcome);
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    const choice = await _deferredInstallPrompt.userChoice;
+    console.log('install userChoice:', choice.outcome);
+    if (choice.outcome === 'accepted') {
         _deferredInstallPrompt = null;
         hideInstallBtn();
-        return;
     }
-
-    // No beforeinstallprompt available: the browser hasn't marked the app
-    // installable (service worker not active yet, or unsupported browser).
-    let installed = false;
-    try {
-        if (navigator.getInstalledRelatedApps) {
-            const apps = await navigator.getInstalledRelatedApps();
-            installed = apps.length > 0;
-        }
-    } catch (e) {}
-
-    if (installed) {
-        alert('The app is already installed.');
-        hideInstallBtn();
-        return;
-    }
-
-    alert('This browser does not offer an in-page install prompt\n' +
-        '(common on desktop Chrome).\n\n' +
-        'Service worker: ' + (navigator.serviceWorker.controller ? 'active' : 'not controlling page') + '\n\n' +
-        'Install from the address bar instead:\n' +
-        'look for the install icon (⊕ or a monitor icon) at the\n' +
-        'right end of the address bar, click it and choose\n' +
-        '"Install SIMtrace Analyser".\n\n' +
-        'On Android: Chrome menu ⋮ → "Install app".');
 }
 
 // ──────────────────── Init ────────────────────
@@ -950,8 +915,6 @@ function init() {
     } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
         applyTheme('light');
     }
-
-    if (isInstalled()) hideInstallBtn();
 
     el('server-url').value = STATE.serverUrl;
 
