@@ -3,6 +3,7 @@ const CACHE = 'simtrace-analyser-v1';
 const PRECACHE = [
     '/',
     '/index.html',
+    '/manifest.json',
 ];
 
 self.addEventListener('install', e => {

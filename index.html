@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SIMtrace Analyser</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1a2e">
 <style>
 :root, [data-theme="dark"] {
     --bg: #1a1a2e;
@@ -187,6 +189,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
     <div class="header-right">
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
+        <button id="install-btn" style="display:none;">Install PWA</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
@@ -844,6 +847,32 @@ function toggleTheme() {
     applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 
+// ──────────────────── PWA Install ────────────────────
+let _deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    const btn = document.getElementById('install-btn');
+    if (btn) btn.style.display = '';
+});
+
+window.addEventListener('appinstalled', () => {
+    _deferredInstallPrompt = null;
+    const btn = document.getElementById('install-btn');
+    if (btn) btn.style.display = 'none';
+});
+
+function promptInstall() {
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    _deferredInstallPrompt.userChoice.then(() => {
+        _deferredInstallPrompt = null;
+        const btn = document.getElementById('install-btn');
+        if (btn) btn.style.display = 'none';
+    });
+}
+
 // ──────────────────── Init ────────────────────
 function init() {
     const saved = localStorage.getItem('theme');
@@ -890,6 +919,12 @@ function init() {
             connectServer();
         }
     });
+
+    $on('install-btn', 'click', promptInstall);
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
 
     $on('delete-cancel', 'click', () => {
         el('delete-modal').classList.remove('show');
