@@ -7,53 +7,57 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="sim-analyser.svg">
 <link rel="icon" type="image/png" href="favicon.png">
-<meta name="theme-color" content="#1a1a2e">
+<meta name="theme-color" content="#0f172a">
 <style>
 :root, [data-theme="dark"] {
-    --bg: #1a1a2e;
-    --bg-panel: #16213e;
-    --bg-input: #0f3460;
-    --border: #1a1a4e;
-    --text: #e0e0e0;
-    --text-muted: #888;
-    --text-dim: #aaa;
-    --text-faint: #ccc;
-    --accent: #e94560;
-    --accent-hover: #c73652;
-    --accent-bg: #1a3a1a;
-    --warn-bg: #3a1a1a;
-    --warn: #f9ed69;
-    --code-bg: #0f3460;
-    --scrollbar-track: #1a1a2e;
-    --scrollbar-thumb: #0f3460;
+    --bg: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-input: #334155;
+    --border: #475569;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-dim: #cbd5e1;
+    --text-faint: #cbd5e1;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-bg: #14532d;
+    --warn-bg: #7f1d1d;
+    --warn: #facc15;
+    --warn-hover: #eab308;
+    --error: #f87171;
+    --code-bg: #1e293b;
+    --scrollbar-track: #0f172a;
+    --scrollbar-thumb: #334155;
     --modal-bg: rgba(0,0,0,0.6);
-    --green: #4ecca3;
-    --yellow: #f9ed69;
-    --link: #888;
-    --link-hover: #ccc;
+    --green: #22c55e;
+    --yellow: #facc15;
+    --link: #94a3b8;
+    --link-hover: #e2e8f0;
 }
 [data-theme="light"] {
-    --bg: #f5f5f5;
-    --bg-panel: #e8e8e8;
-    --bg-input: #fff;
-    --border: #ddd;
-    --text: #333;
-    --text-muted: #666;
-    --text-dim: #555;
-    --text-faint: #444;
-    --accent: #c0392b;
-    --accent-hover: #a93226;
-    --accent-bg: #d4edda;
-    --warn-bg: #f8d7da;
-    --warn: #856404;
-    --code-bg: #eee;
-    --scrollbar-track: #e8e8e8;
-    --scrollbar-thumb: #ccc;
+    --bg: #fafafa;
+    --bg-panel: #e5e7eb;
+    --bg-input: #ffffff;
+    --border: #d1d5db;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --text-dim: #4b5563;
+    --text-faint: #374151;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-bg: #dcfce7;
+    --warn-bg: #fee2e2;
+    --warn: #f59e0b;
+    --warn-hover: #d97706;
+    --error: #dc2626;
+    --code-bg: #f3f4f6;
+    --scrollbar-track: #fafafa;
+    --scrollbar-thumb: #d1d5db;
     --modal-bg: rgba(0,0,0,0.4);
-    --green: #27ae60;
-    --yellow: #f39c12;
-    --link: #666;
-    --link-hover: #333;
+    --green: #16a34a;
+    --yellow: #ca8a04;
+    --link: #6b7280;
+    --link-hover: #1f2937;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -84,8 +88,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .trace-topbar button:hover { background: var(--accent-hover); }
 .trace-topbar button.stop { background: var(--bg-input); }
 .trace-topbar button.stop:hover { background: var(--bg-panel); }
-.trace-topbar button.connect { background: var(--warn); color: #1a1a2e; }
-.trace-topbar button.connect:hover { background: #e0d050; }
+.trace-topbar button.connect { background: var(--warn); color: #0f172a; }
+.trace-topbar button.connect:hover { background: var(--warn-hover); }
 .trace-main { display: flex; flex: 1; overflow: hidden; }
 .trace-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -159,7 +163,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .settings-url-row button.disconnected { background: var(--bg-input); }
 .settings-view .conn-status { padding: 12px; border-radius: 4px; margin-bottom: 12px; }
 .settings-view .conn-status.connected { background: var(--accent-bg); color: var(--green); }
-.settings-view .conn-status.disconnected { background: var(--warn-bg); color: var(--accent); }
+.settings-view .conn-status.disconnected { background: var(--warn-bg); color: var(--error); }
 .conn-instructions { margin-top: 16px; font-size: 13px; color: var(--text-faint); line-height: 1.7; }
 .conn-instructions h3 { color: var(--accent); margin-bottom: 8px; font-size: 14px; }
 .conn-instructions ol { padding-left: 20px; }
@@ -230,7 +234,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
     <div class="status-bar">
         <span><span class="status-dot off" id="status-dot"></span><span id="status-text">Not connected</span></span>
-        <span id="msg-count" style="color:#888;">0 messages</span>
+        <span id="msg-count" style="color:var(--text-muted);">0 messages</span>
     </div>
 </div>
 
@@ -892,11 +896,11 @@ async function checkConnection() {
                     <code>cd simtrace2-pysniff && pip install -e .</code></li>
                 <li>Start the server in <strong>direct mode</strong> (recommended):<br>
                     <code>./server-start.sh --capture direct</code><br>
-                    <span style="color:#888;">Requires SIMtrace2 hardware connected via USB; captures directly from the device.</span></li>
+                    <span style="color:var(--text-muted);">Requires SIMtrace2 hardware connected via USB; captures directly from the device.</span></li>
             </ol>
             <p style="margin-top:8px;">Then set the URL above to <code>http://127.0.0.1:8081</code> and return to the Trace tab.</p>
             <h3 style="margin-top:20px;">Alternative: GSMTAP mode</h3>
-            <p style="color:#888; margin-top:4px;">Use an external sniffer alongside the server. This mode is compatible with the original Osmocom <code>simtrace2-sniff</code>.</p>
+            <p style="color:var(--text-muted); margin-top:4px;">Use an external sniffer alongside the server. This mode is compatible with the original Osmocom <code>simtrace2-sniff</code>.</p>
             <ol style="margin-top:4px;">
                 <li>Start the server:<br>
                     <code>./server-start.sh --capture gsmtap</code></li>
@@ -936,6 +940,8 @@ function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
     document.getElementById('theme-btn').textContent = theme === 'dark' ? '☀️' : '🌙';
+    document.querySelector('meta[name="theme-color"]').setAttribute(
+        'content', theme === 'dark' ? '#0f172a' : '#fafafa');
 }
 
 function toggleTheme() {
