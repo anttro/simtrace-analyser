@@ -686,12 +686,17 @@ async function loadSessions() {
 
 async function loadSession(id) {
     try {
+        // Stop any active capture so it can't write into the session being viewed.
+        await API.stopCapture();
+        STATE.captureActive = false;
+        STATE.currentSessionId = null;
+        stopPolling();
+
         const data = await API.getSession(id, 0);
         STATE.sessionViewId = id;
         STATE.captureActive = false;
         STATE.currentSessionName = data.session.name || `Session #${id}`;
         STATE.messages = data.messages;
-        stopPolling();
         switchTab('trace');
         updateCaptureButton();
         renderMessages();
@@ -850,27 +855,42 @@ function toggleTheme() {
 // ──────────────────── PWA Install ────────────────────
 let _deferredInstallPrompt = null;
 
+function isInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+
+function showInstallBtn() {
+    const btn = document.getElementById('install-btn');
+    if (btn && !isInstalled()) btn.style.display = '';
+}
+
+function hideInstallBtn() {
+    const btn = document.getElementById('install-btn');
+    if (btn) btn.style.display = 'none';
+}
+
 window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     _deferredInstallPrompt = e;
-    const btn = document.getElementById('install-btn');
-    if (btn) btn.style.display = '';
+    showInstallBtn();
 });
 
 window.addEventListener('appinstalled', () => {
     _deferredInstallPrompt = null;
-    const btn = document.getElementById('install-btn');
-    if (btn) btn.style.display = 'none';
+    hideInstallBtn();
 });
 
 function promptInstall() {
-    if (!_deferredInstallPrompt) return;
-    _deferredInstallPrompt.prompt();
-    _deferredInstallPrompt.userChoice.then(() => {
-        _deferredInstallPrompt = null;
-        const btn = document.getElementById('install-btn');
-        if (btn) btn.style.display = 'none';
-    });
+    if (_deferredInstallPrompt) {
+        _deferredInstallPrompt.prompt();
+        _deferredInstallPrompt.userChoice.then(() => {
+            _deferredInstallPrompt = null;
+            hideInstallBtn();
+        });
+    } else {
+        alert('Install is not available via this prompt. Use your browser menu: Chrome ⋮ → "Install SIMtrace Analyser" (or equivalent).');
+    }
 }
 
 // ──────────────────── Init ────────────────────
