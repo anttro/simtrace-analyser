@@ -383,8 +383,14 @@ const API = {
             opts.headers['Content-Type'] = 'application/json';
             opts.body = JSON.stringify(body);
         }
-        const res = await fetch(API_BASE() + path, opts);
-        return res.json();
+        try {
+            const res = await fetch(API_BASE() + path, opts);
+            return await res.json();
+        } catch (e) {
+            STATE.serverAvailable = false;
+            updateCaptureButton();
+            throw e;
+        }
     },
     status()        { return this._fetch('GET', '/api/status'); },
     listSessions()  { return this._fetch('GET', '/api/sessions'); },
@@ -761,10 +767,15 @@ async function loadSessions() {
             });
         });
         grid.querySelectorAll('.session-name input').forEach(input => {
+            const originalName = input.value;
             input.addEventListener('blur', async () => {
                 const sid = parseInt(input.dataset.sid);
                 const name = input.value.trim();
-                await API.renameSession(sid, name);
+                try {
+                    await API.renameSession(sid, name);
+                } catch (e) {
+                    input.value = originalName;
+                }
             });
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') input.blur();
