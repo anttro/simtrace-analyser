@@ -382,6 +382,44 @@ const API = {
 // ──────────────────── UI Helpers ────────────────────
 function el(id) { return document.getElementById(id); }
 function $on(id, ev, fn) { el(id).addEventListener(ev, fn); }
+
+function responseRows(resp) {
+    if (!resp) return '';
+    const rows = [];
+    const fd = resp.file_descriptor;
+    if (fd) {
+        rows.push(['File type', fd.file_type]);
+        if (fd.structure) rows.push(['Structure', fd.structure]);
+        rows.push(['Shareable', fd.shareable]);
+        if (fd.data_coding) rows.push(['Data coding', fd.data_coding]);
+        if (fd.record_length != null) rows.push(['Record length', fd.record_length]);
+        if (fd.num_records != null) rows.push(['Records', fd.num_records]);
+    }
+    if (resp.file_id) rows.push(['File ID', resp.file_id + (resp.file_id_name ? ' (' + resp.file_id_name + ')' : '')]);
+    if (resp.df_name) rows.push(['DF name', resp.df_name]);
+    if (resp.sfi) rows.push(['SFI', resp.sfi]);
+    if (resp.life_cycle) rows.push(['Life cycle', resp.life_cycle]);
+    if (resp.short_ef_id) rows.push(['Short EF ID', resp.short_ef_id]);
+
+    if (resp.type === 'GSM' || resp.type === '3G') {
+        rows.push(['Auth', resp.type + (resp.status ? ' (' + resp.status + ')' : '')]);
+        if (resp.sres) rows.push(['SRES', resp.sres]);
+        if (resp.res) rows.push(['RES', resp.res]);
+        if (resp.ck) rows.push(['CK', resp.ck]);
+        if (resp.ik) rows.push(['IK', resp.ik]);
+        if (resp.kc) rows.push(['Kc', resp.kc]);
+        if (resp.auts) rows.push(['AUTS', resp.auts]);
+    }
+
+    if (resp.code !== undefined) {
+        rows.push(['Result', resp.code + (resp.name ? ' — ' + resp.name : '')]);
+    }
+
+    if (!rows.length) return '';
+    return `<tr><td class="label" colspan="2" style="padding-top:10px; border-top:1px solid var(--border);">Response</td></tr>` +
+        rows.map(([l, v]) => `<tr><td class="label">${l}</td><td class="value">${v}</td></tr>`).join('');
+}
+
 function showDetail(msg, entry) {
     // Highlight clicked entry
     document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
@@ -481,7 +519,9 @@ function showDetail(msg, entry) {
             ${catRow}${respRow}${trRow}
             ${p1p2}${p1}${p2}
             <tr><td class="label">P3</td><td class="value">0x${hx(decoded.p3, 2)} — ${decoded.p3} bytes</td></tr>
-            ${body}${sw}
+            ${body}
+            ${responseRows(decoded.response)}
+            ${sw}
         </table>
     </div>`;
 }
