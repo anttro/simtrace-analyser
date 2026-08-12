@@ -933,8 +933,9 @@ async function promptInstall() {
     }
 
     alert('The native install prompt is not available right now.\n\n' +
-        'This usually means the service worker has not finished activating yet.\n' +
-        'Reload the page once, wait a moment, then try again.\n\n' +
+        'Service worker controlling page: ' + (!!navigator.serviceWorker.controller) + '\n' +
+        'This usually means the service worker has not activated yet.\n' +
+        'Hard-reload (Ctrl+Shift+R), wait a moment, then try again.\n\n' +
         'Alternatively, install from the browser menu: Chrome ⋮ → "Install SIMtrace Analyser".');
 }
 

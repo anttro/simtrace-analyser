@@ -1,4 +1,4 @@
-const CACHE = 'simtrace-analyser-v1';
+const CACHE = 'simtrace-analyser-v2';
 
 const PRECACHE = [
     '/',
@@ -9,23 +9,36 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', e => {
-    e.waitUntil(
-        caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
-    );
     self.skipWaiting();
-});
-
-self.addEventListener('fetch', e => {
-    e.respondWith(
-        caches.match(e.request).then(r => r || fetch(e.request))
+    e.waitUntil(
+        caches.open(CACHE)
+            .then(cache => cache.addAll(PRECACHE))
+            .then(() => console.log('SW: precache done'))
+            .catch(err => console.error('SW: precache failed', err))
     );
 });
 
 self.addEventListener('activate', e => {
     e.waitUntil(
-        caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-        )
+        caches.keys()
+            .then(keys => Promise.all(
+                keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+            ))
+            .then(() => self.clients.claim())
+            .then(() => console.log('SW: activated, controlling clients'))
     );
-    self.clients.claim();
+});
+
+self.addEventListener('fetch', e => {
+    // Network-first: the local server is always up, so always serve fresh
+    // content and fall back to cache only when offline.
+    e.respondWith(
+        fetch(e.request)
+            .then(r => {
+                const clone = r.clone();
+                caches.open(CACHE).then(c => c.put(e.request, clone));
+                return r;
+            })
+            .catch(() => caches.match(e.request))
+    );
 });
