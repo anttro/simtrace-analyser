@@ -129,7 +129,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 
 /* Sessions */
 .sessions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 16px; overflow-y: auto; }
-.sessions-header { display: flex; justify-content: flex-end; padding: 12px 16px 0; }
+.sessions-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0; }
+.sessions-header .sessions-stats { color: var(--text-muted); font-size: 13px; }
 .sessions-header button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
 .sessions-header button:hover { background: var(--accent-hover); }
 .session-card { background: var(--bg-panel); border-radius: 8px; padding: 16px; cursor: pointer; border: 1px solid var(--bg-input); }
@@ -233,6 +234,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <!-- Sessions Panel -->
 <div class="panel" id="panel-sessions">
     <div class="sessions-header">
+        <span class="sessions-stats" id="sessions-stats"></span>
         <button id="new-capture-btn">New capture</button>
     </div>
     <div class="sessions-grid" id="sessions-grid">
@@ -349,6 +351,14 @@ function fmt_data(hex, limit) {
 function hx(n, len) {
     len = len || 2;
     return n.toString(16).toUpperCase().padStart(len, '0');
+}
+
+function fmtSize(bytes) {
+    if (bytes == null) return '?';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
 }
 
 function data_text(m) {
@@ -705,6 +715,11 @@ async function loadSessions() {
     try {
         const data = await API.listSessions();
         const grid = el('sessions-grid');
+
+        const total = data.total_sessions != null ? data.total_sessions : data.sessions.length;
+        const dbSize = data.db_size != null ? fmtSize(data.db_size) : '?';
+        el('sessions-stats').textContent = `${total} session${total === 1 ? '' : 's'} · ${dbSize}`;
+
         if (!data.sessions.length) {
             grid.innerHTML = `<div class="empty-state" style="height:auto; padding:40px;">
                 <p>No saved sessions</p>
