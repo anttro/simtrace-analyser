@@ -300,7 +300,7 @@ function ins_label(msg) {
     if (msg.decoded && msg.decoded.ins_name) return msg.decoded.ins_name;
     if (msg.type === 'atr') return 'ATR';
     if (msg.type === 'pps') return 'PPS';
-    if (msg.type === 'change') return 'CHANGE';
+    if (msg.type === 'change') return 'STATE CHANGE';
     if (msg.type === 'fidi') return 'FIDI';
     const d = msg.data;
     if (d && d.length >= 2) {
@@ -351,7 +351,6 @@ const API = {
 // ──────────────────── UI Helpers ────────────────────
 function el(id) { return document.getElementById(id); }
 function $on(id, ev, fn) { el(id).addEventListener(ev, fn); }
-
 function showDetail(msg, entry) {
     // Highlight clicked entry
     document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
@@ -359,9 +358,42 @@ function showDetail(msg, entry) {
 
     const d = el('apdu-detail');
     const decoded = msg.decoded;
+
     if (!decoded) {
         d.innerHTML = `<div class="detail-header"><strong>${ins_label(msg)}</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
             <div class="detail-body" style="color:var(--text-muted);">No decoded data available for this message type.</div>`;
+        return;
+    }
+
+    if (decoded.type === 'change') {
+        d.innerHTML = `<div class="detail-header"><strong>State Change</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
+            <div class="detail-body">
+                <table>
+                    <tr><td class="label">Flags</td><td class="value">${decoded.flags.join(', ') || 'no changes'}</td></tr>
+                </table>
+            </div>`;
+        return;
+    }
+
+    if (decoded.type === 'fidi') {
+        d.innerHTML = `<div class="detail-header"><strong>Fi/Di Change</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
+            <div class="detail-body">
+                <table>
+                    <tr><td class="label">Fi</td><td class="value">${decoded.fi_val} (index ${decoded.fi})</td></tr>
+                    <tr><td class="label">Di</td><td class="value">${decoded.di_val} (index ${decoded.di})</td></tr>
+                    <tr><td class="label">Raw</td><td class="hex">0x${decoded.fidi}</td></tr>
+                </table>
+            </div>`;
+        return;
+    }
+
+    if (decoded.type === 'atr' || decoded.type === 'pps') {
+        d.innerHTML = `<div class="detail-header"><strong>${decoded.type.toUpperCase()}</strong><span style="color:var(--text-muted)">${fmt_elapsed(msg.elapsed)}</span></div>
+            <div class="detail-body">
+                <table>
+                    <tr><td class="label">Data</td><td class="hex">${decoded.hex}</td></tr>
+                </table>
+            </div>`;
         return;
     }
 
