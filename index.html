@@ -64,12 +64,12 @@
 body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* Header */
-.header { display: flex; background: var(--bg-panel); border-bottom: 2px solid var(--accent); align-items: center; }
-.header-tabs { display: flex; }
-.header-tab { padding: 10px 20px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 14px; }
-.header-tab:hover { color: var(--link-hover); }
-.header-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-right: 16px; }
+.header { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+.header-tabs { display: flex; gap: 4px; padding: 8px 16px 0 16px; align-items: flex-end; }
+.header-tab { padding: 6px 16px; cursor: pointer; color: var(--text-muted); background: var(--bg-input); border-radius: 6px 6px 0 0; font-size: 14px; }
+.header-tab:hover { background: var(--border); }
+.header-tab.active { background: var(--accent); color: #fff; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
 .header-right a { color: var(--link); text-decoration: none; font-size: 13px; }
 .header-right a:hover { color: var(--link-hover); }
 .header-right button { padding: 4px 10px; font-size: 14px; cursor: pointer; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
@@ -201,8 +201,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <div class="header-tab" data-tab="settings">Settings</div>
     </div>
     <div class="header-right">
-        <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
         <button id="install-btn">Install PWA</button>
+        <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
@@ -213,7 +213,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
             <option value="">All commands</option>
         </select>
         <button id="capture-btn">Start Capture</button>
-        <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:13px;"></span>
+        <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:15px;"></span>
     </div>
     <div class="trace-main">
         <div class="trace-left">
@@ -470,6 +470,17 @@ function responseRows(resp) {
     if (resp.code !== undefined) {
         rows.push(['Result', resp.code + (resp.name ? ' — ' + resp.name : '')]);
     }
+    if (resp.duration !== undefined) {
+        rows.push(['Duration', resp.duration + ' s']);
+    }
+    if (resp.item_identifier !== undefined) {
+        rows.push(['Item', resp.item_identifier]);
+    }
+    if (resp.local_info) {
+        for (const [k, v] of Object.entries(resp.local_info)) {
+            rows.push([k, v]);
+        }
+    }
 
     if (!rows.length) return '';
     return `<tr><td class="label" colspan="2" style="padding-top:10px; border-top:1px solid var(--border);">Response</td></tr>` +
@@ -495,7 +506,19 @@ function cmdRows(cmd) {
     if (cmd.tp_da) rows.push(['TP-DA', cmd.tp_da]);
     if (cmd.device_ids) rows.push(['Device IDs', cmd.device_ids]);
 
-    // SM TPDU (nested in SMS-PP download)
+    // Proactive command fields (FETCH)
+    if (cmd.title) rows.push(['Title', cmd.title]);
+    if (cmd.text !== undefined) rows.push(['Text', cmd.text]);
+    if (cmd.items) {
+        for (const it of cmd.items) {
+            rows.push(['Item ' + (it.id !== undefined ? '0x' + hx(it.id, 2) : '?'), it.text]);
+        }
+    }
+    if (cmd.duration !== undefined) rows.push(['Duration', cmd.duration + ' s']);
+    if (cmd.address) rows.push(['Address', cmd.address]);
+    if (cmd.response_length) rows.push(['Response length', cmd.response_length.min + '…' + cmd.response_length.max]);
+
+    // SM TPDU (nested in SMS-PP download / SEND SHORT MESSAGE)
     const t = cmd.tpdu;
     if (t) {
         rows.push(['SMS TPDU', t.mti]);
