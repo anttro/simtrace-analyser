@@ -40,6 +40,9 @@ No other dependencies — static HTML + service worker.
 - **APDU decoding** — CLA/INS/P1/P2/P3, CAT commands (FETCH/ENVELOPE/
   TERMINAL RESPONSE), FCP templates, AUTH responses, TR results
 - **PCAP export** — download any session as a Wireshark-compatible PCAP
+- **PCAP import** — upload a `.pcap`/`.pcapng` capture to create a new
+  session from its GSMTAP-SIM packets (classic pcap and pcapng, both
+  byte orders)
 - **Installable PWA** — works offline, installs via the browser
 
 ## Related
