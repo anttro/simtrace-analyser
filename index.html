@@ -136,8 +136,10 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 
 /* Sessions */
 .sessions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 16px; overflow-y: auto; }
-.sessions-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0; }
+.sessions-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0; gap: 12px; }
 .sessions-header .sessions-stats { color: var(--text-muted); font-size: 13px; }
+.sessions-header .import-msg { margin-left: auto; font-size: 13px; color: var(--text-muted); }
+.sessions-header .import-msg.error { color: var(--error); }
 .sessions-header button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
 .sessions-header button:hover { background: var(--accent-hover); }
 .session-card { background: var(--bg-panel); border-radius: 8px; padding: 16px; cursor: pointer; border: 1px solid var(--bg-input); }
@@ -241,7 +243,10 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <div class="panel" id="panel-sessions">
     <div class="sessions-header">
         <span class="sessions-stats" id="sessions-stats"></span>
+        <span class="import-msg" id="import-msg"></span>
+        <button id="import-pcap-btn">Import PCAP</button>
         <button id="new-capture-btn">New capture</button>
+        <input type="file" id="import-pcap-file" accept=".pcap,.pcapng,.cap" style="display:none;">
     </div>
     <div class="sessions-grid" id="sessions-grid">
         <div class="empty-state" style="height:auto; padding:40px;">
@@ -437,6 +442,16 @@ const API = {
     getLatest(after)        { return this._fetch('GET', `/api/capture/latest?after=${after}`); },
     searchMessages(sessionId, query) { return this._fetch('GET', `/api/apdu/search?session_id=${sessionId}&q=${encodeURIComponent(query)}`); },
     filterMessages(sessionId, type) { return this._fetch('GET', `/api/apdu/filter?session_id=${sessionId}&type=${type}`); },
+    async importPcap(name, bytes) {
+        const res = await fetch(API_BASE() + '/api/sessions/import?name=' + encodeURIComponent(name), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: bytes,
+        });
+        const data = await res.json();
+        if (!res.ok) throw Object.assign(new Error(data.error || 'Import failed'), { status: res.status });
+        return data;
+    },
 };
 
 // ──────────────────── UI Helpers ────────────────────
@@ -927,6 +942,22 @@ async function loadSessions() {
     } catch (e) {}
 }
 
+async function importPcapFile(file) {
+    const msg = el('import-msg');
+    msg.classList.remove('error');
+    msg.textContent = 'Importing…';
+    try {
+        const buf = await file.arrayBuffer();
+        const baseName = file.name.replace(/\.[^.]+$/, '') || file.name;
+        const data = await API.importPcap(baseName, buf);
+        msg.textContent = `Imported '${data.name}' — ${data.message_count} messages`;
+        loadSessions();
+    } catch (e) {
+        msg.classList.add('error');
+        msg.textContent = (e && e.message) ? e.message : 'Import failed';
+    }
+}
+
 async function loadSession(id) {
     try {
         // Stop any active capture so it can't write into the session being viewed.
@@ -1174,6 +1205,13 @@ function init() {
         updateCaptureButton();
         switchTab('trace');
         startCapture();
+    });
+
+    $on('import-pcap-btn', 'click', () => el('import-pcap-file').click());
+    $on('import-pcap-file', 'change', () => {
+        const file = el('import-pcap-file').files[0];
+        if (file) importPcapFile(file);
+        el('import-pcap-file').value = '';
     });
 
     $on('search-input', 'input', onSearchChange);
