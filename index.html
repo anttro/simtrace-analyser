@@ -69,6 +69,9 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .header-tab { padding: 6px 16px; cursor: pointer; color: var(--text-muted); background: var(--bg-input); border-radius: 6px 6px 0 0; font-size: 14px; }
 .header-tab:hover { background: var(--border); }
 .header-tab.active { background: var(--accent); color: #fff; }
+.header-title { margin: 0 auto; display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.header-title a { color: var(--accent); text-decoration: none; }
+.header-title a:hover { text-decoration: underline; }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
 .header-right a { color: var(--link); text-decoration: none; font-size: 13px; }
 .header-right a:hover { color: var(--link-hover); }
@@ -200,6 +203,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <div class="header-tab" data-tab="sessions">Sessions</div>
         <div class="header-tab" data-tab="settings">Settings</div>
     </div>
+    <div class="header-title">SIM-ME <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> trace analyser</div>
     <div class="header-right">
         <button id="install-btn">Install PWA</button>
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
