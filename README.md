@@ -1,62 +1,12 @@
-# simtrace-analyser
+# simtrace-analyser (archived)
 
-PWA frontend for browsing SIMtrace2 APDU traces. Connects to
-[`simtrace2-pysniff-server`](https://github.com/anttro/simtrace2-pysniff)
-to view live captures and saved sessions, decode APDUs, and export to PCAP.
+The **simtrace-analyser** PWA has been merged into
+[**simtrace2-pysniff**](https://github.com/anttro/simtrace2-pysniff), where it
+lives in the `frontend/` directory and is served by
+`simtrace2-pysniff-server` on the same origin as the API.
 
-## Try it now
+- **Source:** https://github.com/anttro/simtrace2-pysniff (see `frontend/`)
+- **Hosted landing page:** https://simtrace.atroshin.ru
 
-A live instance is hosted at:
-
-**[https://simtrace.atroshin.ru](https://simtrace.atroshin.ru)**
-
-> Note: the PWA is a pure frontend — it still needs a local
-> [`simtrace2-pysniff-server`](https://github.com/anttro/simtrace2-pysniff)
-> to capture data. Point the URL in Settings at your server.
->
-> **Browser restriction:** when the PWA is served from a public HTTPS host
-> (like the link above), reaching a local server (`http://127.0.0.1:8081`)
-> requires two things: the server must send
-> `Access-Control-Allow-Private-Network: true` (simtrace2-pysniff does this
-> automatically), and the browser must be allowed to access the local
-> network — in Chrome/Edge/Vivaldi: Site settings → Local network access →
-> allow the site (or accept the permission prompt). Without the browser
-> permission, the request to `127.0.0.1` is blocked before any preflight
-> is sent.
-
-## Setup
-
-```sh
-git clone https://github.com/anttro/simtrace-analyser.git
-cd simtrace-analyser
-python3 -m http.server 8000
-```
-
-Open `http://127.0.0.1:8000` in a browser.  The PWA connects to the
-server at `http://127.0.0.1:8081` by default (configurable in Settings).
-
-## Requirements
-
-- [`simtrace2-pysniff`](https://github.com/anttro/simtrace2-pysniff) — the
-  server component (`simtrace2-pysniff-server`)
-- A modern browser with JavaScript enabled
-
-No other dependencies — static HTML + service worker.
-
-## Features
-
-- **Live capture** — view APDUs as they are sniffed (≈1 s latency)
-- **Session browser** — save, rename, and delete capture sessions
-- **APDU decoding** — CLA/INS/P1/P2/P3, CAT commands (FETCH/ENVELOPE/
-  TERMINAL RESPONSE), FCP templates, AUTH responses, TR results
-- **PCAP export** — download any session as a Wireshark-compatible PCAP
-- **PCAP import** — upload a `.pcap`/`.pcapng` capture to create a new
-  session from its GSMTAP-SIM packets (classic pcap and pcapng, both
-  byte orders)
-- **Installable PWA** — works offline, installs via the browser
-
-## Related
-
-- **[simtrace2-pysniff](https://github.com/anttro/simtrace2-pysniff)** — the
-  sniffer CLI (`simtrace2-pysniff`) and analysis server
-  (`simtrace2-pysniff-server`) that this PWA talks to.
+This repository is no longer maintained. Please use the merged repository
+instead.
