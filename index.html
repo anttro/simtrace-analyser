@@ -70,6 +70,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .header-tab:hover { background: var(--border); }
 .header-tab.active { background: var(--accent); color: #fff; }
 .header-title { margin: 0 auto; display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.header-title .pwa-version { color: var(--text-muted); font-size: 11px; font-weight: 400; }
 .header-title a { color: var(--accent); text-decoration: none; }
 .header-title a:hover { text-decoration: underline; }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
@@ -170,6 +171,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .settings-view .conn-status.connected { background: var(--accent-bg); color: var(--green); }
 .settings-view .conn-status.disconnected { background: var(--warn-bg); color: var(--error); }
 .conn-hint { font-size: 12px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5; }
+.version-warn { font-size: 12px; color: var(--warn); margin: 8px 0 0; line-height: 1.5; }
+.version-warn:empty { display: none; }
 .conn-instructions { margin-top: 16px; font-size: 13px; color: var(--text-faint); line-height: 1.7; }
 .conn-instructions h3 { color: var(--accent); margin-bottom: 8px; font-size: 14px; }
 .conn-instructions ol { padding-left: 20px; }
@@ -202,40 +205,41 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 
 <div class="header">
     <div class="header-tabs">
-        <div class="header-tab active" data-tab="trace">Trace</div>
-        <div class="header-tab" data-tab="sessions">Sessions</div>
-        <div class="header-tab" data-tab="settings">Settings</div>
+        <div class="header-tab active" data-tab="trace" data-l10n="Trace">Trace</div>
+        <div class="header-tab" data-tab="sessions" data-l10n="Sessions">Sessions</div>
+        <div class="header-tab" data-tab="settings" data-l10n="Settings">Settings</div>
     </div>
-    <div class="header-title">SIM-ME <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> trace analyser</div>
+    <div class="header-title">SIM-ME <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> <span data-l10n="trace analyser">trace analyser</span> <span class="pwa-version" id="pwa-version"></span></div>
     <div class="header-right">
-        <button id="install-btn">Install PWA</button>
+        <button id="install-btn" data-l10n="Install PWA">Install PWA</button>
         <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
+        <button id="lang-btn" onclick="toggleLang()" title="Language / Язык">EN</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
 </div><!-- Trace Panel -->
 <div class="panel active" id="panel-trace">
     <div class="trace-topbar">
-        <input type="text" id="search-input" placeholder="Search hex bytes..." autocomplete="off">
+        <input type="text" id="search-input" data-l10n="Search hex bytes..." placeholder="Search hex bytes..." autocomplete="off">
         <select id="filter-select">
-            <option value="">All commands</option>
+            <option value="" data-l10n="All commands">All commands</option>
         </select>
-        <button id="capture-btn">Start Capture</button>
+        <button id="capture-btn" data-l10n="Start Capture">Start Capture</button>
         <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:15px;"></span>
     </div>
     <div class="trace-main">
         <div class="trace-left">
             <div class="apdu-list" id="apdu-list"></div>
             <div class="apdu-detail" id="apdu-detail">
-                <div class="detail-empty">Click an APDU to see details</div>
+                <div class="detail-empty" data-l10n="Click an APDU to see details">Click an APDU to see details</div>
             </div>
         </div>
         <div class="side-panel" id="side-panel">
-            <h3>Command Stats</h3>
+            <h3 data-l10n="Command Stats">Command Stats</h3>
             <div id="type-counts">—</div>
         </div>
     </div>
     <div class="status-bar">
-        <span><span class="status-dot off" id="status-dot"></span><span id="status-text">Not connected</span></span>
+        <span><span class="status-dot off" id="status-dot"></span><span id="status-text" data-l10n="Not connected">Not connected</span></span>
         <span id="msg-count" style="color:var(--text-muted);">0 messages</span>
     </div>
 </div>
@@ -245,14 +249,14 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     <div class="sessions-header">
         <span class="sessions-stats" id="sessions-stats"></span>
         <span class="import-msg" id="import-msg"></span>
-        <button id="import-pcap-btn">Import PCAP</button>
-        <button id="new-capture-btn">New capture</button>
+        <button id="import-pcap-btn" data-l10n="Import PCAP">Import PCAP</button>
+        <button id="new-capture-btn" data-l10n="New capture">New capture</button>
         <input type="file" id="import-pcap-file" accept=".pcap,.pcapng,.cap" style="display:none;">
     </div>
     <div class="sessions-grid" id="sessions-grid">
         <div class="empty-state" style="height:auto; padding:40px;">
-            <p>No saved sessions</p>
-            <p style="font-size:12px;">Start a capture from the Trace tab to create sessions.</p>
+            <p data-l10n="No saved sessions">No saved sessions</p>
+            <p style="font-size:12px;" data-l10n="Start a capture from the Trace tab to create sessions.">Start a capture from the Trace tab to create sessions.</p>
         </div>
     </div>
 </div>
@@ -260,14 +264,15 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <!-- Settings Panel -->
 <div class="panel" id="panel-settings">
     <div class="settings-view">
-        <label for="server-url">Server URL</label>
+        <label for="server-url" data-l10n="Server URL">Server URL</label>
         <div class="settings-url-row">
             <input type="text" id="server-url" value="http://127.0.0.1:8081" placeholder="http://127.0.0.1:8081">
-            <button id="connect-btn">Connect</button>
+            <button id="connect-btn" data-l10n="Connect">Connect</button>
         </div>
         <div class="conn-status disconnected" id="conn-status">
             ⬤ Not connected — ensure the server is running on the URL above
         </div>
+        <div class="version-warn" id="version-warn"></div>
         <div class="conn-hint" id="conn-hint"></div>
         <div class="conn-instructions" id="conn-instructions"></div>
     </div>
@@ -276,11 +281,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <!-- Delete confirmation modal -->
 <div class="modal-overlay" id="delete-modal">
     <div class="modal">
-        <h3>Delete Session</h3>
-        <p>Delete <strong id="delete-session-name"></strong> and all its APDU data? This cannot be undone.</p>
+        <h3 data-l10n="Delete Session">Delete Session</h3>
+        <p><span data-l10n="Delete">Delete</span> <strong id="delete-session-name"></strong> <span data-l10n="and all its APDU data? This cannot be undone.">and all its APDU data? This cannot be undone.</span></p>
         <div class="modal-buttons">
-            <button class="cancel" id="delete-cancel">Cancel</button>
-            <button class="confirm" id="delete-confirm">Delete</button>
+            <button class="cancel" id="delete-cancel" data-l10n="Cancel">Cancel</button>
+            <button class="confirm" id="delete-confirm" data-l10n="Delete">Delete</button>
         </div>
     </div>
 </div>
@@ -679,7 +684,7 @@ function renderSidePanel() {
         `<div class="side-item" data-idx="${i}" data-key="${k}">
             <span>${k}</span><span class="count">${v}</span>
         </div>`
-    ).join('') || 'No commands';
+    ).join('') || t('No commands');
 }
 
 function populateFilterOptions() {
@@ -693,7 +698,7 @@ function populateFilterOptions() {
     const existing = Array.from(sel.options).slice(1).map(o => o.value);
     if (existing.length === keys.length && existing.every((k, i) => k === keys[i])) return;
     const cur = sel.value;
-    sel.innerHTML = '<option value="">All commands</option>' +
+    sel.innerHTML = '<option value="">' + t('All commands') + '</option>' +
         keys.map(k => `<option value="${escapeHtml(k).replace(/"/g, '&quot;')}">${escapeHtml(k)}</option>`).join('');
     sel.value = keys.includes(cur) ? cur : '';
 }
@@ -755,8 +760,8 @@ function renderMessages() {
     populateFilterOptions();
 
     if (!STATE.captureActive && !STATE.sessionViewId) {
-        list.innerHTML = `<div class="empty-state"><p>No capture active</p>
-            <button id="trace-start-btn">Start Capture</button></div>`;
+        list.innerHTML = `<div class="empty-state"><p>${t('No capture active')}</p>
+            <button id="trace-start-btn">${t('Start Capture')}</button></div>`;
         $('#trace-start-btn', list).addEventListener('click', startCapture);
         updateStatus();
         return;
@@ -786,15 +791,15 @@ function updateStatus() {
     dot.className = 'status-dot';
     if (STATE.captureActive) {
         dot.classList.add('live');
-        text.textContent = 'Live';
+        text.textContent = t('Live');
     } else if (STATE.sessionViewId || STATE.currentSessionId) {
         dot.classList.add('paused');
-        text.textContent = STATE.currentSessionName || 'Session';
+        text.textContent = STATE.currentSessionName || t('Session');
     } else {
         dot.classList.add('off');
-        text.textContent = 'Not connected';
+        text.textContent = t('Not connected');
     }
-    count.textContent = STATE.messages.length + ' messages';
+    count.textContent = t('{n} messages').replace('{n}', STATE.messages.length);
 }
 
 // ──────────────────── Live Polling ────────────────────
@@ -843,7 +848,7 @@ async function startCapture() {
         updateCaptureButton();
         startPolling();
     } catch (e) {
-        alert('Failed to start capture: ' + e.message);
+        alert(t('Failed to start capture: ') + e.message);
     }
 }
 
@@ -866,13 +871,13 @@ function updateCaptureButton() {
     }
     btn.style.display = '';
     if (!STATE.serverAvailable) {
-        btn.textContent = 'Connect to server';
+        btn.textContent = t('Connect to server');
         btn.classList.add('connect');
     } else if (STATE.captureActive) {
-        btn.textContent = 'Stop Capture';
+        btn.textContent = t('Stop Capture');
         btn.classList.add('stop');
     } else {
-        btn.textContent = 'Start Capture';
+        btn.textContent = t('Start Capture');
     }
 }
 
@@ -884,31 +889,34 @@ async function loadSessions() {
 
         const total = data.total_sessions != null ? data.total_sessions : data.sessions.length;
         const dbSize = data.db_size != null ? fmtSize(data.db_size) : '?';
-        el('sessions-stats').textContent = `${total} session${total === 1 ? '' : 's'} · ${dbSize}`;
+        const sessionsLabel = total === 1
+            ? t('{n} session · {size}').replace('{n}', total).replace('{size}', dbSize)
+            : t('{n} session(s) · {size}').replace('{n}', total).replace('{size}', dbSize);
+        el('sessions-stats').textContent = sessionsLabel;
 
         if (!data.sessions.length) {
             grid.innerHTML = `<div class="empty-state" style="height:auto; padding:40px;">
-                <p>No saved sessions</p>
+                <p>${t('No saved sessions')}</p>
             </div>`;
             return;
         }
         grid.innerHTML = data.sessions.map(s => {
-            const name = s.name || `Session #${s.id}`;
+            const name = s.name || t('Session #') + s.id;
             const dStart = s.started ? s.started.replace('T', ' ') : '?';
-            const duration = s.ended ? formatDuration(s.started, s.ended) : 'active';
+            const duration = s.ended ? formatDuration(s.started, s.ended) : t('active');
             return `<div class="session-card" data-id="${s.id}">
                 <div class="session-name">
-                    <input type="text" value="${escapeHtml(name)}" data-sid="${s.id}" placeholder="Session name...">
+                    <input type="text" value="${escapeHtml(name)}" data-sid="${s.id}" placeholder="${t('Session name...')}">
                 </div>
                 <div class="session-meta">
                     <span>${dStart}</span>
                     <span>${duration}</span>
-                    <span>${s.message_count} msgs</span>
+                    <span>${s.message_count} ${t('msgs')}</span>
                     <span>${s.mode}</span>
                 </div>
                 <div class="session-actions">
-                    <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">Download PCAP</a>
-                    <button class="session-delete" data-sid="${s.id}">Delete</button>
+                    <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">${t('Download PCAP')}</a>
+                    <button class="session-delete" data-sid="${s.id}">${t('Delete')}</button>
                 </div>
             </div>`;
         }).join('');
@@ -947,16 +955,17 @@ async function loadSessions() {
 async function importPcapFile(file) {
     const msg = el('import-msg');
     msg.classList.remove('error');
-    msg.textContent = 'Importing…';
+    msg.textContent = t('Importing…');
     try {
         const buf = await file.arrayBuffer();
         const baseName = file.name.replace(/\.[^.]+$/, '') || file.name;
         const data = await API.importPcap(baseName, buf);
-        msg.textContent = `Imported '${data.name}' — ${data.message_count} messages`;
+        msg.textContent = t('Imported \'{name}\' — {n} messages')
+            .replace('{name}', data.name).replace('{n}', data.message_count);
         loadSessions();
     } catch (e) {
         msg.classList.add('error');
-        msg.textContent = (e && e.message) ? e.message : 'Import failed';
+        msg.textContent = t((e && e.message) || 'Import failed');
     }
 }
 
@@ -971,15 +980,15 @@ async function loadSession(id) {
         const data = await API.getSession(id, 0);
         STATE.sessionViewId = id;
         STATE.captureActive = false;
-        STATE.currentSessionName = data.session.name || `Session #${id}`;
+        STATE.currentSessionName = data.session.name || t('Session #') + id;
         STATE.messages = data.messages;
         switchTab('trace');
         updateCaptureButton();
         renderMessages();
         el('session-name-display').style.display = 'inline';
-        el('session-name-display').textContent = 'Session: ' + (data.session.name || `#${id}`);
+        el('session-name-display').textContent = t('Session: ') + (data.session.name || '#' + id);
     } catch (e) {
-        alert('Failed to load session');
+        alert(t('Failed to load session'));
     }
 }
 
@@ -999,7 +1008,7 @@ function escapeHtml(str) {
 function showDeleteModal(id) {
     STATE.pendingDeleteId = id;
     const s = document.querySelector(`.session-card[data-id="${id}"] input`);
-    el('delete-session-name').textContent = s ? s.value : `Session #${id}`;
+    el('delete-session-name').textContent = s ? s.value : t('Session #') + id;
     el('delete-modal').classList.add('show');
 }
 
@@ -1012,7 +1021,7 @@ async function confirmDelete() {
         STATE.pendingDeleteId = null;
         loadSessions();
     } catch (e) {
-        alert('Failed to delete session');
+        alert(t('Failed to delete session'));
     }
 }
 
@@ -1034,6 +1043,25 @@ function isLikelyBlocked() {
     return pagePublic && (s === 'loopback' || s === 'private');
 }
 
+function updateVersionWarn(serverVersion) {
+    const elv = el('version-warn');
+    const sv = parseVersion(serverVersion);
+    if (sv === null) {
+        elv.textContent = t('Server version unknown — update simtrace2-pysniff-server.');
+        return;
+    }
+    const cmpMin = compareVersions(serverVersion, MIN_SERVER_VERSION);
+    if (cmpMin !== null && cmpMin < 0) {
+        elv.textContent = t('Server version {v} is outdated. Please update simtrace2-pysniff-server.').replace('{v}', serverVersion);
+        return;
+    }
+    if (sv[0] > parseVersion(PWA_VERSION)[0]) {
+        elv.textContent = t('Server version {v} is newer than expected. Update simtrace-analyser for full compatibility.').replace('{v}', serverVersion);
+        return;
+    }
+    elv.textContent = '';
+}
+
 function connectServer() {
     if (_connTimer) return;
     _connTimer = setInterval(checkConnection, 5000);
@@ -1046,14 +1074,15 @@ function disconnectServer() {
         _connTimer = null;
     }
     STATE.serverAvailable = false;
-    el('conn-status').textContent = '⬤ Disconnected — click Connect to resume';
+    el('conn-status').textContent = '⬤ ' + t('Disconnected — click Connect to resume');
     el('conn-status').className = 'conn-status disconnected';
+    el('version-warn').textContent = '';
     el('conn-hint').textContent = '';
     el('conn-instructions').innerHTML = '';
     el('status-dot').className = 'status-dot off';
-    el('status-text').textContent = 'Not connected';
+    el('status-text').textContent = t('Not connected');
     const btn = el('connect-btn');
-    btn.textContent = 'Connect';
+    btn.textContent = t('Connect');
     btn.classList.add('disconnected');
     updateCaptureButton();
     stopPolling();
@@ -1067,14 +1096,15 @@ async function checkConnection() {
     try {
         const data = await API.status();
         STATE.serverAvailable = true;
-        el('conn-status').textContent = '⬤ Connected — ' + data.server;
+        el('conn-status').textContent = '⬤ ' + t('Connected') + ' — ' + data.server;
         el('conn-status').className = 'conn-status connected';
+        updateVersionWarn(data.version);
         el('conn-hint').textContent = '';
         el('conn-instructions').innerHTML = '';
-        el('connect-btn').textContent = 'Disconnect';
+        el('connect-btn').textContent = t('Disconnect');
         el('connect-btn').classList.remove('disconnected');
         el('status-dot').className = 'status-dot ' + (data.capture_active ? 'live' : 'paused');
-        el('status-text').textContent = data.capture_active ? 'Capturing' : 'Connected';
+        el('status-text').textContent = data.capture_active ? t('Capturing') : t('Connected');
         if (data.capture_active) {
             STATE.captureActive = true;
             STATE.currentSessionId = data.session_id;
@@ -1082,37 +1112,36 @@ async function checkConnection() {
         updateCaptureButton();
     } catch (e) {
         STATE.serverAvailable = false;
-        el('conn-status').textContent = '⬤ Not connected — ensure the server is running on the URL above';
+        el('conn-status').textContent = '⬤ ' + t('Not connected — ensure the server is running on the URL above');
         el('conn-status').className = 'conn-status disconnected';
+        el('version-warn').textContent = '';
         const url = STATE.serverUrl;
-        el('conn-hint').textContent = isLikelyBlocked()
-            ? 'The browser likely blocked access to the local server. Allow local network access for this site (Chrome/Edge/Vivaldi: Site settings → Local network access → Allow) and confirm simtrace2-pysniff-server is running at ' + url + '.'
-            : 'Couldn\'t reach the server. Check that simtrace2-pysniff-server is running and the URL is correct (' + url + '). If this page is served over HTTPS, also allow local network access in the browser (Site settings → Local network access → Allow).';
-        el('connect-btn').textContent = 'Connect';
+        el('conn-hint').textContent = t(isLikelyBlocked() ? HINT_BLOCKED : HINT_UNREACHABLE).replace('{url}', url);
+        el('connect-btn').textContent = t('Connect');
         el('connect-btn').classList.add('disconnected');
         el('conn-instructions').innerHTML = `
-            <h3>Setup</h3>
+            <h3>${t('Setup')}</h3>
             <ol>
-                <li>Clone and install simtrace2-pysniff:<br>
+                <li>${t('Clone and install simtrace2-pysniff:')}<br>
                     <code>git clone https://github.com/anttro/simtrace2-pysniff.git</code><br>
                     <code>cd simtrace2-pysniff && pip install -e .</code></li>
-                <li>Start the server in <strong>direct mode</strong> (recommended):<br>
+                <li>${t('Start the server in direct mode (recommended):')}<br>
                     <code>./server-start.sh --capture direct</code><br>
-                    <span style="color:var(--text-muted);">Requires SIMtrace2 hardware connected via USB; captures directly from the device.</span></li>
+                    <span style="color:var(--text-muted);">${t('Requires SIMtrace2 hardware connected via USB; captures directly from the device.')}</span></li>
             </ol>
-            <p style="margin-top:8px;">Then set the URL above to <code>http://127.0.0.1:8081</code> and return to the Trace tab.</p>
-            <h3 style="margin-top:20px;">Alternative: GSMTAP mode</h3>
-            <p style="color:var(--text-muted); margin-top:4px;">Use an external sniffer alongside the server. This mode is compatible with the original Osmocom <code>simtrace2-sniff</code>.</p>
+            <p style="margin-top:8px;">${t('Then set the URL above to http://127.0.0.1:8081 and return to the Trace tab.')}</p>
+            <h3 style="margin-top:20px;">${t('Alternative: GSMTAP mode')}</h3>
+            <p style="color:var(--text-muted); margin-top:4px;">${t('Use an external sniffer alongside the server. This mode is compatible with the original Osmocom simtrace2-sniff.')}</p>
             <ol style="margin-top:4px;">
-                <li>Start the server:<br>
+                <li>${t('Start the server:')}<br>
                     <code>./server-start.sh --capture gsmtap</code></li>
-                <li>Start a GSMTAP source in another terminal — either:<br>
+                <li>${t('Start a GSMTAP source in another terminal — either:')}<br>
                     <code>./sniff-start.sh --gsmtap 127.0.0.1</code> &nbsp;(simtrace2-pysniff)<br>
                     &nbsp;or<br>
-                    <code>simtrace2-sniff --gsmtap-ip 127.0.0.1</code> &nbsp;(original Osmocom tool)</li>
+                    <code>simtrace2-sniff --gsmtap-ip 127.0.0.1</code> &nbsp;${t('(original Osmocom tool)')}</li>
             </ol>`;
         el('status-dot').className = 'status-dot off';
-        el('status-text').textContent = 'Not connected';
+        el('status-text').textContent = t('Not connected');
         updateCaptureButton();
     }
 }
@@ -1135,6 +1164,135 @@ function onSearchChange() {
 
 function onFilterChange() {
     renderMessages();
+}
+
+// ──────────────────── Versioning ────────────────────
+const PWA_VERSION = '1.0.0';
+const MIN_SERVER_VERSION = '1.0.0';
+
+function parseVersion(v) {
+    const parts = String(v || '').trim().split('.').map(n => parseInt(n, 10));
+    if (parts.length < 2 || parts.some(isNaN)) return null;
+    return parts;
+}
+
+function compareVersions(a, b) {
+    const pa = parseVersion(a);
+    const pb = parseVersion(b);
+    if (pa === null || pb === null) return null;
+    for (let i = 0; i < 3; i++) {
+        const da = pa[i] || 0;
+        const db = pb[i] || 0;
+        if (da !== db) return da < db ? -1 : 1;
+    }
+    return 0;
+}
+
+// ──────────────────── i18n ────────────────────
+let currentLang = 'en';
+
+const HINT_BLOCKED = 'The browser likely blocked access to the local server. Allow local network access for this site (Chrome/Edge/Vivaldi: Site settings → Local network access → Allow) and confirm simtrace2-pysniff-server is running at {url}.';
+const HINT_UNREACHABLE = 'Couldn\'t reach the server. Check that simtrace2-pysniff-server is running and the URL is correct ({url}). If this page is served over HTTPS, also allow local network access in the browser (Site settings → Local network access → Allow).';
+
+const LANG_RU = {
+    'Trace': 'Трассировка',
+    'Sessions': 'Сессии',
+    'Settings': 'Настройки',
+    'trace analyser': 'анализатор трейсов',
+    'Install PWA': 'Установить PWA',
+    'Search hex bytes...': 'Поиск по данным (hex)...',
+    'All commands': 'Все команды',
+    'Start Capture': 'Начать захват',
+    'Stop Capture': 'Остановить захват',
+    'Connect to server': 'Подключиться к серверу',
+    'Click an APDU to see details': 'Нажмите на APDU для просмотра деталей',
+    'Command Stats': 'Статистика команд',
+    'Not connected': 'Не подключено',
+    'Live': 'Захват',
+    'Session': 'Сессия',
+    'Connected': 'Подключено',
+    'Capturing': 'Захват',
+    'No capture active': 'Нет активного захвата',
+    'No commands': 'Нет команд',
+    'No saved sessions': 'Нет сохранённых сессий',
+    'Start a capture from the Trace tab to create sessions.': 'Начните захват на вкладке «Трассировка», чтобы создать сессии.',
+    'Import PCAP': 'Импорт PCAP',
+    'New capture': 'Новый захват',
+    'Server URL': 'URL сервера',
+    'Connect': 'Подключить',
+    'Disconnect': 'Отключить',
+    'Disconnected — click Connect to resume': 'Отключено — нажмите «Подключить», чтобы возобновить',
+    'Not connected — ensure the server is running on the URL above': 'Не подключено — убедитесь, что сервер запущен по указанному URL',
+    'Delete Session': 'Удалить сессию',
+    'Delete': 'Удалить',
+    'and all its APDU data? This cannot be undone.': 'и все данные APDU? Это действие необратимо.',
+    'Cancel': 'Отмена',
+    'Session #': 'Сессия #',
+    'Session: ': 'Сессия: ',
+    'Session name...': 'Имя сессии...',
+    'msgs': 'сообщ.',
+    'active': 'активна',
+    'Download PCAP': 'Скачать PCAP',
+    '{n} messages': '{n} сообщений',
+    '{n} session(s) · {size}': '{n} сессий · {size}',
+    '{n} session · {size}': '{n} сессия · {size}',
+    'Importing…': 'Импорт…',
+    'Import failed': 'Ошибка импорта',
+    'Imported \'{name}\' — {n} messages': 'Импортировано «{name}» — {n} сообщений',
+    'Failed to start capture: ': 'Не удалось начать захват: ',
+    'Failed to load session': 'Не удалось загрузить сессию',
+    'Failed to delete session': 'Не удалось удалить сессию',
+    'No GSMTAP data found in trace': 'В трассировке нет данных GSMTAP',
+    'Empty file': 'Пустой файл',
+    'Install from the address bar:\nclick the install icon (⊕ / monitor icon) at the right\nend of Chrome\'s address bar, then "Install SIMtrace Analyser".':
+        'Установка из адресной строки:\nнажмите значок установки (⊕ / значок монитора) в правом\nконце адресной строки Chrome, затем «Установить SIMtrace Analyser».',
+    [HINT_BLOCKED]: 'Браузер, вероятно, заблокировал доступ к локальному серверу. Разрешите доступ к локальной сети для этого сайта (Chrome/Edge/Vivaldi: Настройки сайта → Доступ к локальной сети → Разрешить) и убедитесь, что simtrace2-pysniff-server запущен по адресу {url}.',
+    [HINT_UNREACHABLE]: 'Не удалось связаться с сервером. Проверьте, что simtrace2-pysniff-server запущен и URL указан верно ({url}). Если эта страница открыта по HTTPS, также разрешите доступ к локальной сети в браузере (Настройки сайта → Доступ к локальной сети → Разрешить).',
+    'Setup': 'Настройка',
+    'Clone and install simtrace2-pysniff:': 'Клонируйте и установите simtrace2-pysniff:',
+    'Start the server in direct mode (recommended):': 'Запустите сервер в режиме direct (рекомендуется):',
+    'Requires SIMtrace2 hardware connected via USB; captures directly from the device.': 'Требуется оборудование SIMtrace2, подключённое по USB; захват выполняется напрямую с устройства.',
+    'Then set the URL above to http://127.0.0.1:8081 and return to the Trace tab.': 'Затем укажите URL выше (http://127.0.0.1:8081) и вернитесь на вкладку «Трассировка».',
+    'Alternative: GSMTAP mode': 'Альтернатива: режим GSMTAP',
+    'Use an external sniffer alongside the server. This mode is compatible with the original Osmocom simtrace2-sniff.': 'Используйте внешний сниффер вместе с сервером. Этот режим совместим с оригинальным инструментом Osmocom simtrace2-sniff.',
+    'Start the server:': 'Запустите сервер:',
+    'Start a GSMTAP source in another terminal — either:': 'Запустите источник GSMTAP в другом терминале — либо:',
+    '(original Osmocom tool)': '(оригинальный инструмент Osmocom)',
+    'Server version unknown — update simtrace2-pysniff-server.': 'Версия сервера неизвестна — обновите simtrace2-pysniff-server.',
+    'Server version {v} is outdated. Please update simtrace2-pysniff-server.': 'Версия сервера {v} устарела. Обновите simtrace2-pysniff-server.',
+    'Server version {v} is newer than expected. Update simtrace-analyser for full compatibility.': 'Версия сервера {v} новее ожидаемой. Обновите simtrace-analyser для полной совместимости.',
+};
+
+function t(text) {
+    if (currentLang === 'ru' && LANG_RU[text]) return LANG_RU[text];
+    return text;
+}
+
+function translatePage() {
+    document.querySelectorAll('[data-l10n]').forEach(el => {
+        const key = el.getAttribute('data-l10n');
+        if (el.tagName === 'INPUT') {
+            el.placeholder = t(key);
+        } else {
+            el.textContent = t(key);
+        }
+    });
+}
+
+function applyLang() {
+    document.getElementById('lang-btn').textContent = currentLang.toUpperCase();
+}
+
+function toggleLang() {
+    currentLang = currentLang === 'en' ? 'ru' : 'en';
+    localStorage.setItem('lang', currentLang);
+    applyLang();
+    translatePage();
+    updateStatus();
+    updateCaptureButton();
+    renderMessages();
+    loadSessions();
+    checkConnection();
 }
 
 // ──────────────────── Theme ────────────────────
@@ -1182,9 +1340,7 @@ async function promptInstall() {
         }
         return;
     }
-    alert('Install from the address bar:\n' +
-        'click the install icon (⊕ / monitor icon) at the right\n' +
-        'end of Chrome\'s address bar, then "Install SIMtrace Analyser".');
+    alert(t('Install from the address bar:\nclick the install icon (⊕ / monitor icon) at the right\nend of Chrome\'s address bar, then "Install SIMtrace Analyser".'));
 }
 
 // ──────────────────── Init ────────────────────
@@ -1196,6 +1352,12 @@ function init() {
         applyTheme('light');
     }
 
+    const userLang = (navigator.language || '').split('-')[0];
+    currentLang = localStorage.getItem('lang') || (userLang === 'ru' ? 'ru' : 'en');
+    applyLang();
+    translatePage();
+
+    el('pwa-version').textContent = 'v' + PWA_VERSION;
     el('server-url').value = STATE.serverUrl;
 
     document.querySelectorAll('.header-tab').forEach(tab => {
