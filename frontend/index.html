@@ -119,7 +119,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .trace-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 /* APDU list */
-.apdu-list { flex: 1; overflow-y: auto; padding: 8px; }
+.apdu-list { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 8px; }
 .apdu-entry { display: flex; gap: 12px; padding: 3px 12px; border-bottom: 1px solid var(--bg-panel); cursor: pointer; align-items: baseline; }
 .apdu-entry.apdu-pair { background: var(--pair-row); }
 .apdu-entry:hover { background: var(--bg-panel); }
@@ -149,7 +149,10 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .device-warn { padding: 8px 12px; font-size: 12px; color: var(--warn); background: var(--warning-bg); border-bottom: 1px solid var(--warn); }
 
 /* APDU detail panel */
-.apdu-detail { display: flex; flex-direction: column; max-height: 40%; overflow-y: auto; border-top: 2px solid var(--accent); background: var(--bg-panel); flex-shrink: 0; }
+.apdu-detail { display: flex; flex-direction: column; flex: 0 0 var(--detail-height, 30%); overflow-y: auto; background: var(--bg-panel); }
+/* Splitter bar */
+.splitter { height: 6px; cursor: row-resize; background: var(--border); flex-shrink: 0; }
+.splitter:hover, .splitter.active { background: var(--accent); }
 .apdu-detail .detail-empty { padding: 24px; color: var(--text-muted); text-align: center; }
 .detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-input); border-bottom: 1px solid var(--border); }
 [data-theme="light"] .detail-header { background: #dbeafe; }
@@ -308,6 +311,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     <div class="trace-main">
         <div class="trace-left">
             <div class="apdu-list" id="apdu-list"></div>
+            <div class="splitter" id="splitter"></div>
             <div class="apdu-detail" id="apdu-detail">
                 <div class="detail-empty" data-l10n="Click an APDU to see details">Click an APDU to see details</div>
             </div>
@@ -2613,7 +2617,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.11';
+const PWA_VERSION = '1.22.12';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
@@ -2967,6 +2971,39 @@ function init() {
 
     updateCaptureButton();
 }
+
+// ──────────────────── Splitter ────────────────────
+(function initSplitter() {
+    const splitter = el('splitter');
+    const detail = el('apdu-detail');
+    const left = splitter.parentElement;
+    const saved = parseFloat(localStorage.getItem('splitter-ratio'));
+    if (saved > 0.1 && saved < 0.8) {
+        left.style.setProperty('--detail-height', (saved * 100) + '%');
+    }
+    let startY, startH;
+    function onMove(e) {
+        const dy = startY - e.clientY;
+        const total = left.clientHeight;
+        const h = Math.min(Math.max(startH + dy, total * 0.1), total * 0.8);
+        const ratio = h / total;
+        left.style.setProperty('--detail-height', (ratio * 100) + '%');
+        localStorage.setItem('splitter-ratio', ratio);
+    }
+    function onUp() {
+        splitter.classList.remove('active');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    }
+    splitter.addEventListener('mousedown', e => {
+        e.preventDefault();
+        startY = e.clientY;
+        startH = detail.offsetHeight;
+        splitter.classList.add('active');
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+})();
 
 init();
 </script>
