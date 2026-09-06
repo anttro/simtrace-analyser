@@ -1125,6 +1125,7 @@ function responseRows(resp) {
     if (resp.df_name) rows.push(['DF name', resp.df_name]);
     if (resp.sfi) rows.push(['SFI', resp.sfi]);
     if (resp.life_cycle) rows.push(['Life cycle', resp.life_cycle]);
+    if (resp.file_size != null) rows.push(['File Size', resp.file_size + ' B']);
     if (resp.short_ef_id) rows.push(['Short EF ID', resp.short_ef_id]);
 
     if (resp.type === 'GSM' || resp.type === '3G/EPS/5G') {
@@ -2609,7 +2610,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.8';
+const PWA_VERSION = '1.22.9';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {

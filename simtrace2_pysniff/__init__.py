@@ -6,7 +6,7 @@ from .gsmtap import GsmtapSender, GsmtapReceiver
 from .pcap import PcapWriter
 from .dump import FileDumper, format_message
 
-__version__ = '1.22.8'
+__version__ = '1.22.9'
 __all__ = [
     'SniffSession',
     'DeviceDisconnected',
