@@ -2153,6 +2153,7 @@ async function startCapture() {
         buildTraceMap();
         renderSidePanel();
         renderMessages();
+        el('apdu-detail').innerHTML = `<div class="detail-empty" data-l10n="Click an APDU to see details">${t('Click an APDU to see details')}</div>`;
         updateCaptureButton();
         startPolling();
     } catch (e) {
@@ -2366,6 +2367,7 @@ async function loadSession(id) {
         switchTab('trace');
         updateCaptureButton();
         renderMessages();
+        el('apdu-detail').innerHTML = `<div class="detail-empty" data-l10n="Click an APDU to see details">${t('Click an APDU to see details')}</div>`;
         el('session-name-display').style.display = 'inline';
         el('session-name-display').textContent = t('Session: ') + (data.session.name || '#' + id);
         history.replaceState(null, '', '#session=' + id);
@@ -2617,7 +2619,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.12';
+const PWA_VERSION = '1.22.13';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
