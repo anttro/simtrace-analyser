@@ -220,6 +220,9 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .sessions-list table { width: 100%; border-collapse: collapse; }
 .sessions-list th { text-align: left; padding: 4px 12px; color: var(--text-muted); font-size: 12px; border-bottom: 1px solid var(--border); }
 .sessions-list td { padding: 4px 12px; border-bottom: 1px solid var(--bg-input); font-size: 13px; }
+.sessions-list th:first-child { min-width: 200px; }
+.sessions-list input[type="text"] { width: 100%; padding: 4px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+.sessions-list input[type="text"]:focus { border-color: var(--accent); outline: none; }
 .sessions-list tr[data-id] { cursor: pointer; }
 .sessions-list tr[data-id]:hover { background: var(--bg-panel); }
 .sessions-list td .session-actions { display: flex; gap: 8px; align-items: center; margin-top: 0; }
@@ -2610,7 +2613,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.9';
+const PWA_VERSION = '1.22.10';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
