@@ -34,11 +34,14 @@ def gsmtap_msg_type(sub_type):
 
 class GsmtapListener:
     def __init__(self, bind_port=4729):
+        self._bind_port = bind_port
         self._receiver = GsmtapReceiver(bind_port=bind_port)
         self._running = False
         self._dropped = 0
 
     def start(self):
+        if getattr(self._receiver, '_closed', False):
+            self._receiver = GsmtapReceiver(bind_port=self._bind_port)
         self._running = True
         self._dropped = 0
 

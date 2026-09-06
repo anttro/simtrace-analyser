@@ -79,6 +79,7 @@ class GsmtapReceiver:
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind((bind_ip, bind_port))
         self._sock.settimeout(1.0)
+        self._closed = False
 
     def read_packet(self):
         """Block until a GSMTAP-SIM packet arrives.
@@ -109,3 +110,4 @@ class GsmtapReceiver:
 
     def close(self):
         self._sock.close()
+        self._closed = True
