@@ -271,7 +271,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <div class="header-tab" data-tab="sessions" data-l10n="Sessions">Sessions</div>
         <div class="header-tab" data-tab="settings" data-l10n="Settings">Settings</div>
     </div>
-    <div class="header-title">SIM-ME <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> <span data-l10n="trace analyser">trace analyser</span> <span class="pwa-version" id="pwa-version"></span></div>
+    <div class="header-title">UICC <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> <span data-l10n="trace analyser">trace analyser</span> <span class="pwa-version" id="pwa-version"></span></div>
     <div class="header-right">
         <span class="capture-chip" id="capture-chip" style="display:none"></span>
         <button id="install-btn" data-l10n="Install PWA">Install PWA</button>
@@ -1010,7 +1010,11 @@ function cmd_description(m) {
 
 function error_names(m) {
     const d = m.decoded;
-    return (d && Array.isArray(d.errors) && d.errors.length) ? d.errors : null;
+    if (!d) return null;
+    const errs = [];
+    if (Array.isArray(d.errors)) errs.push(...d.errors);
+    if (d.length_mismatch) errs.push('Data length mismatch');
+    return errs.length ? errs : null;
 }
 
 function sw_text(m) {
@@ -2522,7 +2526,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.4';
+const PWA_VERSION = '1.22.5';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
