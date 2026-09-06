@@ -7,6 +7,8 @@ that both captures APDU traffic and serves that PWA.
 
 **Single dependency**: PyUSB (libusb wrapper). No libosmocore, no libosmosim.
 
+![simtrace-analyser PWA](frontend.png)
+
 ## Features
 
 **APDU decoder** (server-side, rendered by the PWA):

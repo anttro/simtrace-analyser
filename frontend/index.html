@@ -421,6 +421,7 @@ const STATE = {
     captureActive: false,
     currentSessionId: null,
     currentSessionName: null,
+    currentSessionRawName: null,
     sessionViewId: null,
     sessionStarted: null,
     livePoller: null,
@@ -2364,6 +2365,7 @@ async function loadSession(id) {
         STATE.sessionStarted = data.session.started;
         STATE.captureActive = false;
         STATE.currentSessionName = data.session.name || t('Session #') + id;
+        STATE.currentSessionRawName = data.session.name || null;
         STATE.messages = data.messages;
         STATE.mapExpanded.clear();
         switchTab('trace');
@@ -2621,7 +2623,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.14';
+const PWA_VERSION = '1.22.15';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
@@ -2773,6 +2775,9 @@ function toggleLang() {
     localStorage.setItem('lang', currentLang);
     applyLang();
     translatePage();
+    if (STATE.sessionViewId) {
+        el('session-name-display').textContent = t('Session: ') + (STATE.currentSessionRawName || '#' + STATE.sessionViewId);
+    }
     updateStatus();
     updateCaptureButton();
     renderMessages();
