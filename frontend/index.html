@@ -211,6 +211,16 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .session-download:hover { border-color: var(--accent); color: var(--accent); }
 .session-delete { padding: 4px 12px; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; font-size: 13px; }
 .session-delete:hover { background: var(--accent); color: #fff; }
+.session-view-toggle { display: flex; gap: 2px; }
+.session-view-toggle button { padding: 4px 10px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 13px; }
+.session-view-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sessions-list { padding: 0 16px 16px; overflow-y: auto; }
+.sessions-list table { width: 100%; border-collapse: collapse; }
+.sessions-list th { text-align: left; padding: 8px 12px; color: var(--text-muted); font-size: 12px; border-bottom: 1px solid var(--border); }
+.sessions-list td { padding: 8px 12px; border-bottom: 1px solid var(--bg-input); font-size: 13px; }
+.sessions-list tr[data-id] { cursor: pointer; }
+.sessions-list tr[data-id]:hover { background: var(--bg-panel); }
+.sessions-list td .session-actions { display: flex; gap: 8px; align-items: center; margin-top: 0; }
 
 /* Settings */
 .settings-view { padding: 24px; max-width: 600px; }
@@ -321,12 +331,31 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <button id="import-pcap-btn" data-l10n="Import PCAP">Import PCAP</button>
         <button id="new-capture-btn" data-l10n="New capture">New capture</button>
         <input type="file" id="import-pcap-file" accept=".pcap,.pcapng,.cap" style="display:none;">
+        <div class="session-view-toggle">
+            <button id="view-grid-btn" class="active" data-l10n="Tiles">Tiles</button>
+            <button id="view-list-btn" data-l10n="List">List</button>
+        </div>
     </div>
     <div class="sessions-grid" id="sessions-grid">
         <div class="empty-state" style="height:auto; padding:40px;">
             <p data-l10n="No saved sessions">No saved sessions</p>
             <p style="font-size:12px;" data-l10n="Start a capture from the Trace tab to create sessions.">Start a capture from the Trace tab to create sessions.</p>
         </div>
+    </div>
+    <div class="sessions-list" id="sessions-list" style="display:none">
+        <table>
+            <thead>
+                <tr>
+                    <th data-l10n="Name">Name</th>
+                    <th data-l10n="Date">Date</th>
+                    <th data-l10n="Duration">Duration</th>
+                    <th data-l10n="Messages">Messages</th>
+                    <th data-l10n="Mode">Mode</th>
+                    <th data-l10n="Actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 </div>
 
@@ -2162,10 +2191,103 @@ function updateCaptureButton() {
 }
 
 // ──────────────────── Sessions ────────────────────
+let SESSION_VIEW = localStorage.getItem('session-view') || 'grid';
+
+function toggleSessionView(mode) {
+    SESSION_VIEW = mode;
+    localStorage.setItem('session-view', mode);
+    el('view-grid-btn').classList.toggle('active', mode === 'grid');
+    el('view-list-btn').classList.toggle('active', mode === 'list');
+    el('sessions-grid').style.display = mode === 'grid' ? '' : 'none';
+    el('sessions-list').style.display = mode === 'list' ? '' : 'none';
+    loadSessions();
+}
+
+function buildGridHTML(sessions) {
+    return sessions.map(s => {
+        const name = s.name || t('Session #') + s.id;
+        const dStart = s.started ? s.started.replace('T', ' ') : '?';
+        const duration = s.ended ? formatDuration(s.started, s.ended) : t('active');
+        return `<div class="session-card" data-id="${s.id}">
+            <div class="session-name">
+                <input type="text" value="${escapeHtml(name)}" data-sid="${s.id}" placeholder="${t('Session name...')}">
+            </div>
+            <div class="session-meta">
+                <span>${dStart}</span>
+                <span>${duration}</span>
+                <span>${s.message_count} ${t('msgs')}</span>
+                <span>${s.mode}</span>
+            </div>
+            <div class="session-actions">
+                <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">${t('Download PCAP')}</a>
+                ${is_loopback() ? '' : `<button class="session-copy" data-sid="${s.id}">${t('Copy link')}</button>`}
+                <button class="session-delete" data-sid="${s.id}">${t('Delete')}</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function buildListHTML(sessions) {
+    return sessions.map(s => {
+        const name = s.name || t('Session #') + s.id;
+        const dStart = s.started ? s.started.replace('T', ' ') : '?';
+        const duration = s.ended ? formatDuration(s.started, s.ended) : t('active');
+        return `<tr data-id="${s.id}">
+            <td><input type="text" value="${escapeHtml(name)}" data-sid="${s.id}" placeholder="${t('Session name...')}"></td>
+            <td>${dStart}</td>
+            <td>${duration}</td>
+            <td>${s.message_count} ${t('msgs')}</td>
+            <td>${s.mode}</td>
+            <td class="session-actions">
+                <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">${t('Download PCAP')}</a>
+                ${is_loopback() ? '' : `<button class="session-copy" data-sid="${s.id}">${t('Copy link')}</button>`}
+                <button class="session-delete" data-sid="${s.id}">${t('Delete')}</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function attachSessionListeners(container) {
+    container.querySelectorAll('[data-id]').forEach(el => {
+        el.addEventListener('click', e => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
+            loadSession(parseInt(el.dataset.id));
+        });
+    });
+    container.querySelectorAll('input[data-sid]').forEach(input => {
+        const originalName = input.value;
+        input.addEventListener('blur', async () => {
+            const sid = parseInt(input.dataset.sid);
+            const name = input.value.trim();
+            try {
+                await API.renameSession(sid, name);
+            } catch (e) {
+                input.value = originalName;
+            }
+        });
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') input.blur();
+        });
+    });
+    container.querySelectorAll('.session-delete').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            showDeleteModal(parseInt(btn.dataset.sid));
+        });
+    });
+    container.querySelectorAll('.session-copy').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            copySessionLink(parseInt(btn.dataset.sid));
+        });
+    });
+}
+
 async function loadSessions() {
     try {
         const data = await API.listSessions();
         const grid = el('sessions-grid');
+        const list = el('sessions-list');
 
         const total = data.total_sessions != null ? data.total_sessions : data.sessions.length;
         const dbSize = data.db_size != null ? fmtSize(data.db_size) : '?';
@@ -2174,68 +2296,27 @@ async function loadSessions() {
             : t('{n} session(s) · {size}').replace('{n}', total).replace('{size}', dbSize);
         el('sessions-stats').textContent = sessionsLabel;
 
+        grid.style.display = SESSION_VIEW === 'grid' ? '' : 'none';
+        list.style.display = SESSION_VIEW === 'list' ? '' : 'none';
+        el('view-grid-btn').classList.toggle('active', SESSION_VIEW === 'grid');
+        el('view-list-btn').classList.toggle('active', SESSION_VIEW === 'list');
+
         if (!data.sessions.length) {
-            grid.innerHTML = `<div class="empty-state" style="height:auto; padding:40px;">
+            const emptyHTML = `<div class="empty-state" style="height:auto; padding:40px;">
                 <p>${t('No saved sessions')}</p>
             </div>`;
+            grid.innerHTML = emptyHTML;
+            list.innerHTML = emptyHTML;
             return;
         }
-        grid.innerHTML = data.sessions.map(s => {
-            const name = s.name || t('Session #') + s.id;
-            const dStart = s.started ? s.started.replace('T', ' ') : '?';
-            const duration = s.ended ? formatDuration(s.started, s.ended) : t('active');
-            return `<div class="session-card" data-id="${s.id}">
-                <div class="session-name">
-                    <input type="text" value="${escapeHtml(name)}" data-sid="${s.id}" placeholder="${t('Session name...')}">
-                </div>
-                <div class="session-meta">
-                    <span>${dStart}</span>
-                    <span>${duration}</span>
-                    <span>${s.message_count} ${t('msgs')}</span>
-                    <span>${s.mode}</span>
-                </div>
-                <div class="session-actions">
-                    <a class="session-download" href="${API_BASE()}/api/sessions/${s.id}/pcap">${t('Download PCAP')}</a>
-                    ${is_loopback() ? '' : `<button class="session-copy" data-sid="${s.id}">${t('Copy link')}</button>`}
-                    <button class="session-delete" data-sid="${s.id}">${t('Delete')}</button>
-                </div>
-            </div>`;
-        }).join('');
 
-        grid.querySelectorAll('.session-card').forEach(card => {
-            card.addEventListener('click', e => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
-                loadSession(parseInt(card.dataset.id));
-            });
-        });
-        grid.querySelectorAll('.session-name input').forEach(input => {
-            const originalName = input.value;
-            input.addEventListener('blur', async () => {
-                const sid = parseInt(input.dataset.sid);
-                const name = input.value.trim();
-                try {
-                    await API.renameSession(sid, name);
-                } catch (e) {
-                    input.value = originalName;
-                }
-            });
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') input.blur();
-            });
-        });
-        grid.querySelectorAll('.session-delete').forEach(btn => {
-            btn.addEventListener('click', e => {
-                e.stopPropagation();
-                const sid = parseInt(btn.dataset.sid);
-                showDeleteModal(sid);
-            });
-        });
-        grid.querySelectorAll('.session-copy').forEach(btn => {
-            btn.addEventListener('click', e => {
-                e.stopPropagation();
-                copySessionLink(parseInt(btn.dataset.sid));
-            });
-        });
+        if (SESSION_VIEW === 'grid') {
+            grid.innerHTML = buildGridHTML(data.sessions);
+        } else {
+            list.querySelector('tbody').innerHTML = buildListHTML(data.sessions);
+        }
+
+        attachSessionListeners(SESSION_VIEW === 'grid' ? grid : list);
     } catch (e) {}
 }
 
@@ -2526,7 +2607,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.5';
+const PWA_VERSION = '1.22.6';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
@@ -2584,6 +2665,14 @@ const LANG_RU = {
     'Start a capture from the Trace tab to create sessions.': 'Начните захват на вкладке «Трассировка», чтобы создать сессии.',
     'Import PCAP': 'Импорт PCAP',
     'New capture': 'Новый захват',
+    'Tiles': 'Плитки',
+    'List': 'Список',
+    'Name': 'Имя',
+    'Date': 'Дата',
+    'Duration': 'Длительность',
+    'Messages': 'Сообщения',
+    'Mode': 'Режим',
+    'Actions': 'Действия',
     'Server': 'Сервер',
     'device disconnected — reconnecting…': 'устройство отключено — переподключение…',
     'device disconnected — messages may be missing': 'устройство отключалось — сообщения могли быть потеряны',
@@ -2787,6 +2876,9 @@ function init() {
         if (file) importPcapFile(file);
         el('import-pcap-file').value = '';
     });
+
+    $on('view-grid-btn', 'click', () => toggleSessionView('grid'));
+    $on('view-list-btn', 'click', () => toggleSessionView('list'));
 
     $on('search-input', 'input', onSearchChange);
     $on('filter-select', 'change', onFilterChange);
