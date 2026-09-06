@@ -209,8 +209,10 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .session-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
 .session-download { padding: 4px 12px; background: none; border: 1px solid var(--text-muted); color: var(--text-muted); border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 13px; display: inline-block; }
 .session-download:hover { border-color: var(--accent); color: var(--accent); }
-.session-delete { padding: 4px 12px; background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; font-size: 13px; }
-.session-delete:hover { background: var(--accent); color: #fff; }
+.session-copy { padding: 4px 12px; background: none; border: 1px solid var(--text-muted); color: var(--text-muted); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.session-copy:hover { border-color: var(--accent); color: var(--accent); }
+.session-delete { padding: 4px 12px; background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.session-delete:hover { background: var(--danger); color: #fff; }
 .session-view-toggle { display: flex; gap: 2px; }
 .session-view-toggle button { padding: 4px 10px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 13px; }
 .session-view-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -2607,7 +2609,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.7';
+const PWA_VERSION = '1.22.8';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
