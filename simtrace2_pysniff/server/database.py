@@ -4,6 +4,7 @@ import os
 import sqlite3
 import time
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 
 DEFAULT_DB_DIR = os.path.expanduser('~/.simtrace-analyser')
 DEFAULT_DB_PATH = os.path.join(DEFAULT_DB_DIR, 'sessions.db')
@@ -68,10 +69,16 @@ class Database:
         self._conn.commit()
         return cur.lastrowid
 
-    def close_session(self, session_id):
+    def close_session(self, session_id, duration_secs=None):
+        if duration_secs is not None and duration_secs > 0:
+            started = self._conn.execute(
+                'SELECT started FROM sessions WHERE id=?', (session_id,)).fetchone()[0]
+            ended = (datetime.fromisoformat(started) + timedelta(seconds=duration_secs)).isoformat()
+        else:
+            ended = _iso_now()
         self._conn.execute(
             'UPDATE sessions SET ended=? WHERE id=? AND ended IS NULL',
-            (_iso_now(), session_id))
+            (ended, session_id))
         self._conn.commit()
 
     def set_session_times_from_ts(self, session_id, first_ts, last_ts):

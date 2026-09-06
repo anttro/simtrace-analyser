@@ -346,7 +346,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         if first_ts is not None and first_ts > _REAL_TS_MIN:
             self.db.set_session_times_from_ts(session_id, first_ts, last_ts)
         else:
-            self.db.close_session(session_id)
+            duration = (last_ts - first_ts) if last_ts is not None and first_ts is not None else 0
+            self.db.close_session(session_id, duration)
 
         _log(f'Session imported: session={session_id} '
              f'name={name or "(untitled)"} messages={len(packets)} '
