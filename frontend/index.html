@@ -152,6 +152,8 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .apdu-detail { display: flex; flex-direction: column; flex: 0 0 var(--detail-height, 30%); overflow-y: auto; background: var(--bg-panel); }
 /* Splitter bar */
 .splitter { height: 6px; cursor: row-resize; background: var(--border); flex-shrink: 0; }
+.splitter::after { content: ''; display: block; margin: 0 auto; width: 30px; height: 100%; background: radial-gradient(circle, var(--text-muted) 1px, transparent 1px); background-size: 6px 6px; }
+.splitter:hover::after, .splitter.active::after { background: radial-gradient(circle, var(--text) 1px, transparent 1px); background-size: 6px 6px; }
 .splitter:hover, .splitter.active { background: var(--accent); }
 .apdu-detail .detail-empty { padding: 24px; color: var(--text-muted); text-align: center; }
 .detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-input); border-bottom: 1px solid var(--border); }
@@ -2619,7 +2621,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.13';
+const PWA_VERSION = '1.22.14';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
