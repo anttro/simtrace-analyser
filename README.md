@@ -280,3 +280,6 @@ Use `--inactivity-timeout` to also trigger reconnect on silent firmware hangs.
 
 - **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — the upstream
   SIMtrace2 hardware/firmware project that this tool sniffs from.
+- **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
+  FX2LP-based passive ISO 7816 sniffer that emits the same GSMTAP-SIM stream
+  on UDP 4729 (accepted by this project's GSMTAP listener).

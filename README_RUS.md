@@ -298,3 +298,6 @@ for msg in session.iter_messages():
 - **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — вышестоящий
   проект оборудования/прошивки SIMtrace2, с которого этот инструмент
   снимает трафик.
+- **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
+  пассивный ISO 7816 сниффер на базе FX2LP, выдающий такой же поток
+  GSMTAP-SIM на UDP 4729 (принимается GSMTAP-листенером этого проекта).
