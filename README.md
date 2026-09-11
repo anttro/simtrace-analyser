@@ -1,5 +1,7 @@
 # simtrace2-pysniff
 
+English | [Русский](README_RUS.md)
+
 Python-based replacement for `simtrace2-sniff` — SIM card communication sniffer
 for Osmocom SIMtrace2 hardware (firmware in **trace** mode).  It bundles the
 **simtrace-analyser** PWA (in [`frontend/`](frontend/)) and an analysis server
@@ -79,11 +81,12 @@ Two tools are provided:
 
 Captures SIMtrace2 traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.
 
-### Startup script (Linux only)
+### Startup script
 
 `./sniff-start.sh` performs a pre-flight USB permission check (prints udev
 install instructions if the SIMtrace2 device is not writable) and then
-launches the Python module.
+launches the Python module. On Windows, use `sniff-start.bat` with the same
+options (no permission check needed).
 
 ```sh
 ./sniff-start.sh
