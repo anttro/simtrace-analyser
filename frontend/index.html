@@ -2583,7 +2583,7 @@ async function checkConnection() {
                     <code>git clone https://github.com/anttro/simtrace2-pysniff.git</code><br>
                     <code>cd simtrace2-pysniff && pip install -e .</code></li>
                 <li>${t('Start the server in direct mode (recommended):')}<br>
-                    <code>./server-start.sh --capture direct</code><br>
+                    <code>./start.sh --capture direct</code><br>
                     <span style="color:var(--text-muted);">${t('Requires SIMtrace2 hardware connected via USB; captures directly from the device.')}</span></li>
             </ol>
             <p style="margin-top:8px;">${t('Then set the URL above to http://127.0.0.1:8081 and return to the Trace tab.')}</p>
@@ -2591,7 +2591,7 @@ async function checkConnection() {
             <p style="color:var(--text-muted); margin-top:4px;">${t('Use an external sniffer alongside the server. This mode is compatible with the original Osmocom simtrace2-sniff.')}</p>
             <ol style="margin-top:4px;">
                 <li>${t('Start the server:')}<br>
-                    <code>./server-start.sh --capture gsmtap</code></li>
+                    <code>./start.sh --capture gsmtap</code></li>
                 <li>${t('Start a GSMTAP source in another terminal — either:')}<br>
                     <code>./sniff-start.sh --gsmtap 127.0.0.1</code> &nbsp;(simtrace2-pysniff)<br>
                     &nbsp;or<br>
@@ -2625,7 +2625,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.16';
+const PWA_VERSION = '1.22.17';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {

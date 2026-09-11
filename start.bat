@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: simtrace2-pysniff-server startup script for Windows
 ::
-:: Usage: server-start.bat [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
+:: Usage: start.bat [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 ::
 :: Options set via environment variables act as defaults; CLI flags override them.
 

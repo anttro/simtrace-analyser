@@ -1,7 +1,7 @@
 #!/bin/bash
 # simtrace2-pysniff-server startup script
 #
-# Usage: ./server-start.sh [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
+# Usage: ./start.sh [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 #
 # Options set via environment variables act as defaults; CLI flags override them.
 
