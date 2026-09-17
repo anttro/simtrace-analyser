@@ -3992,6 +3992,11 @@ DATA_FLAGS = {
     1 << 10: 'parity error',
 }
 
+# sigrok-iso7816-stream line-event payload flags (payload[2] of RST/VCC,
+# decoder v1.9.0+): bit 0 set → a big-endian uint32 CLK frequency in Hz
+# follows at bytes 3..6.
+LINE_EVENT_FLAG_CLK_HZ = 0x01
+
 
 def _flag_names(flags, mapping):
     names = []
@@ -4013,11 +4018,13 @@ def decode_change(flags):
 
 def decode_line_event(raw_data, kind):
     """Decode a sigrok-iso7816-stream RST/VCC line event (GSMTAP sub_type
-    0x10/0x11): payload [direction, level, reserved].
+    0x10/0x11): payload [direction, level, flags, clk_hz_be32?].
 
     direction — RST: 1 = asserted (high→low), 0 = de-asserted (low→high);
     VCC: 1 = power applied (low→high), 0 = removed (high→low).
     level — resulting line level: 0 = low, 1 = high.
+    flags — bit 0 (LINE_EVENT_FLAG_CLK_HZ) set when a CLK frequency follows
+    (decoder v1.9.0+); bytes 3..6 are then a big-endian uint32 in Hz.
 
     ``event`` is the canonical value; ``label`` is the human-facing
     summary (e.g. RST de-asserted → "ATR STARTS", VCC applied →
@@ -4041,6 +4048,8 @@ def decode_line_event(raw_data, kind):
                 result['event'] = 'power removed'
                 result['label'] = 'VCC OFF (power-down)'
         result['level'] = 'high' if level else 'low'
+        if (len(raw_data) >= 7 and raw_data[2] & LINE_EVENT_FLAG_CLK_HZ):
+            result['clk_hz'] = int.from_bytes(raw_data[3:7], 'big')
         result['raw'] = raw_data.hex().upper()
     return result
 
@@ -4126,6 +4135,25 @@ def _fidi_dict(fi, di):
     return entry
 
 
+def atr_rate_fields(clk_hz, decoded):
+    """Derive the CLK frequency, data rate and ETU for a decoded ATR.
+
+    The Fi/Di communicated by TA1 (ISO 7816-3 §8.3) give the bit duration:
+    ``data_rate = clk_hz × D / F`` and ``ETU = F / (clk_hz × D)``.  When TA1
+    is absent the interface defaults (F=372, D=1) apply.
+    """
+    f, d = 372, 1
+    for ifc in (decoded.get('interface') or []):
+        if ifc.get('name') == 'TA1' and 'f' in ifc and 'd' in ifc:
+            f, d = ifc['f'], ifc['d']
+            break
+    return {
+        'clk_hz': clk_hz,
+        'data_rate': int(round(clk_hz * d / f)),
+        'etu_us': round(f / (clk_hz * d) * 1e6, 1),
+    }
+
+
 def _decode_historical(hist):
     """Decode ATR historical bytes (ISO 7816-4 §8.1.1)."""
     result = {'raw': hist.hex().upper()}
@@ -4149,8 +4177,13 @@ def _decode_historical(hist):
     return result
 
 
-def _decode_atr(data):
-    """Decode an Answer-To-Reset (ISO 7816-3 §8) into a structured dict."""
+def _decode_atr(data, clk_hz=None):
+    """Decode an Answer-To-Reset (ISO 7816-3 §8) into a structured dict.
+
+    *clk_hz* — when the sigrok-iso7816-stream decoder reported a CLK
+    frequency on a preceding RST event, the ATR gains ``clk_hz``,
+    ``data_rate`` and ``etu_us`` fields derived from TA1 Fi/Di.
+    """
     if not data:
         return {'type': 'atr', 'raw': ''}
     ts = data[0]
@@ -4169,6 +4202,8 @@ def _decode_atr(data):
         'raw': raw,
     }
     if not body:
+        if clk_hz:
+            result.update(atr_rate_fields(clk_hz, result))
         return result
 
     t0 = body[0]
@@ -4261,6 +4296,9 @@ def _decode_atr(data):
         result['tck'] = f'{tck:02X}'
         result['tck_valid'] = check == tck
 
+    if clk_hz:
+        result.update(atr_rate_fields(clk_hz, result))
+
     return result
 
 
@@ -4304,14 +4342,16 @@ def _decode_pps(data):
     return result
 
 
-def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None):
+def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None, clk_hz=None):
     """Decode a raw sniff message of the given type.
 
     Returns a structured dict with at least a 'type' key, or None if
     the message type has no structured decode.
 
     *prev* optionally carries the previous TPDU's decoded context for
-    resolving GET RESPONSE.
+    resolving GET RESPONSE.  *clk_hz* is the CLK frequency reported by a
+    preceding RST event (sigrok-iso7816-stream v1.9.0+), used to derive
+    the data rate of an ATR.
     """
     if msg_type == 'tpdu' and raw_data:
         result = decode_message(raw_data, prev=prev)
@@ -4331,7 +4371,7 @@ def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None):
     if msg_type == 'fidi' and raw_data:
         return decode_fidi(raw_data)
     if msg_type == 'atr':
-        result = _decode_atr(raw_data)
+        result = _decode_atr(raw_data, clk_hz=clk_hz)
         if result is not None:
             errs = (decode_data_flags(flags) or []) + (gsmtap_flag_names(flags) or [])
             if errs:

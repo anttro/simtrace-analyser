@@ -19,7 +19,8 @@ class TestGsmtapSubtypeMapping(unittest.TestCase):
     def test_standard_subtypes(self):
         self.assertEqual(gsmtap_msg_type(0x00), 'tpdu')
         self.assertEqual(gsmtap_msg_type(0x01), 'atr')
-        self.assertEqual(gsmtap_msg_type(0x02), 'tpdu')  # PPS combined
+        self.assertEqual(gsmtap_msg_type(0x02), 'pps')  # PPS request
+        self.assertEqual(gsmtap_msg_type(0x03), 'pps')  # PPS response
 
 
 class _FakeBackend:

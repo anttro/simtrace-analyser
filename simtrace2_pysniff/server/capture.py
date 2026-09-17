@@ -7,6 +7,7 @@ import time
 import traceback
 
 from ..gsmtap import (GsmtapReceiver, GSMTAP_SIM_ATR,
+                      GSMTAP_SIM_PPS_REQ, GSMTAP_SIM_PPS_RSP,
                       GSMTAP_SIM_RST_EVENT, GSMTAP_SIM_VCC_EVENT)
 
 
@@ -22,11 +23,14 @@ def _log(msg):
 def gsmtap_msg_type(sub_type):
     """Map a GSMTAP-SIM sub_type to a stored message type.
 
-    Custom sigrok-iso7816-stream line events (0x10/0x11) become 'rst'/'vcc';
-    everything except ATR defaults to 'tpdu'.
+    PPS request/response (0x02/0x03, standard GSMTAP) become 'pps'; custom
+    sigrok-iso7816-stream line events (0x10/0x11) become 'rst'/'vcc';
+    everything else defaults to 'tpdu'.
     """
     return {
         GSMTAP_SIM_ATR: 'atr',
+        GSMTAP_SIM_PPS_REQ: 'pps',
+        GSMTAP_SIM_PPS_RSP: 'pps',
         GSMTAP_SIM_RST_EVENT: 'rst',
         GSMTAP_SIM_VCC_EVENT: 'vcc',
     }.get(sub_type, 'tpdu')

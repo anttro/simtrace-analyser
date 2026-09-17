@@ -179,17 +179,18 @@ class Database:
             'WHERE session_id=? ORDER BY elapsed, id LIMIT ? OFFSET ?',
             (session_id, limit, offset)).fetchall()
         initial_states = None
+        clk_hz = None
         if offset > 0 and rows:
-            initial_states = self._replay_context(session_id, rows[0][0])
-        return self._decode_rows(rows, initial_states=initial_states)
+            initial_states, clk_hz = self._replay_context(session_id, rows[0][0])
+        return self._decode_rows(rows, initial_states=initial_states, clk_hz=clk_hz)
 
     def get_messages_after(self, session_id, after_id):
         rows = self._conn.execute(
             'SELECT id, session_id, elapsed, type, data, flags FROM messages '
             'WHERE session_id=? AND id > ? ORDER BY elapsed, id',
             (session_id, after_id)).fetchall()
-        initial_states = self._replay_context(session_id, after_id + 1)
-        return self._decode_rows(rows, initial_states=initial_states)
+        initial_states, clk_hz = self._replay_context(session_id, after_id + 1)
+        return self._decode_rows(rows, initial_states=initial_states, clk_hz=clk_hz)
 
     def get_messages_raw(self, session_id):
         rows = self._conn.execute(
@@ -226,7 +227,7 @@ class Database:
             (session_id,)).fetchall()
         return [{'type': r[0], 'count': r[1]} for r in rows]
 
-    def _row_to_message(self, row, prev=None):
+    def _row_to_message(self, row, prev=None, clk_hz=None):
         data_blob = row[4]
         flags = row[5]
         msg = {
@@ -240,7 +241,8 @@ class Database:
         if row[3] in ('tpdu', 'change', 'fidi', 'atr', 'pps', 'rst', 'vcc'):
             try:
                 from .decode import decode_sniff_msg
-                msg['decoded'] = decode_sniff_msg(data_blob, row[3], flags, prev=prev)
+                msg['decoded'] = decode_sniff_msg(data_blob, row[3], flags,
+                                                  prev=prev, clk_hz=clk_hz)
             except Exception as e:
                 import sys
                 print(f'Decode error for msg {row[0]} ({row[3]}, {len(data_blob)} bytes): {e}',
@@ -260,16 +262,27 @@ class Database:
 
     def _replay_context(self, session_id, before_id):
         """Replay (bounded) messages before *before_id* to recover per-channel
-        selection, DF, and SFI map."""
+        selection, DF, SFI map, and the last RST-reported CLK frequency.
+
+        Returns ``(states, clk_hz)``."""
         from .decode import decode_sniff_msg
         rows = self._conn.execute(
             "SELECT data, type FROM messages WHERE session_id=? AND id < ? "
-            "AND type IN ('tpdu','atr','change','gap') ORDER BY id DESC LIMIT 500",
+            "AND type IN ('tpdu','atr','change','gap','rst','vcc') "
+            "ORDER BY id DESC LIMIT 500",
             (session_id, before_id)).fetchall()
         states = {}
+        clk_hz = None
         for data, typ in reversed(rows):
             if typ in ('atr', 'change', 'gap'):
                 states = {}
+                # An ATR consumes the CLK rate; a replay starts fresh after it.
+                clk_hz = None
+                continue
+            if typ in ('rst', 'vcc'):
+                d = decode_sniff_msg(data, typ, 0)
+                if d and d.get('clk_hz'):
+                    clk_hz = d['clk_hz']
                 continue
             channel = data[0] & 0x03 if data and len(data) >= 1 else 0
             st = self._channel_state(states, channel)
@@ -282,7 +295,7 @@ class Database:
                 continue
             st['sel'], st['df'], st['sfi_map'] = self._advance_state(d, st['sel'], st['df'], st['sfi_map'])
             st['prev'] = self._context_from_decoded(d)
-        return states
+        return states, clk_hz
 
     def _advance_state(self, d, sel, df, sfi_map):
         """Update (sel, df, sfi_map) for one decoded TPDU."""
@@ -350,9 +363,12 @@ class Database:
                 return new
         return sel
 
-    def _decode_rows(self, rows, initial_states=None):
+    def _decode_rows(self, rows, initial_states=None, clk_hz=None):
+        from .decode import atr_rate_fields
         msgs = []
         states = dict(initial_states or {})
+        last_atr_i = None       # index of the most recent ATR in *msgs*
+        last_atr_rated = False  # whether that ATR already carries a data rate
         for row in rows:
             channel = 0
             if row[3] == 'tpdu' and row[4] and len(row[4]) >= 5:
@@ -362,13 +378,18 @@ class Database:
             ctx['sel'] = st['sel']
             ctx['df'] = st['df']
             ctx['sfi_map'] = st['sfi_map']
-            msg = self._row_to_message(row, prev=ctx)
+            msg = self._row_to_message(row, prev=ctx, clk_hz=clk_hz)
             d = msg.get('decoded')
             if msg['type'] == 'tpdu' and d and d.get('ins_hex'):
                 st['sel'], st['df'], st['sfi_map'] = self._advance_state(d, st['sel'], st['df'], st['sfi_map'])
                 st['prev'] = self._context_from_decoded(d)
             elif msg['type'] == 'atr':
                 states = {}
+                # The CLK rate is consumed by the ATR it precedes: an ATR
+                # without a preceding RST event must not inherit a stale rate.
+                last_atr_i = len(msgs)
+                last_atr_rated = bool(d and d.get('data_rate'))
+                clk_hz = None
             elif msg['type'] == 'gap':
                 # Device disconnected and reconnected — messages may have been
                 # missed, so the selection is uncertain.
@@ -389,6 +410,17 @@ class Database:
                 # removal destroys the card's selection state.  De-assert /
                 # power-on are markers only (the following ATR resets state).
                 data = row[4] if len(row) > 4 and row[4] else b''
+                if d and d.get('clk_hz'):
+                    if (last_atr_i is not None and not last_atr_rated
+                            and msgs[last_atr_i].get('decoded')):
+                        # Ordering caveat: a short ATR can be emitted before
+                        # the RST event that measured its CLK rate — backfill
+                        # the rate onto that ATR.
+                        msgs[last_atr_i]['decoded'].update(
+                            atr_rate_fields(d['clk_hz'], msgs[last_atr_i]['decoded']))
+                        last_atr_rated = True
+                    else:
+                        clk_hz = d['clk_hz']
                 if msg['type'] == 'rst':
                     if data and data[0] == 1:  # asserted
                         states = {}

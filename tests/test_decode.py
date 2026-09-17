@@ -871,6 +871,35 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['historical_len'], 2)
         self.assertNotIn('tck', r)
 
+    def test_atr_data_rate_from_clk(self):
+        from simtrace2_pysniff.server.decode import _decode_atr
+        # TA1=11 → F=372, D=1; CLK 3.579545 MHz → 9622 bit/s, ETU 103.9 µs
+        r = _decode_atr(bytes.fromhex('3B12110000'), clk_hz=3579545)
+        self.assertEqual(r['clk_hz'], 3579545)
+        self.assertEqual(r['data_rate'], 9622)
+        self.assertEqual(r['etu_us'], 103.9)
+
+    def test_atr_data_rate_uses_ta1_fidi(self):
+        from simtrace2_pysniff.server.decode import _decode_atr
+        # TA1=95 → F=512, D=16; CLK 4 MHz → 125000 bit/s, ETU 8.0 µs
+        r = _decode_atr(bytes.fromhex('3B1095'), clk_hz=4000000)
+        self.assertEqual(r['data_rate'], 125000)
+        self.assertEqual(r['etu_us'], 8.0)
+
+    def test_atr_data_rate_defaults_without_ta1(self):
+        from simtrace2_pysniff.server.decode import _decode_atr
+        # No TA1 → default F=372, D=1
+        r = _decode_atr(bytes.fromhex('3B00'), clk_hz=4000000)
+        self.assertEqual(r['data_rate'], 10753)
+        self.assertEqual(r['etu_us'], 93.0)
+
+    def test_atr_no_clk_no_rate(self):
+        from simtrace2_pysniff.server.decode import _decode_atr
+        r = _decode_atr(bytes.fromhex('3B12110000'))
+        self.assertNotIn('clk_hz', r)
+        self.assertNotIn('data_rate', r)
+        self.assertNotIn('etu_us', r)
+
     def test_atr_td1_t1_has_tck(self):
         from simtrace2_pysniff.server.decode import _decode_atr
         # 3B 80 01 80 31 80 66 ... : construct T=1 with TCK
@@ -2430,6 +2459,55 @@ class TestLineEvents(unittest.TestCase):
         r = self._dec('rst', '01')
         self.assertEqual(r['type'], 'rst')
         self.assertNotIn('event', r)
+
+    def test_rst_clk_extension(self):
+        # v1.9.0 payload: direction, level, flags(bit0=CLK), clk_hz_be32.
+        r = self._dec('rst', '000101003d0900')  # 4 MHz
+        self.assertEqual(r['event'], 'reset de-asserted')
+        self.assertEqual(r['clk_hz'], 4000000)
+
+    def test_rst_clk_extension_asserted(self):
+        r = self._dec('rst', '010001003d0900')  # 4 MHz
+        self.assertEqual(r['event'], 'reset asserted')
+        self.assertEqual(r['clk_hz'], 4000000)
+
+    def test_rst_clk_flag_absent(self):
+        r = self._dec('rst', '000100003d0900')
+        self.assertNotIn('clk_hz', r)
+
+    def test_rst_clk_flag_truncated(self):
+        # Flag says CLK follows but the payload is too short — ignore.
+        r = self._dec('rst', '000101003d09')
+        self.assertNotIn('clk_hz', r)
+
+    def test_db_atr_data_rate(self):
+        # CLK from RST → data rate on the following ATR; rate consumed once,
+        # so a second ATR without a preceding RST has no rate.
+        import tempfile
+        from simtrace2_pysniff.server.database import Database
+        with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
+            db = Database(tmp.name)
+            sid = db.create_session('capture')
+            db.insert_message(sid, 0.1, 'rst', bytes.fromhex('000101003d0900'), 0)
+            db.insert_message(sid, 0.2, 'atr', bytes.fromhex('3B12110000'), 0)
+            db.insert_message(sid, 0.3, 'atr', bytes.fromhex('3B12110000'), 0)
+            msgs = db.get_messages(sid)
+            self.assertEqual(msgs[1]['decoded']['data_rate'], 10753)  # 4 MHz / 372
+            self.assertEqual(msgs[1]['decoded']['etu_us'], 93.0)
+            self.assertNotIn('data_rate', msgs[2]['decoded'])
+
+    def test_db_atr_rate_backfill(self):
+        # Ordering caveat: a short ATR can be emitted before the RST event
+        # that measured its CLK rate — the rate is backfilled onto it.
+        import tempfile
+        from simtrace2_pysniff.server.database import Database
+        with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
+            db = Database(tmp.name)
+            sid = db.create_session('capture')
+            db.insert_message(sid, 0.1, 'atr', bytes.fromhex('3B12110000'), 0)
+            db.insert_message(sid, 0.2, 'rst', bytes.fromhex('000101003d0900'), 0)
+            msgs = db.get_messages(sid)
+            self.assertEqual(msgs[0]['decoded']['data_rate'], 10753)
 
 
 if __name__ == '__main__':

@@ -1512,6 +1512,9 @@ function atrPpsRows(decoded) {
                 rows.push([ifc.name, ifaceValue(ifc)]);
             }
         }
+        if (decoded.clk_hz) rows.push(['CLK', (decoded.clk_hz / 1e6).toFixed(3) + ' MHz']);
+        if (decoded.data_rate) rows.push(['Data rate', decoded.data_rate + ' bit/s']);
+        if (decoded.etu_us) rows.push(['ETU', decoded.etu_us + ' µs']);
         if (decoded.historical) {
             const h = decoded.historical;
             let v = h.category || '';
@@ -1580,6 +1583,7 @@ function showDetail(msg, entry) {
                 <table>
                     <tr><td class="label">Event</td><td class="value">${evName}</td></tr>
                     <tr><td class="label">Level</td><td class="value">${decoded.level || '?'}</td></tr>
+                    ${decoded.clk_hz ? `<tr><td class="label">CLK</td><td class="value">${(decoded.clk_hz / 1e6).toFixed(3)} MHz</td></tr>` : ''}
                     ${decoded.raw ? `<tr><td class="label">Raw</td><td class="hex">${decoded.raw}</td></tr>` : ''}
                 </table>
             </div>`;
@@ -2625,7 +2629,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.17';
+const PWA_VERSION = '1.22.18';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
