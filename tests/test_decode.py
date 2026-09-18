@@ -1006,6 +1006,79 @@ class TestPacketSummaries(unittest.TestCase):
         self.assertIsNone(self._dec('010100', 'vcc').get('summary'))
 
 
+class TestTerminalProfile(unittest.TestCase):
+    """TERMINAL PROFILE device characteristics (regression anchors from
+    projects/docs/TERMINAL_PROFILE.md §10)."""
+
+    def _dec(self, profile_hex):
+        data = bytes.fromhex(profile_hex)
+        raw = '80100000%02x' % len(data) + profile_hex + '9000'
+        return decode_message(bytes.fromhex(raw))
+
+    def test_xiaomi_mi_a1(self):
+        r = self._dec('FFFFFFFF7F9F00DFFF03021FE2000000C3FB0007041178'
+                      '00710100000038428003')
+        tp = r['tp']
+        self.assertEqual(r['body']['label'], 'Profile')
+        self.assertTrue(tp['bip'])
+        self.assertEqual(tp['bip_channels'], 7)
+        self.assertEqual(tp['bip_bearers'], ['GPRS'])
+        self.assertEqual(tp['bip_transports'],
+                         ['TCP client, remote', 'UDP client, remote'])
+        self.assertTrue(tp['hsdpa'])
+        self.assertTrue(tp['eutran'])
+        self.assertEqual(tp['generation'], '3G/4G')
+        self.assertTrue(tp['utran_ps'])
+        self.assertEqual(tp['standards'], '3GPP + CDMA')
+        self.assertEqual(tp['summary'], '3G/4G \u00b7 BIP')
+        self.assertEqual(r['summary'], '3G/4G \u00b7 BIP')
+
+    def test_quectel_gsm_module(self):
+        r = self._dec('FFFFFFFF7F1F007FFF00001F230811060700')
+        tp = r['tp']
+        self.assertTrue(tp['bip'])
+        self.assertEqual(tp['bip_channels'], 1)
+        self.assertEqual(tp['bip_bearers'], ['CSD', 'GPRS'])
+        self.assertNotIn('generation', tp)
+        self.assertEqual(tp['summary'], 'BIP')
+
+    def test_huawei_e173_underdeclared(self):
+        # The E173 is a 3G modem yet leaves E-UTRAN/HSDPA clear — the TP
+        # must not be read as "2G".
+        r = self._dec('2965D7E11F90001FD50000000000000000E00000')
+        tp = r['tp']
+        self.assertIs(tp['bip'], False)
+        self.assertNotIn('generation', tp)
+        self.assertEqual(tp['standards'], '3GPP')
+        self.assertEqual(tp['summary'], 'no BIP')
+
+    def test_nokia_7210(self):
+        r = self._dec('FFFFFFFF7F3F00DFFF00001FE28A0D0203290000020040')
+        tp = r['tp']
+        self.assertTrue(tp['bip'])
+        self.assertEqual(tp['bip_channels'], 7)
+        self.assertEqual(tp['screen_h'], 10)
+        self.assertEqual(tp['screen_w'], 13)
+        self.assertNotIn('device_class', tp)
+        self.assertEqual(tp['summary'], 'BIP')
+
+    def test_declared_headless_modem(self):
+        # byte 14 b6 (0x20) = no display capability (class ND).
+        r = self._dec('FFFFFFFF7F9F00DFFF03021F00' + '20' + '00' * 6)
+        tp = r['tp']
+        self.assertEqual(tp['device_class'], 'modem')
+        self.assertIn('declared', tp['class_reason'])
+        self.assertIn('no display', tp['class_reason'])
+        self.assertEqual(tp['summary'], 'modem \u00b7 BIP')
+
+    def test_handset_class(self):
+        r = self._dec('FFFFFFFF7F9F00DFFF03021FE208110000')
+        tp = r['tp']
+        self.assertEqual(tp['device_class'], 'handset')
+        self.assertIn('screen 8\u00d717', tp['class_reason'])
+        self.assertEqual(tp['summary'], 'handset \u00b7 BIP')
+
+
 class TestSummary(unittest.TestCase):
     def test_select_path_from_mf(self):
         r = decode_message(bytes.fromhex('a0a40804022fe29000'))

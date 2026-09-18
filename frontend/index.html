@@ -1128,6 +1128,49 @@ const API = {
 function el(id) { return document.getElementById(id); }
 function $on(id, ev, fn) { el(id).addEventListener(ev, fn); }
 
+function tpRows(tp) {
+    if (!tp) return '';
+    const rows = [];
+    if (tp.device_class === 'modem') {
+        rows.push(['Device class', 'headless/modem — ' + (tp.class_reason || '')]);
+    } else if (tp.device_class === 'handset') {
+        rows.push(['Device class', 'handset — ' + (tp.class_reason || '')]);
+    } else {
+        rows.push(['Device class', 'not determined']);
+    }
+    const gen = [];
+    if (tp.hsdpa) gen.push('HSDPA (3G)');
+    if (tp.eutran) gen.push('E-UTRAN (4G)');
+    rows.push(['Radio', gen.length
+        ? 'declared: ' + gen.join(', ')
+        : 'no 3G/4G capability declared (under-declaration is common)']);
+    if (tp.utran_ps) rows.push(['UTRAN PS ext.', 'declared']);
+    if (tp.bip === true) {
+        let v = 'capable';
+        if (tp.bip_channels != null) {
+            v += ' — ' + tp.bip_channels + ' channel' + (tp.bip_channels === 1 ? '' : 's');
+        }
+        if (tp.bip_bearers && tp.bip_bearers.length) v += ' · ' + tp.bip_bearers.join(', ');
+        rows.push(['BIP', v]);
+        if (tp.bip_transports && tp.bip_transports.length) {
+            rows.push(['BIP transports', tp.bip_transports.join(', ')]);
+        }
+    } else if (tp.bip === false) {
+        rows.push(['BIP', 'not advertised (no OPEN CHANNEL)']);
+    }
+    if (tp.standards) rows.push(['Standards', tp.standards]);
+    const ui = [];
+    if (tp.soft_keys != null) ui.push('soft keys ' + tp.soft_keys);
+    if (tp.screen_h != null || tp.screen_w != null) {
+        ui.push('screen ' + (tp.screen_h || 0) + '×' + (tp.screen_w || 0) + ' chars');
+    }
+    if (tp.markup && tp.markup.length) ui.push('markup ' + tp.markup.join('/'));
+    if (ui.length) rows.push(['UI', ui.join(' · ')]);
+    rows.push(['Profile', tp.length + ' bytes — ' + (tp.era || '')]);
+    return `<tr><td class="label" colspan="2" style="padding-top:6px; border-top:1px solid var(--border);">Terminal profile</td></tr>` +
+        rows.map(([l, v]) => `<tr><td class="label">${l}</td><td class="value">${v}</td></tr>`).join('');
+}
+
 function responseRows(resp) {
     if (!resp) return '';
     const rows = [];
@@ -1694,6 +1737,7 @@ function showDetail(msg, entry) {
             ${body}
             ${cmdRows(decoded.cmd)}
             ${responseRows(decoded.response)}
+            ${tpRows(decoded.tp)}
             ${fileRows(decoded.file)}
             ${sw}
             ${decoded.errors ? `<tr><td class="label">Errors</td><td class="value" style="color:var(--error)">${decoded.errors.join(', ')}</td></tr>` : ''}
@@ -2637,7 +2681,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.20';
+const PWA_VERSION = '1.22.21';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {

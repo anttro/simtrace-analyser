@@ -885,7 +885,7 @@ APDU_SPEC = {
     0x10: {
         'name': 'TERMINAL PROFILE',
         'p1p2': {'unused': True},
-        'body': {'label': 'TLV data'},
+        'body': {'label': 'Profile'},
     },
     0x76: {
         'name': 'SUSPEND UICC',
@@ -2731,6 +2731,136 @@ def _decode_proactive(body):
     return result
 
 
+# ──────────────────── TERMINAL PROFILE device characteristics ────────────────────
+
+def _decode_terminal_profile(data):
+    """Decode a TERMINAL PROFILE (TS 102 223 §5.2) into device facts.
+
+    Bit numbering per the spec tables: b1 = LSB = first row, so a facility
+    at bit b(n) has mask ``1 << (n - 1)``.  Only *declared* capabilities are
+    reported — a clear bit is never proof of absence (real 3G devices such
+    as the Huawei E173 and Nokia E52 leave the HSDPA bit clear), so no
+    "2G" claim is derived from a zero byte 17.
+
+    Inference rules and their caveats: projects/docs/TERMINAL_PROFILE.md.
+    """
+    if not data:
+        return None
+    n = len(data)
+
+    def byte(num):
+        return data[num - 1] if n >= num else None
+
+    b4, b11, b12, b13 = byte(4), byte(11), byte(12), byte(13)
+    b14, b15, b17, b18 = byte(14), byte(15), byte(17), byte(18)
+    b21, b22 = byte(21), byte(22)
+
+    result = {'length': n}
+
+    # --- BIP: byte 12 b1 OPEN CHANNEL; byte 13 bearers + channel count ---
+    if b12 is not None:
+        result['bip'] = bool(b12 & 0x01)
+    if b13 is not None:
+        result['bip_channels'] = (b13 >> 5) & 0x07
+        result['bip_bearers'] = [name for mask, name in (
+            (0x01, 'CSD'), (0x02, 'GPRS'), (0x04, 'Bluetooth'),
+            (0x08, 'IrDA'), (0x10, 'RS232')) if b13 & mask]
+
+    # --- Radio generation: byte 17 b8 HSDPA (3G), b7 E-UTRAN (4G) ---
+    if b17 is not None:
+        hsdpa = bool(b17 & 0x80)
+        eutran = bool(b17 & 0x40)
+        result['hsdpa'] = hsdpa
+        result['eutran'] = eutran
+        if hsdpa and eutran:
+            result['generation'] = '3G/4G'
+        elif eutran:
+            result['generation'] = '4G'
+        elif hsdpa:
+            result['generation'] = '3G'
+        result['bip_transports'] = [name for mask, name in (
+            (0x01, 'TCP client, remote'), (0x02, 'UDP client, remote'),
+            (0x04, 'TCP server'), (0x08, 'TCP client, local'),
+            (0x10, 'UDP client, local'), (0x20, 'direct channel'))
+            if b17 & mask]
+    if b22 is not None:
+        result['utran_ps'] = bool(b22 & 0x01)
+
+    # --- Standards family: byte 18 b7 IMEISV (3GPP), b5 ESN (CDMA) ---
+    if b18 is not None:
+        imeisv = bool(b18 & 0x40)
+        esn = bool(b18 & 0x10)
+        result['imeisv'] = imeisv
+        result['esn'] = esn
+        if imeisv and esn:
+            result['standards'] = '3GPP + CDMA'
+        elif imeisv:
+            result['standards'] = '3GPP'
+        elif esn:
+            result['standards'] = 'CDMA (3GPP2)'
+
+    # --- UI facts: byte 11 soft keys; bytes 14/15 screen; byte 21 markup ---
+    if b11 is not None:
+        result['soft_keys'] = b11
+    if b14 is not None:
+        result['screen_h'] = b14 & 0x1F
+    if b15 is not None:
+        result['screen_w'] = b15 & 0x7F
+    if b21 is not None:
+        result['markup'] = [name for mask, name in (
+            (0x01, 'WML'), (0x02, 'XHTML'), (0x04, 'HTML'), (0x08, 'CHTML'))
+            if b21 & mask]
+
+    # --- Device class (strict rules, TERMINAL_PROFILE.md §4) ---
+    no_display = bool(b14 & 0x20) if b14 is not None else False   # byte 14 b6
+    no_keypad = bool(b14 & 0x40) if b14 is not None else False    # byte 14 b7
+    if no_display or no_keypad:
+        result['device_class'] = 'modem'
+        reasons = [name for name, set_ in (
+            ('no display', no_display), ('no keypad', no_keypad)) if set_]
+        result['class_reason'] = 'declared: ' + ', '.join(reasons)
+    else:
+        screen_present = bool((result.get('screen_h') or 0)
+                              or (result.get('screen_w') or 0))
+        soft_keys = result.get('soft_keys')
+        menus = True
+        if b4 is not None:
+            menus = bool(b4 & 0x01) or bool(b4 & 0x20)  # SELECT ITEM / SET UP MENU
+        if soft_keys == 0 and not screen_present and not menus:
+            result['device_class'] = 'modem'
+            result['class_reason'] = 'likely: no soft keys, no screen size, no menus'
+        elif screen_present and soft_keys not in (None, 0):
+            result['device_class'] = 'handset'
+            result['class_reason'] = (f"screen {result.get('screen_h') or 0}"
+                                      f"\u00d7{result.get('screen_w') or 0}"
+                                      f", soft keys {soft_keys}")
+
+    # --- Era from the profile length (soft signal, TERMINAL_PROFILE.md §3) ---
+    if n <= 9:
+        result['era'] = 'early/minimal profile'
+    elif n <= 20:
+        result['era'] = 'classic 2G/3G-era profile'
+    elif n <= 28:
+        result['era'] = 'transitional-era profile'
+    elif n <= 32:
+        result['era'] = 'smartphone/BIP-era profile'
+    else:
+        result['era'] = 'modern LTE/5G-era profile'
+
+    # --- Concise APDU-list description (replaces the raw hex) ---
+    parts = []
+    if result.get('device_class'):
+        parts.append(result['device_class'])
+    if result.get('generation'):
+        parts.append(result['generation'])
+    if result.get('bip') is True:
+        parts.append('BIP')
+    elif result.get('bip') is False:
+        parts.append('no BIP')
+    result['summary'] = ' \u00b7 '.join(parts) if parts else f'{n}-byte profile'
+    return result
+
+
 # ──────────────────── Decode entry point ────────────────────
 
 # ──────────────────── File data decoders (READ/UPDATE) ────────────────────
@@ -3728,6 +3858,10 @@ def _build_summary(result):
             txt += f' \u2014 {brief}'
         parts.append(txt)
 
+    tp = result.get('tp')
+    if tp and tp.get('summary'):
+        parts.append(tp['summary'])
+
     cmd = result.get('cmd')
     if cmd:
         if cmd.get('context'):
@@ -3914,6 +4048,10 @@ def decode_message(raw_data, prev=None):
                 fcp = _decode_fcp(body)
                 if fcp:
                     result['response'] = fcp
+            elif ins == 0x10:  # TERMINAL PROFILE → device characteristics
+                tp = _decode_terminal_profile(body)
+                if tp:
+                    result['tp'] = tp
 
         # File data decode for READ/UPDATE using the current selection.
         p1p2 = result.get('p1p2') or {}
