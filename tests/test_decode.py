@@ -108,6 +108,20 @@ class TestCatDecoding(unittest.TestCase):
         self.assertEqual(t['text'], 'Hi')
         self.assertEqual(t['scts'], '2026-08-12 14:30:00 (UTC+03:00)')
 
+    def test_envelope_mo_short_message_control(self):
+        # D5 envelope: device ids + SMSC address + destination address
+        # (first address TLV → smsc, second → tp_da).
+        r = decode_message(bytes.fromhex(
+            '80C2000018'
+            'D516820283818607919733824009F08607919721436587F9'
+            '9000'))
+        self.assertEqual(r['ins_name'], 'ENVELOPE')
+        self.assertEqual(r['cat_command'], 'MO SHORT MESSAGE CONTROL')
+        cmd = r['cmd']
+        self.assertEqual(cmd['smsc'], '+79332804900')
+        self.assertEqual(cmd['tp_da'], '+79123456789')
+        self.assertEqual(r['summary'], 'SMSC +79332804900, DA +79123456789')
+
 
 class TestCommandTypeTables(unittest.TestCase):
     def test_known_values(self):

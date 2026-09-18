@@ -3744,6 +3744,8 @@ def _build_summary(result):
             parts.append(cmd['text'])
         if cmd.get('smsc'):
             parts.append(f"SMSC {cmd['smsc']}")
+        if cmd.get('tp_da'):
+            parts.append(f"DA {cmd['tp_da']}")
         if cmd.get('events'):
             parts.append(', '.join(cmd['events']))
         if cmd.get('address'):
