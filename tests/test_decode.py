@@ -474,12 +474,14 @@ class TestEventDownload(unittest.TestCase):
         self.assertEqual(cmd['type'], 'EVENT DOWNLOAD')
         self.assertEqual(cmd['events'], ['Location status'])
         self.assertEqual(cmd['location_status'], 'Normal service')
+        self.assertEqual(r['summary'], 'Location status: Normal service')
 
     def test_event_no_service(self):
         r = decode_message(bytes.fromhex(
             '80C200000CD60A190103020282811B01029000'))
         self.assertEqual(r['cmd']['events'], ['Location status'])
         self.assertEqual(r['cmd']['location_status'], 'No service')
+        self.assertEqual(r['summary'], 'Location status: No service')
 
     def test_location_status_with_info(self):
         r = decode_message(bytes.fromhex(

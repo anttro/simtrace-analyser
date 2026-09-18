@@ -3746,8 +3746,16 @@ def _build_summary(result):
             parts.append(f"SMSC {cmd['smsc']}")
         if cmd.get('tp_da'):
             parts.append(f"DA {cmd['tp_da']}")
-        if cmd.get('events'):
-            parts.append(', '.join(cmd['events']))
+        events = list(cmd.get('events') or [])
+        status = cmd.get('location_status')
+        if status and 'Location status' in events:
+            # Fold the decoded Location Status value into its event entry
+            # (Normal service / Limited service / No service).
+            events[events.index('Location status')] = f'Location status: {status}'
+        elif status:
+            events.append(f'Location status: {status}')
+        if events:
+            parts.append(', '.join(events))
         if cmd.get('address'):
             parts.append(f"to {cmd['address']}")
         duration = cmd.get('duration')
