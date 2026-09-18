@@ -951,6 +951,45 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['pck'], 'FE')
 
 
+class TestPacketSummaries(unittest.TestCase):
+    """APDU-list descriptions for ATR/PPS/RST/VCC packets."""
+
+    def _dec(self, hexstr, kind, clk_hz=None):
+        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        return decode_sniff_msg(bytes.fromhex(hexstr), kind, clk_hz=clk_hz)
+
+    def test_atr_simple(self):
+        self.assertEqual(self._dec('3B00', 'atr')['summary'], 'T=0')
+
+    def test_atr_ta1(self):
+        self.assertEqual(self._dec('3B12110000', 'atr')['summary'],
+                         'T=0 \u00b7 F=372, D=1, F/D=372')
+
+    def test_atr_classes_and_data_rate(self):
+        r = self._dec('3B9F95801FC78031E073FE21136364035B83079000F7', 'atr',
+                      clk_hz=3582090)
+        self.assertEqual(
+            r['summary'],
+            'T=0 \u00b7 F=512, D=16, F/D=32 \u00b7 classes A, B, C \u00b7 111940 bit/s')
+
+    def test_atr_unparsed_has_no_summary(self):
+        self.assertIsNone(self._dec('3B', 'atr')['summary'])
+
+    def test_pps_summary(self):
+        self.assertEqual(self._dec('FF10957A', 'pps')['summary'],
+                         'T=0 \u00b7 F=512, D=16, F/D=32')
+
+    def test_rst_clk_summary(self):
+        self.assertEqual(self._dec('0001010036A88A', 'rst')['summary'],
+                         'CLK 3.582 MHz')
+
+    def test_rst_without_clk_has_no_summary(self):
+        self.assertIsNone(self._dec('010000', 'rst').get('summary'))
+
+    def test_vcc_has_no_summary(self):
+        self.assertIsNone(self._dec('010100', 'vcc').get('summary'))
+
+
 class TestSummary(unittest.TestCase):
     def test_select_path_from_mf(self):
         r = decode_message(bytes.fromhex('a0a40804022fe29000'))

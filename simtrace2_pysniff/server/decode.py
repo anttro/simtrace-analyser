@@ -4345,6 +4345,57 @@ def _decode_atr(data, clk_hz=None):
     return result
 
 
+def _atr_summary(result):
+    """Build the APDU-list description of an ATR.
+
+    Protocol(s), TA1 Fi/Di (with the F/D ratio), the T=15 class indicator
+    and — when a CLK rate was measured — the resulting data rate.
+    """
+    if 't0' not in result:
+        return None  # unparsed/unknown-convention ATR
+    parts = []
+    protocols = result.get('protocols') or ['T=0']
+    parts.append(', '.join(protocols))
+    interface = result.get('interface') or []
+    for ifc in interface:
+        if ifc.get('name') == 'TA1':
+            vals = []
+            if 'f' in ifc:
+                vals.append(f"F={ifc['f']}")
+            if 'd' in ifc:
+                vals.append(f"D={ifc['d']}")
+            if ifc.get('f_div_d') is not None:
+                vals.append(f"F/D={ifc['f_div_d']}")
+            if vals:
+                parts.append(', '.join(vals))
+            break
+    for ifc in interface:
+        if ifc.get('classes'):
+            parts.append('classes ' + ', '.join(ifc['classes']))
+            break
+    if result.get('data_rate'):
+        parts.append(f"{result['data_rate']} bit/s")
+    return ' \u00b7 '.join(parts)
+
+
+def _pps_summary(result):
+    """Build the APDU-list description of a PPS exchange (protocol + Fi/Di)."""
+    parts = []
+    if result.get('protocol'):
+        parts.append(result['protocol'])
+    fd = result.get('fi_di') or {}
+    vals = []
+    if 'f' in fd:
+        vals.append(f"F={fd['f']}")
+    if 'd' in fd:
+        vals.append(f"D={fd['d']}")
+    if fd.get('f_div_d') is not None:
+        vals.append(f"F/D={fd['f_div_d']}")
+    if vals:
+        parts.append(', '.join(vals))
+    return ' \u00b7 '.join(parts) if parts else None
+
+
 def _decode_pps(data):
     """Decode a Protocol and Parameter Selection exchange (ISO 7816-3 §9.2)."""
     if not data:
@@ -4407,6 +4458,8 @@ def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None, clk_hz=None):
         return decode_change(flags)
     if msg_type in ('rst', 'vcc'):
         result = decode_line_event(raw_data, msg_type)
+        if result.get('clk_hz'):
+            result['summary'] = f"CLK {result['clk_hz'] / 1e6:.3f} MHz"
         errs = gsmtap_flag_names(flags)
         if errs:
             result['errors'] = errs
@@ -4416,6 +4469,7 @@ def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None, clk_hz=None):
     if msg_type == 'atr':
         result = _decode_atr(raw_data, clk_hz=clk_hz)
         if result is not None:
+            result['summary'] = _atr_summary(result)
             errs = (decode_data_flags(flags) or []) + (gsmtap_flag_names(flags) or [])
             if errs:
                 result['errors'] = errs
@@ -4423,6 +4477,7 @@ def decode_sniff_msg(raw_data, msg_type, flags=0, prev=None, clk_hz=None):
     if msg_type == 'pps':
         result = _decode_pps(raw_data)
         if result is not None:
+            result['summary'] = _pps_summary(result)
             errs = (decode_data_flags(flags) or []) + (gsmtap_flag_names(flags) or [])
             if errs:
                 result['errors'] = errs

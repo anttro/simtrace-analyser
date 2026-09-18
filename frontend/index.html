@@ -1048,9 +1048,13 @@ function data_text(m) {
 function cmd_description(m) {
     if (m.type === 'gap') return t('device disconnected — messages may be missing');
     const d = m.decoded;
-    // STATUS has no command body: without response data there is nothing
-    // to describe beyond the type and SW (no raw-hex fallback).
-    if (d && d.ins_hex === 'f2' && !d.body) return d.summary || '';
+    // No raw-hex fallback for these: STATUS's decoded summary is the only
+    // useful list text (it has no command body), and ATR/PPS/RST/VCC get a
+    // decoded summary (or nothing) instead of opaque bytes like "010100".
+    if (d && (d.ins_hex === 'f2' || d.type === 'atr' || d.type === 'pps'
+            || d.type === 'rst' || d.type === 'vcc')) {
+        return d.summary || '';
+    }
     if (d && d.summary) return d.summary;
     return data_text(m);
 }
@@ -2633,7 +2637,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.19';
+const PWA_VERSION = '1.22.20';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
