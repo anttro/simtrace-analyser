@@ -4027,8 +4027,8 @@ def decode_line_event(raw_data, kind):
     (decoder v1.9.0+); bytes 3..6 are then a big-endian uint32 in Hz.
 
     ``event`` is the canonical value; ``label`` is the human-facing
-    summary (e.g. RST de-asserted → "ATR STARTS", VCC applied →
-    "VCC ON (power-up)").
+    summary (e.g. RST de-asserted → "RST de-asserted — ATR follows",
+    VCC applied → "VCC ON (power-up)").
     """
     result = {'type': kind}
     if raw_data and len(raw_data) >= 2:
@@ -4039,7 +4039,7 @@ def decode_line_event(raw_data, kind):
                 result['label'] = 'RESET ASSERTED'
             else:
                 result['event'] = 'reset de-asserted'
-                result['label'] = 'ATR STARTS'
+                result['label'] = 'RST de-asserted — ATR follows'
         else:
             if direction:
                 result['event'] = 'power applied'

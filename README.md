@@ -132,8 +132,9 @@ The GSMTAP listener also accepts the **sigrok-iso7816-stream** decoder
 passive SIM sniffer that emits the same GSMTAP-SIM format on UDP 4729. Its
 standard PPS request/response sub-types (`0x02`/`0x03`) are decoded as PPS,
 and its custom sub-types for RST/VCC line events (`0x10`/`0x11`, added for
-compatibility with that project) are decoded as `RESET ASSERTED/DE-ASSERTED`
-and `VCC ON/OFF` timeline markers, and a reset-assert or power-removal
+compatibility with that project) are decoded as `RESET ASSERTED` /
+`RST de-asserted — ATR follows` and `VCC ON/OFF` timeline markers, and a
+reset-assert or power-removal
 correctly invalidates the file-selection tracking. When an RST event carries
 the measured CLK frequency (decoder v1.9.0+, optional payload extension), the
 following ATR is annotated with the CLK frequency, data rate and ETU derived
