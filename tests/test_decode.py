@@ -1586,6 +1586,40 @@ class TestStatusFcp(unittest.TestCase):
         self.assertEqual(resp['df_name'], 'A0000000871002FF45FF018902011100')
         self.assertEqual(resp['file_descriptor']['file_type'], 'DF or ADF')
         self.assertEqual(resp['life_cycle'], 'operational state (activated)')
+        self.assertEqual(r['summary'], 'Data: 56 bytes \u2014 FCP of 7FF0 (DF or ADF)')
+
+    def test_status_no_data_has_no_summary(self):
+        # 80 F2 00 00 00 6C 25 — P3=0, card answers "wrong length"; no data.
+        r = decode_message(bytes.fromhex('80f20000006c25'))
+        self.assertEqual(r['ins_name'], 'STATUS')
+        self.assertNotIn('body', r)
+        self.assertNotIn('response', r)
+        self.assertIsNone(r['summary'])
+
+    def test_status_mf_summary(self):
+        raw = bytes.fromhex(
+            '80f200000d'
+            '620b8202782183023f008a0105'
+            '9000')
+        r = decode_message(raw)
+        self.assertEqual(r['response']['file_id'], '3F00')
+        self.assertEqual(r['response']['file_id_name'], 'MF')
+        self.assertEqual(r['summary'], 'Data: 13 bytes \u2014 FCP of MF (DF or ADF)')
+
+    def test_status_ef_summary(self):
+        raw = bytes.fromhex(
+            '80f2000024'
+            '62228202412183026f73a509c0018091047f206f538a01058b036f06098002000e880160'
+            '9000')
+        r = decode_message(raw)
+        self.assertEqual(r['response']['file_id_name'], 'EF_PSLOCI')
+        self.assertEqual(
+            r['summary'],
+            'Data: 36 bytes \u2014 FCP of EF_PSLOCI (Working EF, transparent, 14 B)')
+
+    def test_status_single_byte_pluralization(self):
+        r = decode_message(bytes.fromhex('80f2000001009000'))
+        self.assertEqual(r['summary'], 'Data: 1 byte')
 
 
 class TestLengthMismatch(unittest.TestCase):

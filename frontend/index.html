@@ -1047,7 +1047,11 @@ function data_text(m) {
 
 function cmd_description(m) {
     if (m.type === 'gap') return t('device disconnected — messages may be missing');
-    if (m.decoded && m.decoded.summary) return m.decoded.summary;
+    const d = m.decoded;
+    // STATUS has no command body: without response data there is nothing
+    // to describe beyond the type and SW (no raw-hex fallback).
+    if (d && d.ins_hex === 'f2' && !d.body) return d.summary || '';
+    if (d && d.summary) return d.summary;
     return data_text(m);
 }
 
@@ -2629,7 +2633,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.18';
+const PWA_VERSION = '1.22.19';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {

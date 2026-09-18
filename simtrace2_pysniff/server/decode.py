@@ -3629,6 +3629,39 @@ def _fcp_summary(response_for, fd, response):
     return label
 
 
+def _fcp_brief(response):
+    """Build a short "what this FCP describes" fragment for STATUS entries.
+
+    E.g. ``FCP of MF (DF or ADF)`` or ``FCP of EF_ICCID (Working EF,
+    transparent, 10 B)``.
+    """
+    fd = response.get('file_descriptor') or {}
+    fid = response.get('file_id')
+    name = response.get('file_id_name')
+    what = name or (fid.upper() if fid else None)
+    if not what and not fd:
+        return None
+    label = f'FCP of {what}' if what else 'FCP'
+    details = []
+    ft = fd.get('file_type')
+    if ft:
+        details.append(ft)
+    if ft and ft != 'DF or ADF':
+        struct = fd.get('structure')
+        if struct:
+            details.append(struct)
+        nrec = fd.get('num_records')
+        rlen = fd.get('record_length')
+        fsize = response.get('file_size') or response.get('total_file_size')
+        if nrec and rlen:
+            details.append(f'{nrec} rec \u00d7 {rlen} B')
+        elif fsize:
+            details.append(f'{fsize} B')
+    if details:
+        label += f" ({', '.join(details)})"
+    return label
+
+
 def _build_summary(result):
     """Build a concise human-readable description of a decoded command.
 
@@ -3684,6 +3717,16 @@ def _build_summary(result):
             parts.append(p2txt)
         if bodytxt:
             parts.append(bodytxt)
+
+    if ins == 'f2' and body:
+        # STATUS response data is the FCP of the current DF/EF (seen in a
+        # TPDU capture as the bytes after the 5-byte command header).
+        size = body.get('size') or 0
+        txt = f"Data: {size} byte{'s' if size != 1 else ''}"
+        brief = _fcp_brief(result.get('response') or {})
+        if brief:
+            txt += f' \u2014 {brief}'
+        parts.append(txt)
 
     cmd = result.get('cmd')
     if cmd:
