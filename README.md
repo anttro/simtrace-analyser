@@ -39,6 +39,10 @@ GSMTAP into this analyser.
   proactive commands with decoded qualifiers, TERMINAL RESPONSE, ENVELOPE
   (Menu Selection, Call Control, SMS-PP download…); tolerates known
   non-compliant legacy-card quirks and preserves unrecognized TLVs
+- TERMINAL CAPABILITY (TS 102 221 §11.1.19) — terminal power supply
+  (voltage class, maximum current, clock), extended logical channels,
+  additional interfaces (UICC-CLF) and eUICC device capabilities
+  (SGP.22/SGP.32)
 - SMS TPDU — SMS-DELIVER/SUBMIT, SCTS timestamps, UDH information elements
 - SCP80 OTA secured packets — SPI bits (ciphering, PoR requirement/mode,
   RC/CC/DS, counter), KIc/KID algorithm + key set, TAR, CNTR/PCNTR;

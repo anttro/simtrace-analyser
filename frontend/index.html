@@ -1300,6 +1300,31 @@ function cmdRows(cmd) {
         rows.push(['Encapsulated', cmd.encapsulated.type]);
     }
     if (cmd.text_note) rows.push(['Text note', cmd.text_note]);
+
+    // TERMINAL CAPABILITY (TS 102 221 §11.1.19)
+    if (cmd.power_supply) {
+        const ps = cmd.power_supply;
+        const bits = [];
+        bits.push(ps.classes && ps.classes.length
+            ? 'class ' + ps.classes.join('+')
+            : 'class 0x' + hx(ps.class_raw || 0, 2));
+        if (ps.max_current_ma !== undefined) bits.push(ps.max_current_ma + ' mA');
+        if (ps.clock_mhz !== undefined && ps.clock_mhz !== null) bits.push(ps.clock_mhz + ' MHz clock');
+        else if (ps.clock_raw !== undefined) bits.push('clock not indicated');
+        rows.push(['Power supply', bits.join(', ')]);
+    }
+    if (cmd.extended_channels) rows.push(['Logical channels', 'extended support']);
+    if (cmd.extended_channels_raw) rows.push(['Logical channels raw', cmd.extended_channels_raw]);
+    if (cmd.interfaces) rows.push(['Additional interfaces',
+        cmd.interfaces.length ? cmd.interfaces.join(', ') : 'none']);
+    if (cmd.interfaces_raw) rows.push(['Interfaces raw', cmd.interfaces_raw]);
+    if (cmd.euicc_sgp22) {
+        const e = cmd.euicc_sgp22;
+        const names = (e.functions || []).join(', ');
+        rows.push(['eUICC (SGP.22)', names ? names + ' \u00b7 0x' + e.raw : '0x' + e.raw]);
+    }
+    if (cmd.euicc_sgp32) rows.push(['eUICC (SGP.32)', '0x' + (cmd.euicc_sgp32.raw || '')]);
+
     if (cmd.raw_tlv) {
         for (const t of cmd.raw_tlv) rows.push(['TLV 0x' + t.tag, t.value || '(empty)']);
     }
@@ -2681,7 +2706,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.0.0';
+const PWA_VERSION = '2.1.0';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {

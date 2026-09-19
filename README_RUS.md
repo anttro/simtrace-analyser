@@ -40,6 +40,10 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
   proactive-команды с декодированными квалификаторами, TERMINAL RESPONSE,
   ENVELOPE (Menu Selection, Call Control, SMS-PP download…); учитываются
   известные несоответствия старых карт, нераспознанные TLV сохраняются
+- TERMINAL CAPABILITY (TS 102 221 §11.1.19) — питание терминала (класс
+  напряжения, максимальный ток, тактовая частота), расширенные логические
+  каналы, дополнительные интерфейсы (UICC-CLF) и возможности eUICC
+  (SGP.22/SGP.32)
 - SMS TPDU — SMS-DELIVER/SUBMIT, метки времени SCTS, информационные
   элементы UDH
 - SCP80 OTA secured packets — биты SPI (шифрование, требование/режим PoR,

@@ -834,7 +834,7 @@ APDU_SPEC = {
     0xAA: {
         'name': 'TERMINAL CAPABILITY',
         'p1p2': {'unused': True},
-        'body': {'label': 'TLV data'},
+        'body': {'label': 'Terminal capability template (A9)'},
     },
     0x73: {
         'name': 'MANAGE SECURE CHANNEL',
@@ -2861,6 +2861,86 @@ def _decode_terminal_profile(data):
     return result
 
 
+# ──────────────────── TERMINAL CAPABILITY (TS 102 221 §11.1.19) ────────────────────
+
+# The command data is the constructed terminal capability template (tag 'A9').
+# Supply voltage class coding per Table 6.1 (same as the ATR class indication);
+# the eUICC tag '83' bit meanings per GSMA SGP.22 v2.6 §3.4.2 Table 7.
+_TC_SUPPLY_CLASSES = (
+    (0x01, 'A'),
+    (0x02, 'B'),
+    (0x04, 'C'),
+    (0x08, 'D'),
+    (0x10, 'E'),
+)
+
+_TC_EUICC_SGP22_BITS = (
+    (0x01, 'LUId'),
+    (0x02, 'LPDd'),
+    (0x04, 'LDSd'),
+    (0x08, 'LUIe (SCWS)'),
+)
+
+
+def _decode_terminal_capability(data):
+    """Decode a TERMINAL CAPABILITY command body (TS 102 221 §11.1.19).
+
+    TLV objects inside the template (tag 'A9'):
+    '80' terminal power supply, '81' extended logical channels terminal
+    support, '82' additional interfaces support, '83'/'84' eUICC-related
+    device capabilities (GSMA SGP.22 / SGP.32).  Unknown and private TLV
+    objects are preserved as ``raw_tlv``.
+    """
+    inner = None
+    for tag, _length, value in parse_tlv(data):
+        if tag == 0xA9:
+            inner = value
+            break
+    if inner is None:
+        return None
+
+    result = {}
+    raw_tlv = []
+    for tag, _length, value in parse_tlv(inner):
+        if tag == 0x80:  # terminal power supply (§11.1.19.2.1)
+            supply = {
+                'class_raw': value[0] if value else None,
+                'classes': [name for bit, name in _TC_SUPPLY_CLASSES
+                            if value and value[0] & bit],
+            }
+            if len(value) >= 2:
+                supply['max_current_ma'] = value[1]
+            if len(value) >= 3:
+                supply['clock_raw'] = value[2]
+                supply['clock_mhz'] = (None if value[2] == 0xFF
+                                       else round(value[2] / 10, 1))
+            result['power_supply'] = supply
+        elif tag == 0x81:  # extended logical channels (§11.1.19.2.2)
+            # Only zero length is defined; a UICC treats any length as zero.
+            result['extended_channels'] = True
+            if value:
+                result['extended_channels_raw'] = value.hex().upper()
+        elif tag == 0x82:  # additional interfaces support (§11.1.19.2.3)
+            if value:
+                result['interfaces'] = ['UICC-CLF'] if value[0] & 0x01 else []
+                if len(value) > 1:  # extra bytes are ignored by the UICC
+                    result['interfaces_raw'] = value.hex().upper()
+        elif tag == 0x83:  # eUICC indications — GSMA SGP.22 (§11.1.19.2.4)
+            caps = {'raw': value.hex().upper() if value else ''}
+            if value:
+                caps['functions'] = [name for bit, name in _TC_EUICC_SGP22_BITS
+                                     if value[0] & bit]
+            result['euicc_sgp22'] = caps
+        elif tag == 0x84:  # eUICC indications — GSMA SGP.32 (raw, no pinned spec)
+            result['euicc_sgp32'] = {'raw': value.hex().upper() if value else ''}
+        else:
+            raw_tlv.append({'tag': f'{tag:02X}', 'value': value.hex().upper()})
+
+    if raw_tlv:
+        result['raw_tlv'] = raw_tlv
+    return result or None
+
+
 # ──────────────────── Decode entry point ────────────────────
 
 # ──────────────────── File data decoders (READ/UPDATE) ────────────────────
@@ -3906,6 +3986,34 @@ def _build_summary(result):
                 s += f" \u00ab{tpdu['text']}\u00bb"
             parts.append(s)
 
+        supply = cmd.get('power_supply')
+        interfaces = cmd.get('interfaces')
+        sgp22 = cmd.get('euicc_sgp22')
+        sgp32 = cmd.get('euicc_sgp32')
+        if supply or cmd.get('extended_channels') or interfaces or sgp22 or sgp32:
+            tc = []
+            if supply:
+                if supply.get('classes'):
+                    tc.append('Class ' + '+'.join(supply['classes']))
+                if supply.get('max_current_ma') is not None:
+                    tc.append(f"{supply['max_current_ma']} mA")
+                if supply.get('clock_mhz') is not None:
+                    tc.append(f"CLK {supply['clock_mhz']:g} MHz")
+                elif supply.get('clock_raw') is not None:
+                    tc.append('CLK n/a')
+            if cmd.get('extended_channels'):
+                tc.append('extended channels')
+            if interfaces:
+                tc.append(', '.join(interfaces))
+            if sgp22:
+                funcs = sgp22.get('functions') or []
+                tc.append('eUICC: ' + (', '.join(funcs) if funcs
+                                       else '0x' + sgp22.get('raw', '')))
+            if sgp32:
+                tc.append('eUICC SGP.32: 0x' + sgp32.get('raw', ''))
+            if tc:
+                parts.append(' \u00b7 '.join(tc))
+
     if result.get('response_to'):
         parts.append('\u2192 ' + result['response_to'])
     response = result.get('response')
@@ -4052,6 +4160,10 @@ def decode_message(raw_data, prev=None):
                 tp = _decode_terminal_profile(body)
                 if tp:
                     result['tp'] = tp
+            elif ins == 0xAA:  # TERMINAL CAPABILITY → terminal capability template
+                caps = _decode_terminal_capability(body)
+                if caps:
+                    result['cmd'] = caps
 
         # File data decode for READ/UPDATE using the current selection.
         p1p2 = result.get('p1p2') or {}

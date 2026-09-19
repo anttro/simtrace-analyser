@@ -1079,6 +1079,65 @@ class TestTerminalProfile(unittest.TestCase):
         self.assertEqual(tp['summary'], 'handset \u00b7 BIP')
 
 
+class TestTerminalCapability(unittest.TestCase):
+    """TERMINAL CAPABILITY (TS 102 221 §11.1.19) — real samples captured
+    from the local trace sessions (49/55/58/61/206/208)."""
+
+    def _dec(self, body_hex):
+        raw = '80AA0000%02x%s9000' % (len(body_hex) // 2, body_hex)
+        return decode_message(bytes.fromhex(raw))
+
+    def test_power_supply(self):
+        # A9 0A 80 03 04 3C FF 81 00 82 01 00 — class C, 60 mA, clock n/a.
+        r = self._dec('A90A8003043CFF8100820100')
+        self.assertEqual(r['body']['label'], 'Terminal capability template (A9)')
+        ps = r['cmd']['power_supply']
+        self.assertEqual(ps['classes'], ['C'])
+        self.assertEqual(ps['class_raw'], 0x04)
+        self.assertEqual(ps['max_current_ma'], 60)
+        self.assertIsNone(ps['clock_mhz'])
+        self.assertTrue(r['cmd']['extended_channels'])
+        self.assertEqual(r['cmd']['interfaces'], [])
+        self.assertEqual(r['summary'],
+                         'Class C \u00b7 60 mA \u00b7 CLK n/a \u00b7 extended channels')
+
+    def test_interfaces_and_euicc(self):
+        # A9 08 81 00 82 01 01 83 01 87 — UICC-CLF + SGP.22 LPA functions
+        # (b8 is an RFU bit and must not affect the function list).
+        r = self._dec('A9088100820101830187')
+        cmd = r['cmd']
+        self.assertNotIn('power_supply', cmd)
+        self.assertEqual(cmd['interfaces'], ['UICC-CLF'])
+        self.assertEqual(cmd['euicc_sgp22']['raw'], '87')
+        self.assertEqual(cmd['euicc_sgp22']['functions'], ['LUId', 'LPDd', 'LDSd'])
+        self.assertEqual(r['summary'],
+                         'extended channels \u00b7 UICC-CLF \u00b7 '
+                         'eUICC: LUId, LPDd, LDSd')
+
+    def test_interfaces_only(self):
+        # A9 05 81 00 82 01 01 — phones that omit the power supply TLV.
+        r = self._dec('A9058100820101')
+        self.assertNotIn('power_supply', r['cmd'])
+        self.assertEqual(r['summary'], 'extended channels \u00b7 UICC-CLF')
+
+    def test_extended_channels_nonzero_length(self):
+        # A UICC shall interpret any length as zero (TS 102 221 §11.1.19.2.2).
+        r = self._dec('A906810100820101')
+        self.assertTrue(r['cmd']['extended_channels'])
+        self.assertEqual(r['cmd']['extended_channels_raw'], '00')
+
+    def test_private_tlv_preserved(self):
+        # Unknown/private TLV ('DD') inside the A9 template must survive.
+        r = self._dec('A9088100820101DD017F')
+        self.assertEqual(r['cmd']['raw_tlv'], [{'tag': 'DD', 'value': '7F'}])
+        self.assertEqual(r['summary'], 'extended channels \u00b7 UICC-CLF')
+
+    def test_no_a9_template(self):
+        # Command data without the A9 template stays undecoded (no crash).
+        r = self._dec('8003043CFF')
+        self.assertNotIn('cmd', r)
+
+
 class TestSummary(unittest.TestCase):
     def test_select_path_from_mf(self):
         r = decode_message(bytes.fromhex('a0a40804022fe29000'))
