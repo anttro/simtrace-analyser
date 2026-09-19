@@ -1,8 +1,8 @@
-"""simtrace2-pysniff-server — CLI entry point.
+"""simtrace-analyser-server — CLI entry point.
 
 Usage:
-    simtrace2-pysniff-server --capture gsmtap [--gsmtap-port 4729] [--port 8081]
-    simtrace2-pysniff-server --capture direct [--port 8081]
+    simtrace-analyser-server --capture gsmtap [--gsmtap-port 4729] [--port 8081]
+    simtrace-analyser-server --capture direct [--port 8081]
 """
 
 import argparse
@@ -13,19 +13,19 @@ from http.server import HTTPServer
 from .server import RequestHandler
 from .database import Database, DEFAULT_DB_PATH
 from .capture import CaptureManager, GsmtapListener, DirectSniffer
-from .. import __version__
+from .version import __version__
 
 
 def _default_web_dir():
     # <repo>/frontend, whether run from source or an editable install.
-    # __file__ is <repo>/simtrace2_pysniff/server/__main__.py → up three levels.
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'frontend')
+    # __file__ is <repo>/simtrace_analyser/__main__.py → up two levels.
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend')
 
 
 def main():
     p = argparse.ArgumentParser(
-        prog='simtrace2-pysniff-server',
-        description='HTTP API + PWA server for SIMtrace2 APDU capture and analysis')
+        prog='simtrace-analyser-server',
+        description='HTTP API + PWA server for APDU trace capture and analysis')
     p.add_argument('--host', default='127.0.0.1',
                    help='HTTP bind address (default: 127.0.0.1)')
     p.add_argument('--port', type=int, default=8081,
@@ -63,7 +63,7 @@ def main():
     server = HTTPServer((args.host, args.port), RequestHandler)
     server.web_dir = args.web_dir
 
-    print(f'simtrace2-pysniff-server v{__version__} — http://{args.host}:{args.port}', file=sys.stderr)
+    print(f'simtrace-analyser-server v{__version__} — http://{args.host}:{args.port}', file=sys.stderr)
     print(f'  capture mode: {args.capture}', file=sys.stderr)
     if args.capture == 'gsmtap':
         print(f'  GSMTAP port:  {args.gsmtap_port}', file=sys.stderr)

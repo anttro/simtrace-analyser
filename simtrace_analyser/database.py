@@ -398,7 +398,7 @@ class Database:
                 # Only card-level changes invalidate the selection.  A
                 # waiting-time timeout interrupts a single TPDU but leaves the
                 # card selected, so the phone usually just retries.
-                from ..protocol import (
+                from simtrace2_pysniff.protocol import (
                     CHANGE_FLAG_CARD_INSERT, CHANGE_FLAG_CARD_EJECT,
                     CHANGE_FLAG_RESET_ASSERT, CHANGE_FLAG_RESET_DEASSERT,
                 )

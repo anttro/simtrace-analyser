@@ -6,9 +6,9 @@ import threading
 import time
 import traceback
 
-from ..gsmtap import (GsmtapReceiver, GSMTAP_SIM_ATR,
-                      GSMTAP_SIM_PPS_REQ, GSMTAP_SIM_PPS_RSP,
-                      GSMTAP_SIM_RST_EVENT, GSMTAP_SIM_VCC_EVENT)
+from simtrace2_pysniff.gsmtap import (GsmtapReceiver, GSMTAP_SIM_ATR,
+                                      GSMTAP_SIM_PPS_REQ, GSMTAP_SIM_PPS_RSP,
+                                      GSMTAP_SIM_RST_EVENT, GSMTAP_SIM_VCC_EVENT)
 
 
 def _ts():
@@ -76,7 +76,7 @@ class GsmtapListener:
 
 class DirectSniffer:
     def __init__(self):
-        from ..device import SniffSession
+        from simtrace2_pysniff.device import SniffSession
         self._session = SniffSession(
             reconnect=True,
             reconnect_delay_min=1.0,
@@ -98,7 +98,7 @@ class DirectSniffer:
         self._session.close()
 
     def iter_messages(self):
-        from ..device import DeviceDisconnected
+        from simtrace2_pysniff.device import DeviceDisconnected
         try:
             for msg in self._session.iter_messages():
                 if not self._running:

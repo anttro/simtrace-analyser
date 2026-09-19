@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: simtrace2-pysniff-server startup script for Windows
+:: simtrace-analyser-server startup script for Windows
 ::
 :: Usage: start.bat [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 ::
@@ -47,8 +47,8 @@ shift
 goto :parse_args
 
 :run
-echo Starting simtrace2-pysniff-server...
+echo Starting simtrace-analyser-server...
 echo PWA (simtrace-analyser) will be served at http://127.0.0.1:%PORT%/
 
 set "PYTHONPATH=%~dp0"
-python -m simtrace2_pysniff.server --capture %CAPTURE% --port %PORT% --gsmtap-port %GSMTAP_PORT% %EXTRA_ARGS%
+python -m simtrace_analyser --capture %CAPTURE% --port %PORT% --gsmtap-port %GSMTAP_PORT% %EXTRA_ARGS%

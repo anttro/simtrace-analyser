@@ -4,7 +4,7 @@ Pure Python, no dependencies.  Decodes raw TPDU bytes captured by
 the SIMtrace2 sniffer into structured dicts for the PWA to display.
 """
 
-from ..gsmtap import GSMTAP_FLAG_BAD_FCS
+from simtrace2_pysniff.gsmtap import GSMTAP_FLAG_BAD_FCS
 
 # ──────────────────── Status Word names ────────────────────
 

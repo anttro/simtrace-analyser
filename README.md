@@ -1,15 +1,29 @@
-# simtrace2-pysniff
+# SIMtrace Analyser
 
 English | [Русский](README_RUS.md)
 
-Python-based replacement for `simtrace2-sniff` — SIM card communication sniffer
-for Osmocom SIMtrace2 hardware (firmware in **trace** mode).  It bundles the
-**simtrace-analyser** PWA (in [`frontend/`](frontend/)) and an analysis server
-that both captures APDU traffic and serves that PWA.
+APDU trace analyser for the GSMTAP-SIM format — captures SIM/UICC
+communication from a UDP GSMTAP stream (or imports PCAP/PCAPNG files),
+decodes it, and serves an installable web app for browsing.  The repository
+also bundles **simtrace2-pysniff**, a Python replacement for
+`simtrace2-sniff` that captures from Osmocom SIMtrace2 hardware and can feed
+GSMTAP into this analyser.
 
-**Single dependency**: PyUSB (libusb wrapper). No libosmocore, no libosmosim.
+![SIMtrace Analyser PWA](frontend.png)
 
-![simtrace-analyser PWA](frontend.png)
+## Components
+
+- **Analysis server + PWA** (`simtrace-analyser-server`) — stores captured
+  traffic in SQLite, decodes it, and serves the PWA ([`frontend/`](frontend/))
+  plus the HTTP API on a single origin.  Three capture modes: a GSMTAP
+  listener, direct SIMtrace2 hardware capture, or disabled (browse existing
+  captures only).
+- **Capture utility** (`simtrace2-pysniff`) — captures SIMtrace2 hardware
+  traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.  It is
+  one GSMTAP source of several that the analyser accepts (see also
+  [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
+- **PWA** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
+  SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP import, EN/RU UI.
 
 ## Features
 
@@ -38,7 +52,7 @@ that both captures APDU traffic and serves that PWA.
   decryption for ciphered packets
 - ATR parse (clock-rate conversion, Fi/Di, T-bitmask) and FCP/FCI TLV
 
-**simtrace-analyser PWA** ([`frontend/`](frontend/)):
+**SIMtrace Analyser PWA** ([`frontend/`](frontend/)):
 
 - Trace view with Map/List modes — proactive, TERMINAL RESPONSE, ENVELOPE
   and AUTH commands get distinctive styling in map view
@@ -49,20 +63,22 @@ that both captures APDU traffic and serves that PWA.
 ## Prerequisites
 
 - **Python 3.9+**
-- **PyUSB** — `pip install pyusb`
+- **PyUSB** — `pip install pyusb` (needed only for capture from SIMtrace2
+  hardware; GSMTAP/UDP capture and PCAP import work without it)
 - **libusb** — system library, present by default on Linux; on Windows the
   SIMtrace2 driver must be swapped (see [USB Device Access](#usb-device-access))
-- **SIMtrace2 hardware** running firmware in *trace* mode
-  (VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`). For building and
-  flashing trace firmware, see the [upstream SIMtrace2 project](https://gitea.osmocom.org/sim-card/simtrace2).
+- **SIMtrace2 hardware** running firmware in *trace* mode (only for direct
+  capture; VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`). For
+  building and flashing trace firmware, see the
+  [upstream SIMtrace2 project](https://gitea.osmocom.org/sim-card/simtrace2).
 
 No other dependencies. PCAP, GSMTAP, and hex dump output use only Python stdlib.
 
 ## Install
 
 ```sh
-git clone https://github.com/anttro/simtrace2-pysniff.git
-cd simtrace2-pysniff
+git clone https://github.com/anttro/simtrace-analyser.git
+cd simtrace-analyser
 pip install pyusb
 ```
 
@@ -70,52 +86,27 @@ Or install the package into your environment:
 
 ```sh
 pip install -e .
-# then run: simtrace2-pysniff [opts]
+# then run: simtrace-analyser-server [opts]
+# or:       simtrace2-pysniff [opts]
 ```
 
 ## Running
 
-Two tools are provided:
-
-### Sniffer CLI (`simtrace2-pysniff`)
-
-Captures SIMtrace2 traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.
-
-### Startup script
-
-`./sniff-start.sh` performs a pre-flight USB permission check (prints udev
-install instructions if the SIMtrace2 device is not writable) and then
-launches the Python module. On Windows, use `sniff-start.bat` with the same
-options (no permission check needed).
-
-```sh
-./sniff-start.sh
-./sniff-start.sh --format timestamp
-./sniff-start.sh --gsmtap 127.0.0.1:4729
-./sniff-start.sh --pcap trace.pcap --format atr-time
-```
-
-OPTIONS can also be set via environment variables:
-
-```sh
-FORMAT=timestamp GSMTAP=127.0.0.1 ./sniff-start.sh
-```
-
-### Analysis server + PWA (`simtrace2-pysniff-server`)
+### Analysis server + PWA (`simtrace-analyser-server`)
 
 Stores captured APDU traffic in SQLite and serves it over HTTP, together with
-the bundled **simtrace-analyser** PWA (`frontend/`) on the same origin.  Three
+the bundled **SIMtrace Analyser** PWA (`frontend/`) on the same origin.  Three
 capture modes:
 
 ```sh
 # Listen for GSMTAP from simtrace2-pysniff (or original simtrace2-sniff):
-simtrace2-pysniff-server --capture gsmtap
+simtrace-analyser-server --capture gsmtap
 
 # Capture directly from SIMtrace2 hardware (no external tool needed):
-simtrace2-pysniff-server --capture direct
+simtrace-analyser-server --capture direct
 
 # Browse/analyse existing captures without a capture backend:
-simtrace2-pysniff-server --capture disabled
+simtrace-analyser-server --capture disabled
 ```
 
 The server logs its capture liveness to stderr (each line timestamped
@@ -166,7 +157,7 @@ setup is involved.  Use `--web-dir PATH` to serve a different PWA directory
 
 A standalone copy of the PWA is hosted at **https://simtrace.atroshin.ru**.
 It is a pure frontend: point it (Settings → Server URL) at a locally running
-`simtrace2-pysniff-server`.
+`simtrace-analyser-server`.
 
 > **Browser restriction:** when the PWA is served from a public HTTPS host,
 > reaching a local server (`http://127.0.0.1:8081`) requires two things: the
@@ -176,7 +167,31 @@ It is a pure frontend: point it (Settings → Server URL) at a locally running
 > (or accept the permission prompt).  Without the browser permission, the
 > request to `127.0.0.1` is blocked before any preflight is sent.
 
-### Python module (cross-platform)
+### Capture utility (`simtrace2-pysniff`)
+
+Captures SIMtrace2 hardware traffic and writes it to stdout, GSMTAP
+(Wireshark), or PCAP files.  It is the bundled replacement for the original
+Osmocom `simtrace2-sniff`.
+
+The `./sniff-start.sh` startup script performs a pre-flight USB permission
+check (prints udev install instructions if the SIMtrace2 device is not
+writable) and then launches the Python module. On Windows, use
+`sniff-start.bat` with the same options (no permission check needed).
+
+```sh
+./sniff-start.sh
+./sniff-start.sh --format timestamp
+./sniff-start.sh --gsmtap 127.0.0.1:4729
+./sniff-start.sh --pcap trace.pcap --format atr-time
+```
+
+OPTIONS can also be set via environment variables:
+
+```sh
+FORMAT=timestamp GSMTAP=127.0.0.1 ./sniff-start.sh
+```
+
+Cross-platform module invocation:
 
 ```sh
 python -m simtrace2_pysniff
@@ -191,6 +206,9 @@ simtrace2-pysniff --format atr-time
 ```
 
 ## USB Device Access
+
+Required for capture from SIMtrace2 hardware (the utility and the server's
+`--capture direct` mode); not needed for GSMTAP or PCAP sources.
 
 ### Linux
 
@@ -218,7 +236,7 @@ Windows does not ship a libusb-compatible driver for SIMtrace2. Use
 
 After that, `python -m simtrace2_pysniff` works identically to Linux.
 
-## CLI Options
+## Utility CLI Options
 
 ```
 python -m simtrace2_pysniff [OPTIONS]
@@ -279,14 +297,14 @@ for msg in session.iter_messages():
 
 ## Recovery
 
-The tool survives hardware resets, cable disconnects, and firmware hangs
+The utility survives hardware resets, cable disconnects, and firmware hangs
 by default — it reconnects with exponential backoff (1s → 30s cap).
 Use `--inactivity-timeout` to also trigger reconnect on silent firmware hangs.
 
 ## Related
 
 - **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — the upstream
-  SIMtrace2 hardware/firmware project that this tool sniffs from.
+  SIMtrace2 hardware/firmware project that the capture utility sniffs from.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
   FX2LP-based passive ISO 7816 sniffer that emits the same GSMTAP-SIM stream
   on UDP 4729 (accepted by this project's GSMTAP listener).

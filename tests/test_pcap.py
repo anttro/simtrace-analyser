@@ -4,7 +4,7 @@ import struct
 import unittest
 
 from simtrace2_pysniff.pcap import build_pcap, PCAP_MAGIC, LINKTYPE_ETHERNET
-from simtrace2_pysniff.server.server import _content_disposition
+from simtrace_analyser.server import _content_disposition
 
 FRAMING = 14 + 20 + 8  # Ethernet + IPv4 + UDP
 

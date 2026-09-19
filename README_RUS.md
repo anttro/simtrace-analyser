@@ -1,16 +1,30 @@
-# simtrace2-pysniff
+# SIMtrace Analyser
 
 [English](README.md) | Русский
 
-Замена `simtrace2-sniff` на Python — сниффер обмена с SIM-картой для
-оборудования Osmocom SIMtrace2 (прошивка в режиме **trace**). Включает PWA
-**simtrace-analyser** (в [`frontend/`](frontend/)) и анализирующий сервер,
-который и захватывает APDU-трафик, и отдаёт эту PWA.
+Анализатор APDU-трассировок в формате GSMTAP-SIM — захватывает обмен с
+SIM/UICC из UDP-потока GSMTAP (или импортирует файлы PCAP/PCAPNG),
+декодирует его и отдаёт устанавливаемое веб-приложение для просмотра.
+В репозиторий также включён **simtrace2-pysniff** — замена `simtrace2-sniff`
+на Python, которая захватывает трафик с оборудования Osmocom SIMtrace2
+и может передавать GSMTAP этому анализатору.
 
-**Единственная зависимость**: PyUSB (обёртка над libusb). Без libosmocore,
-без libosmosim.
+![PWA SIMtrace Analyser](frontend.png)
 
-![simtrace-analyser PWA](frontend.png)
+## Компоненты
+
+- **Анализирующий сервер + PWA** (`simtrace-analyser-server`) — сохраняет
+  захваченный трафик в SQLite, декодирует его и отдаёт PWA
+  ([`frontend/`](frontend/)) вместе с HTTP API на одном origin. Три режима
+  захвата: GSMTAP-листенер, захват напрямую с оборудования SIMtrace2 или
+  отключённый захват (только просмотр существующих записей).
+- **Утилита захвата** (`simtrace2-pysniff`) — захватывает трафик
+  оборудования SIMtrace2 и выводит его в stdout, GSMTAP (Wireshark) или
+  PCAP-файлы. Это один из нескольких источников GSMTAP, которые принимает
+  анализатор (см. также
+  [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
+- **PWA** ([`frontend/`](frontend/)) — окно трассировки с декодированными
+  APDU, SIM Toolkit, SMS и SCP80 OTA; сессии, импорт PCAP, интерфейс EN/RU.
 
 ## Возможности
 
@@ -41,7 +55,7 @@
 - Разбор ATR (пересчёт тактовой частоты, Fi/Di, битовая маска T)
   и FCP/FCI TLV
 
-**PWA simtrace-analyser** ([`frontend/`](frontend/)):
+**PWA SIMtrace Analyser** ([`frontend/`](frontend/)):
 
 - Окно трассировки с режимами «Карта»/«Список» — proactive,
   TERMINAL RESPONSE, ENVELOPE и AUTH-команды выделяются в режиме карты
@@ -52,13 +66,14 @@
 ## Требования
 
 - **Python 3.9+**
-- **PyUSB** — `pip install pyusb`
+- **PyUSB** — `pip install pyusb` (нужен только для захвата с оборудования
+  SIMtrace2; захват GSMTAP/UDP и импорт PCAP работают без него)
 - **libusb** — системная библиотека, обычно уже есть в Linux; в Windows
   нужно заменить драйвер SIMtrace2
   (см. [Доступ к USB-устройству](#доступ-к-usb-устройству))
-- **Оборудование SIMtrace2** с прошивкой в режиме *trace*
-  (VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`). О сборке
-  и прошивке trace-прошивки см.
+- **Оборудование SIMtrace2** с прошивкой в режиме *trace* (только для
+  прямого захвата; VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`).
+  О сборке и прошивке trace-прошивки см.
   [проект SIMtrace2](https://gitea.osmocom.org/sim-card/simtrace2).
 
 Других зависимостей нет. Вывод PCAP, GSMTAP и hex dump использует только
@@ -67,8 +82,8 @@
 ## Установка
 
 ```sh
-git clone https://github.com/anttro/simtrace2-pysniff.git
-cd simtrace2-pysniff
+git clone https://github.com/anttro/simtrace-analyser.git
+cd simtrace-analyser
 pip install pyusb
 ```
 
@@ -76,53 +91,27 @@ pip install pyusb
 
 ```sh
 pip install -e .
-# затем запуск: simtrace2-pysniff [opts]
+# затем запуск: simtrace-analyser-server [opts]
+# или:          simtrace2-pysniff [opts]
 ```
 
 ## Запуск
 
-Предоставляются два инструмента:
-
-### CLI сниффера (`simtrace2-pysniff`)
-
-Захватывает трафик SIMtrace2 и выводит его в stdout, GSMTAP (Wireshark)
-или файлы PCAP.
-
-### Скрипт запуска
-
-`./sniff-start.sh` выполняет предварительную проверку прав доступа к USB
-(при неудаче печатает инструкцию по установке udev-правила) и затем
-запускает модуль Python. В Windows используйте `sniff-start.bat` с теми же
-параметрами (проверка прав не требуется).
-
-```sh
-./sniff-start.sh
-./sniff-start.sh --format timestamp
-./sniff-start.sh --gsmtap 127.0.0.1:4729
-./sniff-start.sh --pcap trace.pcap --format atr-time
-```
-
-Параметры также можно задавать через переменные окружения:
-
-```sh
-FORMAT=timestamp GSMTAP=127.0.0.1 ./sniff-start.sh
-```
-
-### Анализирующий сервер + PWA (`simtrace2-pysniff-server`)
+### Анализирующий сервер + PWA (`simtrace-analyser-server`)
 
 Сохраняет захваченный APDU-трафик в SQLite и отдаёт его по HTTP вместе
-со встроенной PWA **simtrace-analyser** (`frontend/`) на том же origin.
+со встроенной PWA **SIMtrace Analyser** (`frontend/`) на том же origin.
 Три режима захвата:
 
 ```sh
 # Слушать GSMTAP от simtrace2-pysniff (или оригинального simtrace2-sniff):
-simtrace2-pysniff-server --capture gsmtap
+simtrace-analyser-server --capture gsmtap
 
 # Захват напрямую с оборудования SIMtrace2 (внешний инструмент не нужен):
-simtrace2-pysniff-server --capture direct
+simtrace-analyser-server --capture direct
 
 # Просмотр/анализ существующих записей без бэкенда захвата:
-simtrace2-pysniff-server --capture disabled
+simtrace-analyser-server --capture disabled
 ```
 
 Сервер пишет в stderr информацию о жизненном цикле захвата (каждая строка
@@ -174,7 +163,7 @@ CORS/Private-Network-Access не требуется. Используйте `--w
 
 Автономная копия PWA размещена на **https://simtrace.atroshin.ru**.
 Это чистый фронтенд: укажите в нём (Settings → Server URL) адрес
-локально запущенного `simtrace2-pysniff-server`.
+локально запущенного `simtrace-analyser-server`.
 
 > **Ограничение браузера:** когда PWA отдаётся с публичного HTTPS-хоста,
 > доступ к локальному серверу (`http://127.0.0.1:8081`) требует двух
@@ -185,7 +174,31 @@ CORS/Private-Network-Access не требуется. Используйте `--w
 > разрешить сайту (или принять запрос разрешения). Без разрешения
 > браузера запрос к `127.0.0.1` блокируется ещё до отправки preflight.
 
-### Модуль Python (кроссплатформенный)
+### Утилита захвата (`simtrace2-pysniff`)
+
+Захватывает трафик оборудования SIMtrace2 и выводит его в stdout, GSMTAP
+(Wireshark) или PCAP-файлы. Это встроенная замена оригинального
+инструмента Osmocom `simtrace2-sniff`.
+
+Скрипт запуска `./sniff-start.sh` выполняет предварительную проверку прав
+доступа к USB (при неудаче печатает инструкцию по установке udev-правила)
+и затем запускает модуль Python. В Windows используйте `sniff-start.bat`
+с теми же параметрами (проверка прав не требуется).
+
+```sh
+./sniff-start.sh
+./sniff-start.sh --format timestamp
+./sniff-start.sh --gsmtap 127.0.0.1:4729
+./sniff-start.sh --pcap trace.pcap --format atr-time
+```
+
+Параметры также можно задавать через переменные окружения:
+
+```sh
+FORMAT=timestamp GSMTAP=127.0.0.1 ./sniff-start.sh
+```
+
+Кроссплатформенный запуск модуля:
 
 ```sh
 python -m simtrace2_pysniff
@@ -201,6 +214,9 @@ simtrace2-pysniff --format atr-time
 ```
 
 ## Доступ к USB-устройству
+
+Нужен для захвата с оборудования SIMtrace2 (утилита и режим
+`--capture direct` сервера); для источников GSMTAP и PCAP не требуется.
 
 ### Linux
 
@@ -229,7 +245,7 @@ sudo udevadm trigger
 
 После этого `python -m simtrace2_pysniff` работает так же, как в Linux.
 
-## Параметры CLI
+## Параметры CLI утилиты
 
 ```
 python -m simtrace2_pysniff [OPTIONS]
@@ -295,15 +311,15 @@ for msg in session.iter_messages():
 
 ## Восстановление
 
-Инструмент по умолчанию переживает сбросы оборудования, отключения кабеля
-и зависания прошивки — он переподключается с экспоненциальной задержкой
+Утилита по умолчанию переживает сбросы оборудования, отключения кабеля
+и зависания прошивки — она переподключается с экспоненциальной задержкой
 (1с → 30с). Используйте `--inactivity-timeout`, чтобы также переподключаться
 при «тихих» зависаниях прошивки.
 
 ## Связанные проекты
 
 - **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — вышестоящий
-  проект оборудования/прошивки SIMtrace2, с которого этот инструмент
+  проект оборудования/прошивки SIMtrace2, с которого утилита захвата
   снимает трафик.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
   пассивный ISO 7816 сниффер на базе FX2LP, выдающий такой же поток

@@ -147,8 +147,8 @@ class TestTsresol(unittest.TestCase):
 
 class TestImportEndpoint(unittest.TestCase):
     def _handler(self, body):
-        from simtrace2_pysniff.server.server import RequestHandler
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.server import RequestHandler
+        from simtrace_analyser.database import Database
 
         class Fake(RequestHandler):
             def __init__(self, body, db):
@@ -224,12 +224,12 @@ class TestImportEndpoint(unittest.TestCase):
 class TestVersion(unittest.TestCase):
     def test_package_version(self):
         from simtrace2_pysniff import __version__
-        self.assertEqual(__version__, '1.22.21')
+        self.assertEqual(__version__, '2.0.0')
 
     def test_status_includes_version(self):
         import os
-        from simtrace2_pysniff.server.server import RequestHandler
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.server import RequestHandler
+        from simtrace_analyser.database import Database
         from simtrace2_pysniff import __version__
 
         class FakeCapture:
@@ -259,8 +259,8 @@ class TestVersion(unittest.TestCase):
 class TestCaptureDisabled(unittest.TestCase):
     def _handler(self, capture_mode):
         import os
-        from simtrace2_pysniff.server.server import RequestHandler
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.server import RequestHandler
+        from simtrace_analyser.database import Database
 
         class Fake(RequestHandler):
             def __init__(self, db, capture_mode):

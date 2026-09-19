@@ -7,8 +7,8 @@ import tempfile
 import time
 import unittest
 
-from simtrace2_pysniff.server.capture import CaptureManager, gsmtap_msg_type
-from simtrace2_pysniff.server.database import Database
+from simtrace_analyser.capture import CaptureManager, gsmtap_msg_type
+from simtrace_analyser.database import Database
 
 
 class TestGsmtapSubtypeMapping(unittest.TestCase):
@@ -67,7 +67,7 @@ class TestCaptureManager(unittest.TestCase):
         self.assertEqual(db.count_messages(sid), 1)
 
     def test_direct_sniffer_device_disconnect(self):
-        from simtrace2_pysniff.server.capture import DirectSniffer
+        from simtrace_analyser.capture import DirectSniffer
         sn = DirectSniffer()
         sn._session = _DisconnectingSession()
         self.assertEqual(list(sn.iter_messages()), [])
@@ -84,7 +84,7 @@ class TestCaptureManager(unittest.TestCase):
         self.assertEqual([m['type'] for m in msgs], ['gap', 'tpdu'])
 
     def test_direct_sniffer_connected(self):
-        from simtrace2_pysniff.server.capture import DirectSniffer
+        from simtrace_analyser.capture import DirectSniffer
 
         class _FakeSession:
             connected = True
@@ -96,7 +96,7 @@ class TestCaptureManager(unittest.TestCase):
         self.assertFalse(sn.connected)
 
     def test_device_connected_gsmtap_none(self):
-        from simtrace2_pysniff.server.capture import GsmtapListener
+        from simtrace_analyser.capture import GsmtapListener
         listener = GsmtapListener(bind_port=0)
         self.addCleanup(listener.stop)
         mgr, _ = self._manager(listener)
@@ -170,7 +170,7 @@ class _RaisingBackend:
 
 class TestGsmtapListenerRobustness(unittest.TestCase):
     def test_listener_survives_bad_packet(self):
-        from simtrace2_pysniff.server.capture import GsmtapListener
+        from simtrace_analyser.capture import GsmtapListener
         listener = GsmtapListener(bind_port=0)
         listener._receiver.close()  # drop the real socket before swapping
         listener._receiver = _FlakyReceiver(listener, ['raise_non_sim', 'good'])
@@ -181,7 +181,7 @@ class TestGsmtapListenerRobustness(unittest.TestCase):
         self.assertEqual(listener.dropped, 1)
 
     def test_listener_survives_short_packet(self):
-        from simtrace2_pysniff.server.capture import GsmtapListener
+        from simtrace_analyser.capture import GsmtapListener
         listener = GsmtapListener(bind_port=0)
         listener._receiver.close()  # drop the real socket before swapping
         listener._receiver = _FlakyReceiver(listener, ['raise_short', 'good'])

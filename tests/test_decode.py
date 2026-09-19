@@ -2,7 +2,7 @@
 
 import unittest
 
-from simtrace2_pysniff.server.decode import (
+from simtrace_analyser.decode import (
     decode_message,
     decode_sniff_msg,
     CAT_COMMAND_TYPES,
@@ -276,19 +276,19 @@ class TestFcpResponse(unittest.TestCase):
         self.assertEqual(resp['life_cycle'], 'operational state (activated)')
 
     def test_ef_descriptor_transparent(self):
-        from simtrace2_pysniff.server.decode import _decode_file_descriptor
+        from simtrace_analyser.decode import _decode_file_descriptor
         fd = _decode_file_descriptor(bytes.fromhex('0121'))
         self.assertEqual(fd['file_type'], 'Working EF')
         self.assertEqual(fd['structure'], 'transparent')
 
     def test_ef_descriptor_linear_fixed(self):
-        from simtrace2_pysniff.server.decode import _decode_file_descriptor
+        from simtrace_analyser.decode import _decode_file_descriptor
         fd = _decode_file_descriptor(bytes.fromhex('0221'))
         self.assertEqual(fd['file_type'], 'Working EF')
         self.assertEqual(fd['structure'], 'linear fixed')
 
     def test_fcp_file_size(self):
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         # FCP: file descriptor (transparent EF) + FID 6F07 + file size 9 + total 9
         fcp = _decode_fcp(bytes.fromhex('8202012183026f07800109810109'))
         self.assertEqual(fcp['file_descriptor']['file_type'], 'Working EF')
@@ -299,19 +299,19 @@ class TestFcpResponse(unittest.TestCase):
 
     def test_fcp_sfi(self):
         # FCP SFI tag 0x88 carries the SFI in bits b8..b4 (value >> 3).
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         fcp = _decode_fcp(bytes.fromhex('8202412183026f7e880158'))
         self.assertEqual(fcp['sfi'], 11)
 
     def test_fcp_sfi_empty(self):
         # FCP SFI tag 0x88 with length 0 → file does not support SFI.
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         fcp = _decode_fcp(bytes.fromhex('82054221005a0d83026f068800'))
         self.assertIsNone(fcp['sfi'])
 
     def test_fcp_sfi_absent_uses_fid_lsbs(self):
         # No SFI tag → SFI = 5 LSBs of the FID (TS 102 221 §11.1.2).
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         fcp = _decode_fcp(bytes.fromhex('8202412183022f06'))
         self.assertEqual(fcp['sfi'], 0x06)
 
@@ -334,7 +334,7 @@ class TestFcpResponse(unittest.TestCase):
 
 class TestAuthResponse(unittest.TestCase):
     def test_3g_success(self):
-        from simtrace2_pysniff.server.decode import _decode_auth
+        from simtrace_analyser.decode import _decode_auth
         data = bytes.fromhex('DB084CFA9017FD0DD85A101A2622F60E8ABD2C2497B9A8EFAF55E510CAA393329FF97868B9537369D5266A4F084D417B05ABFAFAEE')
         r = _decode_auth(data)
         self.assertEqual(r['type'], '3G/EPS/5G')
@@ -344,7 +344,7 @@ class TestAuthResponse(unittest.TestCase):
         self.assertEqual(r['ik'], 'CAA393329FF97868B9537369D5266A4F')
 
     def test_3g_sync_fail(self):
-        from simtrace2_pysniff.server.decode import _decode_auth
+        from simtrace_analyser.decode import _decode_auth
         data = bytes.fromhex('DC0E' + '00' * 14)
         r = _decode_auth(data)
         self.assertEqual(r['type'], '3G/EPS/5G')
@@ -352,7 +352,7 @@ class TestAuthResponse(unittest.TestCase):
         self.assertEqual(r['auts'], '00' * 14)
 
     def test_gsm(self):
-        from simtrace2_pysniff.server.decode import _decode_auth
+        from simtrace_analyser.decode import _decode_auth
         sres = bytes.fromhex('AABBCCDD')
         kc = bytes.fromhex('0011223344556677')
         r = _decode_auth(sres + kc)
@@ -368,7 +368,7 @@ class TestTrResult(unittest.TestCase):
         self.assertEqual(r['response']['name'], 'Command performed successfully')
 
     def test_session_terminated(self):
-        from simtrace2_pysniff.server.decode import _decode_tr_result
+        from simtrace_analyser.decode import _decode_tr_result
         r = _decode_tr_result(bytes.fromhex('810301050002028281030110'))
         self.assertEqual(r['code'], '0x10')
         self.assertEqual(r['name'], 'Proactive UICC session terminated by the user')
@@ -395,7 +395,7 @@ class TestTrAdditionalInfo(unittest.TestCase):
                          '867231056428280')
 
     def test_pli_datetime(self):
-        from simtrace2_pysniff.server.decode import _decode_datetime
+        from simtrace_analyser.decode import _decode_datetime
         self.assertEqual(
             _decode_datetime(bytes.fromhex('62802141030021')),
             '2026-08-12 14:30:00 (UTC+03:00)')
@@ -404,25 +404,25 @@ class TestTrAdditionalInfo(unittest.TestCase):
             '2026-08-12 14:30:00 (UTCunknown)')
 
     def test_datetime_invalid_bcd(self):
-        from simtrace2_pysniff.server.decode import _decode_datetime
+        from simtrace_analyser.decode import _decode_datetime
         self.assertIsNone(_decode_datetime(bytes.fromhex('A505326C333939')))
 
     def test_datetime_invalid_semantics(self):
-        from simtrace2_pysniff.server.decode import _decode_datetime
+        from simtrace_analyser.decode import _decode_datetime
         self.assertIsNone(_decode_datetime(bytes.fromhex('62310100000000')))
 
     def test_pli_language(self):
-        from simtrace2_pysniff.server.decode import _decode_local_info, PLI_LANGUAGE
+        from simtrace_analyser.decode import _decode_local_info, PLI_LANGUAGE
         self.assertEqual(_decode_local_info(PLI_LANGUAGE, b'en'),
                          {'label': 'Language', 'value': 'en'})
 
     def test_pli_battery(self):
-        from simtrace2_pysniff.server.decode import _decode_local_info, PLI_BATTERY
+        from simtrace_analyser.decode import _decode_local_info, PLI_BATTERY
         self.assertEqual(_decode_local_info(PLI_BATTERY, b'\x05'),
                          {'label': 'Battery', 'value': 'full'})
 
     def test_pli_access_tech(self):
-        from simtrace2_pysniff.server.decode import _decode_local_info, PLI_ACCESS_TECH
+        from simtrace_analyser.decode import _decode_local_info, PLI_ACCESS_TECH
         self.assertEqual(_decode_local_info(PLI_ACCESS_TECH, bytes([0x03, 0x07])),
                          {'label': 'Access technology', 'value': 'UTRAN, E-UTRAN'})
 
@@ -449,7 +449,7 @@ class TestAuthCommand(unittest.TestCase):
         self.assertIn('Specific reference data', p2['bits'])
 
     def test_gsm_rand_only(self):
-        from simtrace2_pysniff.server.decode import _decode_auth_cmd
+        from simtrace_analyser.decode import _decode_auth_cmd
         r = _decode_auth_cmd(bytes.fromhex('10' + '00' * 16), 0x00)
         self.assertNotIn('context', r)
         self.assertNotIn('specific_key', r)
@@ -457,7 +457,7 @@ class TestAuthCommand(unittest.TestCase):
         self.assertNotIn('autn', r)
 
     def test_sync_fail_auts(self):
-        from simtrace2_pysniff.server.decode import _decode_auth
+        from simtrace_analyser.decode import _decode_auth
         auts = bytes.fromhex('010203040506' + '0a0b0c0d0e0f1011')
         r = _decode_auth(b'\xdc' + bytes([len(auts)]) + auts)
         self.assertEqual(r['status'], 'sync fail')
@@ -525,7 +525,7 @@ class TestSmTpdu(unittest.TestCase):
         return bytes(out)
 
     def test_deliver_gsm7(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x00' + b'\x00' * 7 +
                 b'\x05' + bytes.fromhex('E8329BFD06'))
@@ -536,7 +536,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], 'hello')
 
     def test_deliver_ucs2(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         ucs2 = '\u041f\u0440\u0438\u0432\u0435\u0442'.encode('utf-16-be')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x08' + b'\x00' * 7 +
@@ -546,7 +546,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], '\u041f\u0440\u0438\u0432\u0435\u0442')
 
     def test_8bit_no_text(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         # Mixed low/high bytes are treated as binary → no text decode.
         payload = bytes.fromhex('00018081A0FF07')
@@ -558,7 +558,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['payload'], '00018081A0FF07')
 
     def test_sim_data_download(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         ud = bytes.fromhex('02700000200d000000000000020000000000000010100102a2090804420435044104420600')
         tpdu = (b'\x44' + bytes([11]) + oa + b'\x7f\x04' + b'\x00' * 7 +
@@ -575,7 +575,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['secured']['data'], '0010100102A2090804420435044104420600')
 
     def test_response_packet(self):
-        from simtrace2_pysniff.server.decode import _decode_response_packet
+        from simtrace_analyser.decode import _decode_response_packet
         body = bytes.fromhex('001f0a00000000000000500000ab12800101230d08a0000001510000000f9a9000')
         r = _decode_response_packet(body)
         self.assertEqual(r['rpl'], 31)
@@ -587,11 +587,11 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['data'], 'AB12800101230D08A0000001510000000F9A9000')
 
     def test_secured_packet_fallback(self):
-        from simtrace2_pysniff.server.decode import _decode_secured_packet
+        from simtrace_analyser.decode import _decode_secured_packet
         self.assertEqual(_decode_secured_packet(bytes.fromhex('0001')), {'raw': '0001'})
 
     def test_send_sm_response_packet(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         tpdu = bytes.fromhex('41000481112200f624027100001f0a00000000000000500000ab12800101230d08a0000001510000000f9a9000')
         r = _decode_sm_tpdu(tpdu)
         self.assertEqual(r['mti'], 'SMS-SUBMIT')
@@ -603,7 +603,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['response_packet']['data'], 'AB12800101230D08A0000001510000000F9A9000')
 
     def test_deliver_scts(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         scts = bytes.fromhex('62802141030021')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x00' + scts + b'\x00')
@@ -611,14 +611,14 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['scts'], '2026-08-12 14:30:00 (UTC+03:00)')
 
     def test_deliver_pid_name(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x48\x00' + b'\x00' * 7 + b'\x00')
         r = _decode_sm_tpdu(tpdu)
         self.assertEqual(r['pid_name'], 'Device Triggering Short Message')
 
     def test_deliver_dcs_info(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x11' + b'\x00' * 7 + b'\x00')
         r = _decode_sm_tpdu(tpdu)
@@ -627,7 +627,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['dcs_info']['msg_class'], 1)
 
     def test_dcs_mwi(self):
-        from simtrace2_pysniff.server.decode import _decode_dcs_full
+        from simtrace_analyser.decode import _decode_dcs_full
         d = _decode_dcs_full(0xD0)
         self.assertEqual(d['group'], 'Message Waiting Indication')
         self.assertEqual(d['action'], 'store')
@@ -635,34 +635,34 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(d['indication'], 'voicemail')
 
     def test_udh_concat_8bit(self):
-        from simtrace2_pysniff.server.decode import _decode_udh
+        from simtrace_analyser.decode import _decode_udh
         el = _decode_udh(bytes.fromhex('0003A10201'))
         self.assertEqual(el[0]['name'], 'Concatenated short messages, 8-bit reference number')
         self.assertEqual(el[0]['data'], {'reference': 0xA1, 'max': 2, 'seq': 1})
 
     def test_udh_concat_16bit(self):
-        from simtrace2_pysniff.server.decode import _decode_udh
+        from simtrace_analyser.decode import _decode_udh
         el = _decode_udh(bytes.fromhex('080403000201'))
         self.assertEqual(el[0]['name'], 'Concatenated short message, 16-bit reference number')
         self.assertEqual(el[0]['data'], {'reference': 0x0300, 'max': 2, 'seq': 1})
 
     def test_udh_app_port_8bit(self):
-        from simtrace2_pysniff.server.decode import _decode_udh
+        from simtrace_analyser.decode import _decode_udh
         el = _decode_udh(bytes.fromhex('0402B5A5'))
         self.assertEqual(el[0]['data'], {'dest_port': 0xB5, 'orig_port': 0xA5})
 
     def test_udh_app_port_16bit(self):
-        from simtrace2_pysniff.server.decode import _decode_udh
+        from simtrace_analyser.decode import _decode_udh
         el = _decode_udh(bytes.fromhex('05040B8423F0'))
         self.assertEqual(el[0]['data'], {'dest_port': 0x0B84, 'orig_port': 0x23F0})
 
     def test_udh_special_sms(self):
-        from simtrace2_pysniff.server.decode import _decode_udh
+        from simtrace_analyser.decode import _decode_udh
         el = _decode_udh(bytes.fromhex('01028102'))
         self.assertEqual(el[0]['data'], {'store': True, 'indication': 'fax', 'count': 2})
 
     def test_deliver_udh_ucs2(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         ud = bytes.fromhex('050003A10201') + 'Hi'.encode('utf-16-be')
         tpdu = (b'\x40' + bytes([11]) + oa + b'\x00\x08' + b'\x00' * 7 +
@@ -672,7 +672,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], 'Hi')
 
     def test_submit_vp_relative(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         da = b'\x81' + self._bcd('999')
         tpdu = b'\x09' + b'\x2A' + bytes([len(da)]) + da + b'\x00\x00' + b'\x8F' + b'\x00'
         r = _decode_sm_tpdu(tpdu)
@@ -680,7 +680,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['vp'], '720 min')
 
     def test_submit_vp_absolute(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         da = b'\x81' + self._bcd('999')
         scts = bytes.fromhex('62802141030021')
         tpdu = b'\x11' + b'\x2A' + bytes([len(da)]) + da + b'\x00\x00' + scts + b'\x00'
@@ -689,7 +689,7 @@ class TestSmTpdu(unittest.TestCase):
 
     def test_submit_no_ud_encoding(self):
         # Real capture: absolute VP with non-BCD bytes, no TP-UD.
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         tpdu = bytes.fromhex('11FF038154F50004A505326C333939')
         r = _decode_sm_tpdu(tpdu)
         self.assertEqual(r['da'], '455')
@@ -698,7 +698,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['vp'], 'A505326C333939')
 
     def test_8bit_ascii_text(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         payload = b'Hello World'
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x04' + b'\x00' * 7 +
@@ -708,7 +708,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], 'Hello World')
 
     def test_8bit_ascii_ctrl_replaced(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         payload = b'Hi\x00There'
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x04' + b'\x00' * 7 +
@@ -717,7 +717,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], 'Hi\u00b7There')
 
     def test_8bit_high_text(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         payload = '\u00e9\u00fc\u00f1'.encode('latin-1')
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x04' + b'\x00' * 7 +
@@ -726,7 +726,7 @@ class TestSmTpdu(unittest.TestCase):
         self.assertEqual(r['text'], '\u00e9\u00fc\u00f1')
 
     def test_8bit_mixed_no_text(self):
-        from simtrace2_pysniff.server.decode import _decode_sm_tpdu
+        from simtrace_analyser.decode import _decode_sm_tpdu
         oa = b'\x91' + self._bcd('79031234567')
         payload = b'\x00\x01\xff\xfe'
         tpdu = (b'\x00' + bytes([11]) + oa + b'\x00\x04' + b'\x00' * 7 +
@@ -738,15 +738,15 @@ class TestSmTpdu(unittest.TestCase):
 
 class TestBcdAddress(unittest.TestCase):
     def test_international(self):
-        from simtrace2_pysniff.server.decode import _decode_bcd_address
+        from simtrace_analyser.decode import _decode_bcd_address
         self.assertEqual(_decode_bcd_address(bytes.fromhex('912143658709')), '+1234567890')
 
     def test_national(self):
-        from simtrace2_pysniff.server.decode import _decode_bcd_address
+        from simtrace_analyser.decode import _decode_bcd_address
         self.assertEqual(_decode_bcd_address(bytes.fromhex('A12143658709')), '1234567890')
 
     def test_odd_digits(self):
-        from simtrace2_pysniff.server.decode import _decode_bcd_address
+        from simtrace_analyser.decode import _decode_bcd_address
         self.assertEqual(_decode_bcd_address(bytes.fromhex('9121436587F9')), '+123456789')
 
 
@@ -808,67 +808,67 @@ class TestProactiveDecode(unittest.TestCase):
 
 class TestAnnexA(unittest.TestCase):
     def test_gsm_default(self):
-        from simtrace2_pysniff.server.decode import _decode_annex_a
+        from simtrace_analyser.decode import _decode_annex_a
         self.assertEqual(_decode_annex_a(b'Alfa Mobile'), 'Alfa Mobile')
 
     def test_ucs2_variant1(self):
-        from simtrace2_pysniff.server.decode import _decode_annex_a
+        from simtrace_analyser.decode import _decode_annex_a
         self.assertEqual(_decode_annex_a(b'\x80' + 'Привет'.encode('utf_16_be')), 'Привет')
 
     def test_ucs2_variant2_base_ptr(self):
-        from simtrace2_pysniff.server.decode import _decode_annex_a
+        from simtrace_analyser.decode import _decode_annex_a
         # 'Н' = U+041D, base 0x08<<7 = 0x400, offset 0x1D
         self.assertEqual(_decode_annex_a(bytes.fromhex('8101089D')), 'Н')
 
     def test_ucs2_variant_90(self):
-        from simtrace2_pysniff.server.decode import _decode_annex_a
+        from simtrace_analyser.decode import _decode_annex_a
         self.assertEqual(_decode_annex_a(b'\x90' + 'Привет'.encode('utf_16_be')), 'Привет')
 
     def test_gsm7_packed(self):
-        from simtrace2_pysniff.server.decode import _decode_annex_a
+        from simtrace_analyser.decode import _decode_annex_a
         self.assertEqual(_decode_annex_a(bytes.fromhex('41b6390c')), 'Alfa')
 
 
 class TestPnnSpn(unittest.TestCase):
     def test_pnn_full_name(self):
-        from simtrace2_pysniff.server.decode import _decode_pnn
+        from simtrace_analyser.decode import _decode_pnn
         r = _decode_pnn(bytes.fromhex('43058441b6390c' + 'ff' * 13))
         self.assertEqual(r['full'], 'Alfa')
 
     def test_pnn_ucs2(self):
-        from simtrace2_pysniff.server.decode import _decode_pnn
+        from simtrace_analyser.decode import _decode_pnn
         v = b'\x90' + 'Привет'.encode('utf-16-be')
         r = _decode_pnn(b'\x43' + bytes([len(v)]) + v)
         self.assertEqual(r['full'], 'Привет')
 
     def test_spn_ucs2_90(self):
-        from simtrace2_pysniff.server.decode import _decode_spn
+        from simtrace_analyser.decode import _decode_spn
         r = _decode_spn(b'\x00' + b'\x90' + 'Привет'.encode('utf-16-be'))
         self.assertEqual(r['name'], 'Привет')
 
     def test_spn_gsm7(self):
-        from simtrace2_pysniff.server.decode import _decode_spn
+        from simtrace_analyser.decode import _decode_spn
         r = _decode_spn(b'\x00' + bytes.fromhex('41b6390c'))
         self.assertEqual(r['name'], 'Alfa')
 
 
 class TestDcsText(unittest.TestCase):
     def test_gsm7(self):
-        from simtrace2_pysniff.server.decode import _decode_dcs_text
+        from simtrace_analyser.decode import _decode_dcs_text
         self.assertEqual(_decode_dcs_text(b'\x00Alfa'), 'Alfa')
 
     def test_ucs2(self):
-        from simtrace2_pysniff.server.decode import _decode_dcs_text
+        from simtrace_analyser.decode import _decode_dcs_text
         self.assertEqual(_decode_dcs_text(b'\x08' + 'OK'.encode('utf_16_be')), 'OK')
 
     def test_latin1(self):
-        from simtrace2_pysniff.server.decode import _decode_dcs_text
+        from simtrace_analyser.decode import _decode_dcs_text
         self.assertEqual(_decode_dcs_text(b'\x04caf\xe9'), 'café')
 
 
 class TestAtrPps(unittest.TestCase):
     def test_atr_simple_t0_only(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # 3B 00: direct, T0=00, no interface bytes, 0 historical bytes, only T=0 → no TCK
         r = _decode_atr(bytes.fromhex('3B00'))
         self.assertEqual(r['convention'], 'direct')
@@ -877,7 +877,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertNotIn('tck', r)
 
     def test_atr_ta1(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # 3B 12 11 00 00: TA1=11 (Fi=1,Di=1), 2 historical bytes, T=0 → no TCK
         r = _decode_atr(bytes.fromhex('3B12110000'))
         self.assertEqual(r['convention'], 'direct')
@@ -888,7 +888,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertNotIn('tck', r)
 
     def test_atr_data_rate_from_clk(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # TA1=11 → F=372, D=1; CLK 3.579545 MHz → 9622 bit/s, ETU 103.9 µs
         r = _decode_atr(bytes.fromhex('3B12110000'), clk_hz=3579545)
         self.assertEqual(r['clk_hz'], 3579545)
@@ -896,28 +896,28 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['etu_us'], 103.9)
 
     def test_atr_data_rate_uses_ta1_fidi(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # TA1=95 → F=512, D=16; CLK 4 MHz → 125000 bit/s, ETU 8.0 µs
         r = _decode_atr(bytes.fromhex('3B1095'), clk_hz=4000000)
         self.assertEqual(r['data_rate'], 125000)
         self.assertEqual(r['etu_us'], 8.0)
 
     def test_atr_data_rate_defaults_without_ta1(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # No TA1 → default F=372, D=1
         r = _decode_atr(bytes.fromhex('3B00'), clk_hz=4000000)
         self.assertEqual(r['data_rate'], 10753)
         self.assertEqual(r['etu_us'], 93.0)
 
     def test_atr_no_clk_no_rate(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         r = _decode_atr(bytes.fromhex('3B12110000'))
         self.assertNotIn('clk_hz', r)
         self.assertNotIn('data_rate', r)
         self.assertNotIn('etu_us', r)
 
     def test_atr_td1_t1_has_tck(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # 3B 80 01 80 31 80 66 ... : construct T=1 with TCK
         # T0=80 → TD1 present, 0 historical; TD1=01 (T=1, no more interface); then TCK
         # bytes: 3B 80 01 xx where xx = XOR(80,01) = 81
@@ -928,7 +928,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['tck'], '81')
 
     def test_atr_inverse_convention(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # Inverse: TS=3F, then inverted bytes. Take direct ATR "3B 00" and invert body.
         # Inverted 0x00 is 0x00, so ATR = 3F 00 → convention inverse, T0=00.
         r = _decode_atr(bytes.fromhex('3F00'))
@@ -936,7 +936,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['t0'], '00')
 
     def test_atr_historical_life_cycle(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # T0 = 0x03 (3 historical bytes); historical = 80 00 05 (life cycle: operational)
         r = _decode_atr(bytes.fromhex('3B03800005'))
         self.assertEqual(r['historical_len'], 3)
@@ -944,7 +944,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertEqual(r['historical']['life_cycle'], 'operational state (activated)')
 
     def test_atr_t15_is_pps_capability(self):
-        from simtrace2_pysniff.server.decode import _decode_atr
+        from simtrace_analyser.decode import _decode_atr
         # Real UICC ATR: T0=9F (TA1+TD1, 15 hist bytes), TA1=95, TD1=80 (T=0),
         # TD2=1F (T=15 → PPS capability), TA3=C7 (clock stop + classes A/B/C).
         r = _decode_atr(bytes.fromhex('3B9F95801FC78031E073FE21136364035B83079000F7'))
@@ -957,7 +957,7 @@ class TestAtrPps(unittest.TestCase):
         self.assertTrue(r['tck_valid'])
 
     def test_pps(self):
-        from simtrace2_pysniff.server.decode import _decode_pps
+        from simtrace_analyser.decode import _decode_pps
         # FF 10 11 xx: PPS0=10 (T=0, PPS1 present), PPS1=11 (Fi=1,Di=1), PCK=XOR(FF,10,11)=FE
         r = _decode_pps(bytes.fromhex('FF1011FE'))
         self.assertEqual(r['protocol'], 'T=0')
@@ -971,7 +971,7 @@ class TestPacketSummaries(unittest.TestCase):
     """APDU-list descriptions for ATR/PPS/RST/VCC packets."""
 
     def _dec(self, hexstr, kind, clk_hz=None):
-        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        from simtrace_analyser.decode import decode_sniff_msg
         return decode_sniff_msg(bytes.fromhex(hexstr), kind, clk_hz=clk_hz)
 
     def test_atr_simple(self):
@@ -1166,54 +1166,54 @@ class TestSelectPath(unittest.TestCase):
 
 class TestFileDecoders(unittest.TestCase):
     def test_imsi(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f07', bytes.fromhex('082905102143658709'))
         self.assertEqual(f['imsi'], '250011234567890')
 
     def test_imsi_real_card(self):
         # Real capture (Mi A1): 08 length byte + 8 bytes, first nibble is the
         # TS 24.008 type+parity indicator (9 = IMSI, odd).
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f07', bytes.fromhex('082905917700917259'))
         self.assertEqual(f['imsi'], '250197700192795')
 
     def test_iccid(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('2fe2', bytes.fromhex('98891020000000460012'))
         self.assertEqual(f['iccid'], '89980102000000640021')
 
     def test_li(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f05', b'enru')
         self.assertEqual(f['languages'], ['en', 'ru'])
 
     def test_ef_impu_empty_record(self):
         # EF_IMPU record that is an unused identity: tag 0x80, zero-length
         # value, FF erase filler. Must be reported empty, NOT decoded as text.
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f04', bytes.fromhex('8000' + 'ff' * 73))
         self.assertIn('empty', f)
         self.assertNotIn('text', f)
 
     def test_ef_impu_all_ff(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f04', b'\xff' * 75)
         self.assertIn('empty', f)
 
     def test_ef_impu_sip_uri(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         payload = b'\x80' + bytes([len(b'sip:alice@example.com')]) + b'sip:alice@example.com'
         f = _decode_file_data('6f04', payload)
         self.assertEqual(f.get('text'), 'sip:alice@example.com')
 
     def test_ef_impu_lone_tag(self):
         # A record containing only the identity tag (no length/value) is empty.
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f04', b'\x80')
         self.assertIn('empty', f)
 
     def test_adn(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f3a', bytes.fromhex(
             '42204841203120536963FFFFFFFFFFFF06810628560810FFFFFFFFFFFFFF'))
         self.assertEqual(f['name'], 'B HA 1 Sic')
@@ -1221,7 +1221,7 @@ class TestFileDecoders(unittest.TestCase):
 
     def test_adn_ber_tlv_fallback(self):
         # Non-ADN data (BER-TLV) must not be decoded as a name/number.
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         raw = bytes.fromhex(
             'A0348001078120E823FF53C3E271754A644ED63DEFCF24A916387E3C585F'
             '0820CF3E27841852F7820400000000830400000000840102'
@@ -1231,20 +1231,20 @@ class TestFileDecoders(unittest.TestCase):
         self.assertIn('raw', f)
 
     def test_ust(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f38', bytes.fromhex('07'))
         self.assertEqual([s['n'] for s in f['services']], [1, 2, 3])
         self.assertEqual(f['services'][0]['name'], 'Local Phone Book')
 
     def test_plmn_list(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f30', bytes.fromhex('42f095'))
         self.assertEqual(len(f['plmns']), 1)
         self.assertIn('mcc', f['plmns'][0])
         self.assertIn('mnc', f['plmns'][0])
 
     def test_dir(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('2f00', bytes.fromhex(
             '612b4f10a0000000871002fffff00189000001ff50074d656761466f6e'
             '730ea00c80011781025f408203454150ffffffffffffffffffffffffffffffffffffff'))
@@ -1256,21 +1256,21 @@ class TestFileDecoders(unittest.TestCase):
         self.assertEqual(eap['label'], 'EAP')
 
     def test_nai_empty_record(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # Unused ISIM record (all FF) must be 'empty', not garbage text.
         f = _decode_file_data('6f04', b'\xff' * 75)
         self.assertTrue(f['empty'])
         self.assertNotIn('text', f)
 
     def test_nai(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         f = _decode_file_data('6f04', bytes.fromhex(
             '80357369703a32353030323639333537373333363840696d732e6d6e63'
             '3030322e6d63633235302e336770706e6574776f726b2e6f7267'))
         self.assertEqual(f['text'], 'sip:250026935773368@ims.mnc002.mcc250.3gppnetwork.org')
 
     def test_plmn_wact(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # TS 51.011 §10.3.35: 5-byte entries (3 PLMN + 2 access tech).
         f = _decode_file_data('6f60', bytes.fromhex('52f020400052f0208000'))
         self.assertEqual(f['plmns'][0]['mcc'], '250')
@@ -1279,7 +1279,7 @@ class TestFileDecoders(unittest.TestCase):
         self.assertEqual(f['plmns'][1]['access_tech'], 'UTRAN')
 
     def test_sms_record(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # status 0x07 (MO, to be sent) + empty SMSC (len 0) + SMS-SUBMIT TPDU
         rec = bytes.fromhex('0700') + bytes.fromhex('01ff038199f90004024869')
         f = _decode_file_data('6f3c', rec)
@@ -1290,7 +1290,7 @@ class TestFileDecoders(unittest.TestCase):
         self.assertEqual(f['tpdu']['text'], 'Hi')
 
     def test_loci(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # EF_LOCI (11 bytes): TMSI 4 + LAI 5 + TMSI_TIME 1 + status 1.
         f = _decode_file_data('6f7e', bytes.fromhex('1e731e5752f09969c50000'))
         self.assertEqual(f['tmsi'], '1E731E57')
@@ -1300,14 +1300,14 @@ class TestFileDecoders(unittest.TestCase):
         self.assertEqual(f['location_update_status'], '0x00')
 
     def test_epsloci(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # EF_EPSLOCI (18 bytes): GUTI 12 + TAI 5 + status 1.
         f = _decode_file_data('6fe3', bytes.fromhex('0bf652f0998001b0fb91192652f0991d9900'))
         self.assertEqual(f['guti'], '0BF652F0998001B0FB911926')
         self.assertEqual(f['eps_update_status'], '0x00')
 
     def test_psloci(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # EF_PSLOCI (14 bytes): P-TMSI 4 + sig 3 + RAI 6 + status 1.
         f = _decode_file_data('6f73', bytes.fromhex('1111111122222252f0991d990001'))
         self.assertEqual(f['p_tmsi'], '11111111')
@@ -1319,7 +1319,7 @@ class TestFileDecoders(unittest.TestCase):
         self.assertEqual(f['update_status'], '0x01')
 
     def test_epsnsc(self):
-        from simtrace2_pysniff.server.decode import _decode_file_data
+        from simtrace_analyser.decode import _decode_file_data
         # EF_EPSNSC record: A0 { 80 KSI_ASME, 81 K_ASME, 82/83 NAS counts, 84 algos }.
         f = _decode_file_data('6fe4', bytes.fromhex(
             'a0188001018104aabbccdd820400000003830400000004840102'))
@@ -1391,7 +1391,7 @@ class TestFileDecoders(unittest.TestCase):
         self.assertIn('18 record(s)', r['summary'])
 
     def test_select_target_fid(self):
-        from simtrace2_pysniff.server.decode import select_target_fid
+        from simtrace_analyser.decode import select_target_fid
         self.assertEqual(select_target_fid({'p1': {'raw': '00'}, 'body': {'hex': '6f07'}}), '6f07')
         self.assertEqual(select_target_fid({'p1': {'raw': '08'}, 'body': {'hex': '7fff6f05'}}), '6f05')
         self.assertIsNone(select_target_fid({'p1': {'raw': '04'}, 'body': {'hex': 'a0000000871002'}}))
@@ -1403,7 +1403,7 @@ class TestSelectionTracking(unittest.TestCase):
         # GSMTAP BAD_FCS flag stored via insert_message must surface as a
         # decode error in the DB → frontend path (not just the direct call).
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         from simtrace2_pysniff.gsmtap import GSMTAP_FLAG_BAD_FCS
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
@@ -1415,7 +1415,7 @@ class TestSelectionTracking(unittest.TestCase):
 
     def test_select_then_read(self):
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1429,7 +1429,7 @@ class TestSelectionTracking(unittest.TestCase):
 
     def test_atr_resets_selection(self):
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1444,7 +1444,7 @@ class TestSelectionTracking(unittest.TestCase):
         # A waiting-time timeout interrupts one TPDU but the card stays
         # selected, so the selection must not be reset.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1457,7 +1457,7 @@ class TestSelectionTracking(unittest.TestCase):
 
     def test_reset_assert_resets_selection(self):
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1472,7 +1472,7 @@ class TestSelectionTracking(unittest.TestCase):
         # A capture gap (device disconnected/reconnected) means messages may
         # have been missed, so the selection must be reset.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1486,7 +1486,7 @@ class TestSelectionTracking(unittest.TestCase):
     def test_failed_select_keeps_selection(self):
         # A SELECT that fails (6A82) must not change the current file.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1502,7 +1502,7 @@ class TestSelectionTracking(unittest.TestCase):
         # SELECT a transparent EF, then READ RECORD → selection is stale, so
         # we must not decode garbage.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1519,7 +1519,7 @@ class TestSelectionTracking(unittest.TestCase):
         # SFI referencing must resolve the target EF (EF_EPSLOCI), not the
         # last-selected file.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1537,7 +1537,7 @@ class TestSelectionTracking(unittest.TestCase):
     def test_sfi_unknown_not_misattributed(self):
         # An SFI not in the map must not fall back to the selected file.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1552,7 +1552,7 @@ class TestSelectionTracking(unittest.TestCase):
         # A record command with a valid SFI sets that file as the current EF,
         # so a subsequent non-SFI record op targets it (TS 102 221 §11.1.2).
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1572,7 +1572,7 @@ class TestSelectionTracking(unittest.TestCase):
     def test_channel_selection_not_clobbered(self):
         # A SELECT on channel 1 (CLA 01) must not change channel 0's selection.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -1610,7 +1610,7 @@ class TestSfiResolution(unittest.TestCase):
         self.assertEqual(r['file']['tmsi'], '1E731E57')
 
     def test_selected_df_fid(self):
-        from simtrace2_pysniff.server.decode import selected_df_fid, sfi_table
+        from simtrace_analyser.decode import selected_df_fid, sfi_table
         self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '08'},
                                           'body': {'hex': '3f007fff'}}), '7fff')
         self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '00'},
@@ -1690,12 +1690,12 @@ class TestP1P2(unittest.TestCase):
 
 class TestSwWrongLength(unittest.TestCase):
     def test_6c(self):
-        from simtrace2_pysniff.server.decode import decode_sw
+        from simtrace_analyser.decode import decode_sw
         self.assertEqual(decode_sw(bytes.fromhex('6c38'))['name'],
                          'Wrong length (Le): correct length is 0x38 (56 bytes)')
 
     def test_62_unknown_is_unnamed(self):
-        from simtrace2_pysniff.server.decode import decode_sw
+        from simtrace_analyser.decode import decode_sw
         self.assertIsNone(decode_sw(bytes.fromhex('6205'))['name'])
 
 
@@ -1910,7 +1910,7 @@ class TestSpecRegistry(unittest.TestCase):
 
     def test_event_names_multi_rat_and_profile_container(self):
         # SET UP EVENT LIST with events '14', '19', '1E'
-        from simtrace2_pysniff.server.decode import EVENT_TYPES
+        from simtrace_analyser.decode import EVENT_TYPES
         self.assertEqual(EVENT_TYPES[0x14],
                          'Access Technology Change (multiple)')
         self.assertEqual(EVENT_TYPES[0x19], 'Profile Container')
@@ -1926,19 +1926,19 @@ class TestSpecRegistry(unittest.TestCase):
                           'Profile Container', 'CAG cell selection'])
 
     def test_tr_result_me_unable_vs_network(self):
-        from simtrace2_pysniff.server.decode import TR_RESULTS
+        from simtrace_analyser.decode import TR_RESULTS
         self.assertIn('ME currently unable', TR_RESULTS[0x20])
         self.assertIn('Network currently unable', TR_RESULTS[0x21])
 
     def test_tr_result_user_session_codes(self):
-        from simtrace2_pysniff.server.decode import TR_RESULTS
+        from simtrace_analyser.decode import TR_RESULTS
         self.assertEqual(TR_RESULTS[0x14],
                          'USSD or SS transaction terminated by the user')
         self.assertNotIn(0x0A, TR_RESULTS)
         self.assertNotIn(0x0E, TR_RESULTS)
 
     def test_tr_result_permanent_problems(self):
-        from simtrace2_pysniff.server.decode import TR_RESULTS
+        from simtrace_analyser.decode import TR_RESULTS
         self.assertEqual(TR_RESULTS[0x3A],
                          'Bearer Independent Protocol error')
         self.assertEqual(TR_RESULTS[0x3B],
@@ -1947,7 +1947,7 @@ class TestSpecRegistry(unittest.TestCase):
         self.assertEqual(TR_RESULTS[0x3D], 'MMS error')
 
     def test_envelope_types_extended(self):
-        from simtrace2_pysniff.server.decode import ENVELOPE_TYPES
+        from simtrace_analyser.decode import ENVELOPE_TYPES
         self.assertEqual(ENVELOPE_TYPES[0xD9], 'USSD DOWNLOAD')
         self.assertEqual(ENVELOPE_TYPES[0xDD],
                          'GEOGRAPHICAL LOCATION REPORTING')
@@ -1955,7 +1955,7 @@ class TestSpecRegistry(unittest.TestCase):
         self.assertEqual(ENVELOPE_TYPES[0xE0], '5G PROSE REPORT')
 
     def test_lsi_command_type(self):
-        from simtrace2_pysniff.server.decode import CAT_COMMAND_TYPES
+        from simtrace_analyser.decode import CAT_COMMAND_TYPES
         self.assertEqual(CAT_COMMAND_TYPES[0x79], 'LSI COMMAND')
 
     def test_proprietary_type_fallback(self):
@@ -1964,7 +1964,7 @@ class TestSpecRegistry(unittest.TestCase):
         self.assertEqual(r['cmd']['type'], 'Proprietary (0xF2)')
 
     def test_pli_qualifiers_esn_and_supported_rat(self):
-        from simtrace2_pysniff.server.decode import PLI_QUALIFIERS
+        from simtrace_analyser.decode import PLI_QUALIFIERS
         self.assertEqual(PLI_QUALIFIERS[0x07], 'ESN of the terminal')
         self.assertEqual(PLI_QUALIFIERS[0x1A],
                          'Supported Radio Access Technologies')
@@ -2038,7 +2038,7 @@ class TestEnvelopeDecoders(unittest.TestCase):
     def test_timer_value_semi_octet_order(self):
         # TS 23.040 semi-octets: first digit in the LOW nibble.
         # 90 52 30 → "09:25:03" (pre-fix code read high-nibble first).
-        from simtrace2_pysniff.server.decode import _decode_timer_value
+        from simtrace_analyser.decode import _decode_timer_value
         self.assertEqual(_decode_timer_value(bytes.fromhex('905230')),
                          '09:25:03')
         # 01 02 03 means "10:20:30", not "01:02:03".
@@ -2120,7 +2120,7 @@ class TestFileDescriptor(unittest.TestCase):
     """Audit: TS 102 221 Table 11.5 file descriptor byte coding."""
 
     def _fdb(self, hexstr):
-        from simtrace2_pysniff.server.decode import _decode_file_descriptor
+        from simtrace_analyser.decode import _decode_file_descriptor
         return _decode_file_descriptor(bytes.fromhex(hexstr))
 
     def test_df_shareable(self):
@@ -2156,20 +2156,20 @@ class TestFcpTags(unittest.TestCase):
     """Audit: FCP tag registry per ISO T12 / TS 221 §11.1.1.4."""
 
     def test_ab_is_security_attributes(self):
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         r = _decode_fcp(bytes.fromhex('6204ab02aabb'))
         # outer 6F wrapper → recurse; AB = security attributes template
         self.assertIn('security_attr_template', r)
         self.assertNotIn('short_ef_id', r)
 
     def test_sfi_tag_88_high_bits(self):
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         # SFI 7 in bits b8-b4 → value byte 0x38
         r = _decode_fcp(bytes.fromhex('880138'))
         self.assertEqual(r['sfi'], 7)
 
     def test_sfi_fallback_fid_low_bits(self):
-        from simtrace2_pysniff.server.decode import _decode_fcp
+        from simtrace_analyser.decode import _decode_fcp
         r = _decode_fcp(bytes.fromhex('83026f7e'))
         self.assertEqual(r['sfi'], 0x1e)  # 6F7E & 0x1F = 30
 
@@ -2178,19 +2178,19 @@ class TestNewFileDecoders(unittest.TestCase):
     """Audit: file decoders added per UICC_FILES.md."""
 
     def test_ecc_bcd_and_esc(self):
-        from simtrace2_pysniff.server.decode import _decode_ecc
+        from simtrace_analyser.decode import _decode_ecc
         r = _decode_ecc(bytes.fromhex('11f200'), p1=None)
         self.assertEqual(r['number'], '112')
         self.assertEqual(r['esc'], '0x00')
 
     def test_kc_ksi(self):
-        from simtrace2_pysniff.server.decode import _decode_kc
+        from simtrace_analyser.decode import _decode_kc
         r = _decode_kc(bytes.fromhex('0011223344556677' + '07'), p1=None)
         self.assertEqual(r['kc'], '0011223344556677')
         self.assertEqual(r['ksi'], 0)
 
     def test_opl_record(self):
-        from simtrace2_pysniff.server.decode import _decode_opl
+        from simtrace_analyser.decode import _decode_opl
         # PLMN 250-01 (52 f0 f1), LAC 0000..FFFE, PNN rec 1
         r = _decode_opl(bytes.fromhex('52f0100000fffe01'), p1=None)
         self.assertEqual(r['mcc'], '250')
@@ -2199,7 +2199,7 @@ class TestNewFileDecoders(unittest.TestCase):
         self.assertEqual(r['pnn_record'], 1)
 
     def test_ext1(self):
-        from simtrace2_pysniff.server.decode import _decode_ext1
+        from simtrace_analyser.decode import _decode_ext1
         raw = bytes.fromhex('03' + '21f39210000000000000' + 'ff' + 'ff')
         r = _decode_ext1(raw, p1=None)
         self.assertTrue(r['number'].startswith('123'))
@@ -2207,25 +2207,25 @@ class TestNewFileDecoders(unittest.TestCase):
         self.assertIsNone(r['ext'])
 
     def test_ad(self):
-        from simtrace2_pysniff.server.decode import _decode_ad
+        from simtrace_analyser.decode import _decode_ad
         r = _decode_ad(bytes.fromhex('00000003'), p1=None)
         self.assertEqual(r['op_mode'], 'normal operation')
         self.assertEqual(r['mnc_length'], 3)
 
     def test_acl(self):
-        from simtrace2_pysniff.server.decode import _decode_acl
+        from simtrace_analyser.decode import _decode_acl
         r = _decode_acl(bytes.fromhex('01dd08696e7465726e6574'), p1=None)
         self.assertEqual(r['apns'], ['internet'])
 
     def test_spdi(self):
-        from simtrace2_pysniff.server.decode import _decode_spdi
+        from simtrace_analyser.decode import _decode_spdi
         # Standard form: A3 wrapping inner '80' TLVs, one PLMN each
         r = _decode_spdi(bytes.fromhex('a30a8003' '52f010' '8003' '72f010'), p1=None)
         self.assertEqual(r['plmns'], [{'mcc': '250', 'mnc': '01'},
                                       {'mcc': '270', 'mnc': '01'}])
 
     def test_spdi_bare_records_fallback(self):
-        from simtrace2_pysniff.server.decode import _decode_spdi
+        from simtrace_analyser.decode import _decode_spdi
         r = _decode_spdi(bytes.fromhex('a306' '52f010' '00f110'), p1=None)
         self.assertEqual(r['plmns'], [{'mcc': '250', 'mnc': '01'},
                                       {'mcc': '001', 'mnc': '01'}])
@@ -2244,18 +2244,18 @@ class TestNewFileDecoders(unittest.TestCase):
         self.assertIn('250/02', r['summary'])
 
     def test_smsp(self):
-        from simtrace2_pysniff.server.decode import _decode_smsp
+        from simtrace_analyser.decode import _decode_smsp
         raw = bytes.fromhex('00' + '00' + 'ff' * 24 + '000000')
         r = _decode_smsp(raw, p1=None)
         self.assertEqual(r['param_indicators'], '0x00')
 
     def test_cbmir_multiple_ranges(self):
-        from simtrace2_pysniff.server.decode import _decode_cbmir
+        from simtrace_analyser.decode import _decode_cbmir
         r = _decode_cbmir(bytes.fromhex('00 01 00 02' .replace(' ', '') + 'fffe0000'), p1=None)
         self.assertEqual(r['ranges'], [[1, 2], [65534, 0]])
 
     def test_missing_apdu_spec_names(self):
-        from simtrace2_pysniff.server.decode import decode_message
+        from simtrace_analyser.decode import decode_message
         for ins, name in [('d0', 'WRITE BINARY'), ('a0', 'SEARCH BINARY'),
                           ('b3', 'READ RECORD (odd INS)'),
                           ('c3', 'ENVELOPE (odd INS)'),
@@ -2271,7 +2271,7 @@ class TestSwUiccSpecific(unittest.TestCase):
     """TS 102 221 UICC-specific SWs (tables 10.7-10.15)."""
 
     def _sw(self, hexstr):
-        from simtrace2_pysniff.server.decode import decode_sw
+        from simtrace_analyser.decode import decode_sw
         return decode_sw(bytes.fromhex(hexstr))
 
     def test_91xx_proactive_pending(self):
@@ -2331,7 +2331,7 @@ class TestSecuredCiphering(unittest.TestCase):
         # stk_test1-style SMS-PP DOWNLOAD secured packet (ciphering on):
         # CNTR on the wire is ciphertext; the card's real counter (~200)
         # is only recoverable after 3DES decryption.
-        from simtrace2_pysniff.server.decode import _decode_secured_packet
+        from simtrace_analyser.decode import _decode_secured_packet
         sec = bytes.fromhex('003815160115 15b000011830a44e4191ad45d0ec'
                             '2a291315986468a539d248fcdce7952c31cd635baec'
                             '7e93a5d567b59f6283316c0dad8603bf3'.replace(' ', ''))
@@ -2343,7 +2343,7 @@ class TestSecuredCiphering(unittest.TestCase):
     def test_unciphered_packet_plain_cntr(self):
         # SPI1 = 0x10: counter present, NO ciphering, RC/CC/DS none →
         # CNTR is genuine plaintext (e.g. 200 = 0x00000000C8).
-        from simtrace2_pysniff.server.decode import _decode_secured_packet
+        from simtrace_analyser.decode import _decode_secured_packet
         sec = bytes.fromhex('00100d10011515b0000100000000c800aabb')
         r = _decode_secured_packet(sec)
         self.assertFalse(r['ciphered'])
@@ -2351,7 +2351,7 @@ class TestSecuredCiphering(unittest.TestCase):
         self.assertNotIn('rc_cc_ds', r)
 
     def test_response_packet_ciphered_flag(self):
-        from simtrace2_pysniff.server.decode import _decode_response_packet
+        from simtrace_analyser.decode import _decode_response_packet
         body = bytes.fromhex('001f0a00000000000000500000ab12800101230d08a0000001510000000f9a9000')
         r = _decode_response_packet(body, ciphered=True)
         self.assertTrue(r['ciphered'])
@@ -2374,7 +2374,7 @@ class TestSecuredCiphering(unittest.TestCase):
         # cipher_block = the on-wire ciphered octets (CNTR..end) and equals
         # the reassembled cntr+pcntr+rc+data — what a client-side decryptor
         # feeds to 3DES/AES-CBC.
-        from simtrace2_pysniff.server.decode import _decode_secured_packet
+        from simtrace_analyser.decode import _decode_secured_packet
         sec = bytes.fromhex('00381516011515b000011830a44e4191ad45d0ec'
                             '2a291315986468a539d248fcdce7952c31cd635baec'
                             '7e93a5d567b59f6283316c0dad8603bf3'.replace(' ', ''))
@@ -2388,7 +2388,7 @@ class TestSecuredCiphering(unittest.TestCase):
     def test_aes_algorithm_recognized(self):
         # AES must stay recognized for ciphering (KIc nibble 2) and for the
         # CC (KID nibble 2 = AES-CMAC) — the client-side decryptor relies on it.
-        from simtrace2_pysniff.server.decode import _KIC_ALGO, _KID_CC_ALGO
+        from simtrace_analyser.decode import _KIC_ALGO, _KID_CC_ALGO
         self.assertEqual(_KIC_ALGO[0x02], 'AES-CBC')
         self.assertEqual(_KID_CC_ALGO[0x02], 'AES-CMAC')
 
@@ -2397,7 +2397,7 @@ class TestSpiBits(unittest.TestCase):
     """TS 102 225 §5.1.1: SPI1 b3 = ciphering, SPI2 b5 = PoR ciphering."""
 
     def _spi(self, spi_hex):
-        from simtrace2_pysniff.server.decode import _decode_secured_packet
+        from simtrace_analyser.decode import _decode_secured_packet
         # CPL(2) CHL(1)=0x0D SPI(2) KIc KID TAR(3) CNTR(5) PCNTR + 1 data byte
         body = bytes.fromhex('000d0d' + spi_hex + '1505000001000000000000aa')
         return _decode_secured_packet(body)['spi']
@@ -2511,7 +2511,7 @@ class TestClaDecode(unittest.TestCase):
     """ISO 7816-4 §5.1.1 first/further interindustry CLA coding."""
 
     def _cla(self, value):
-        from simtrace2_pysniff.server.decode import decode_cla
+        from simtrace_analyser.decode import decode_cla
         return decode_cla(value)
 
     def test_basic_channel_iso(self):
@@ -2554,7 +2554,7 @@ class TestLineEvents(unittest.TestCase):
     """sigrok-iso7816-stream RST/VCC line events (GSMTAP 0x10/0x11)."""
 
     def _dec(self, kind, payload):
-        from simtrace2_pysniff.server.decode import decode_line_event
+        from simtrace_analyser.decode import decode_line_event
         return decode_line_event(bytes.fromhex(payload), kind)
 
     def test_rst_asserted(self):
@@ -2586,7 +2586,7 @@ class TestLineEvents(unittest.TestCase):
         # rst/vcc must be decoded server-side (database.py dispatch) so the
         # PWA receives decoded.label/event, not just the raw bytes.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -2597,23 +2597,23 @@ class TestLineEvents(unittest.TestCase):
             self.assertEqual(msgs[1]['decoded']['label'], 'VCC ON (power-up)')
 
     def test_sniff_routing(self):
-        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        from simtrace_analyser.decode import decode_sniff_msg
         self.assertEqual(decode_sniff_msg(b'\x01\x00\x00', 'rst')['type'], 'rst')
         self.assertEqual(decode_sniff_msg(b'\x00\x01\x00', 'vcc')['type'], 'vcc')
 
     def test_bad_fcs_flag_marks_tpdu(self):
-        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        from simtrace_analyser.decode import decode_sniff_msg
         r = decode_sniff_msg(b'\x80\xf2\x00\x00\x00', 'tpdu', flags=0x01)
         self.assertIn('bad FCS (desynced)', r['errors'])
 
     def test_bad_fcs_flag_marks_rst(self):
-        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        from simtrace_analyser.decode import decode_sniff_msg
         r = decode_sniff_msg(b'\x01\x00\x00', 'rst', flags=0x01)
         self.assertIn('bad FCS (desynced)', r['errors'])
         self.assertEqual(r['event'], 'reset asserted')
 
     def test_no_fcs_flag_no_error(self):
-        from simtrace2_pysniff.server.decode import decode_sniff_msg
+        from simtrace_analyser.decode import decode_sniff_msg
         r = decode_sniff_msg(b'\x01\x00\x00', 'rst', flags=0)
         self.assertNotIn('errors', r)
 
@@ -2646,7 +2646,7 @@ class TestLineEvents(unittest.TestCase):
         # CLK from RST → data rate on the following ATR; rate consumed once,
         # so a second ATR without a preceding RST has no rate.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')
@@ -2662,7 +2662,7 @@ class TestLineEvents(unittest.TestCase):
         # Ordering caveat: a short ATR can be emitted before the RST event
         # that measured its CLK rate — the rate is backfilled onto it.
         import tempfile
-        from simtrace2_pysniff.server.database import Database
+        from simtrace_analyser.database import Database
         with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
             db = Database(tmp.name)
             sid = db.create_session('capture')

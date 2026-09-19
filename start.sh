@@ -1,5 +1,5 @@
 #!/bin/bash
-# simtrace2-pysniff-server startup script
+# simtrace-analyser-server startup script
 #
 # Usage: ./start.sh [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 #
@@ -71,6 +71,6 @@ ARGS+=(--port "$PORT")
 [[ "$CAPTURE" == "gsmtap" ]] && ARGS+=(--gsmtap-port "$GSMTAP_PORT")
 ARGS+=("${EXTRA_ARGS[@]}")
 
-echo "Starting simtrace2-pysniff-server..." >&2
+echo "Starting simtrace-analyser-server..." >&2
 echo "PWA (simtrace-analyser) will be served at http://127.0.0.1:$PORT/" >&2
-exec env PYTHONPATH="$PROJECT_DIR" python3 -m simtrace2_pysniff.server "${ARGS[@]}"
+exec env PYTHONPATH="$PROJECT_DIR" python3 -m simtrace_analyser "${ARGS[@]}"

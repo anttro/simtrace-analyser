@@ -1,4 +1,4 @@
-"""HTTP API + static PWA server for simtrace2-pysniff."""
+"""HTTP API + static PWA server for SIMtrace Analyser."""
 
 import json
 import os
@@ -11,9 +11,9 @@ from urllib.parse import urlparse, parse_qs, quote
 
 from .database import Database
 from .capture import CaptureManager, GsmtapListener, DirectSniffer, _log
-from ..gsmtap import build_gsmtap_packet, GSMTAP_SIM_ATR, GSMTAP_SIM_APDU
-from ..pcap import build_pcap, parse_pcap, parse_pcapng
-from .. import __version__
+from simtrace2_pysniff.gsmtap import build_gsmtap_packet, GSMTAP_SIM_ATR, GSMTAP_SIM_APDU
+from simtrace2_pysniff.pcap import build_pcap, parse_pcap, parse_pcapng
+from .version import __version__
 
 
 # Static file serving (the PWA lives in <repo>/frontend, served by this server

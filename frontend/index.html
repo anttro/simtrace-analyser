@@ -297,7 +297,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     <div class="header-right">
         <span class="capture-chip" id="capture-chip" style="display:none"></span>
         <button id="install-btn" data-l10n="Install PWA">Install PWA</button>
-        <a href="https://github.com/anttro/simtrace2-pysniff" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/anttro/simtrace-analyser" target="_blank" rel="noopener">GitHub</a>
         <button id="lang-btn" onclick="toggleLang()" title="Language / Язык">EN</button>
         <button id="theme-btn" onclick="toggleTheme()">☀️</button>
     </div>
@@ -676,7 +676,7 @@ function desCbcDecrypt(keyBytes, ivBytes, ctBytes) {
     return out;
 }
 
-// ──────────────────── C-APDU parsing (vendored from otaman) ────────────────────
+// ──────────────────── C-APDU parsing (vendored from SIMple) ────────────────────
 // Parses C-APDU hex streams (e.g. SCP80 secured-packet application messages)
 // into {label, hex, desc, children} trees.
 const PARSE_INS = {
@@ -2504,16 +2504,16 @@ function updateVersionWarn(serverVersion) {
     const elv = el('version-warn');
     const sv = parseVersion(serverVersion);
     if (sv === null) {
-        elv.textContent = t('Server version unknown — update simtrace2-pysniff-server.');
+        elv.textContent = t('Server version unknown — update simtrace-analyser-server.');
         return;
     }
     const cmpMin = compareVersions(serverVersion, MIN_SERVER_VERSION);
     if (cmpMin !== null && cmpMin < 0) {
-        elv.textContent = t('Server version {v} is outdated. Please update simtrace2-pysniff-server.').replace('{v}', serverVersion);
+        elv.textContent = t('Server version {v} is outdated. Please update simtrace-analyser-server.').replace('{v}', serverVersion);
         return;
     }
     if (sv[0] > parseVersion(PWA_VERSION)[0]) {
-        elv.textContent = t('Server version {v} is newer than expected. Update simtrace2-pysniff for full compatibility.').replace('{v}', serverVersion);
+        elv.textContent = t('Server version {v} is newer than expected. Update SIMtrace Analyser for full compatibility.').replace('{v}', serverVersion);
         return;
     }
     elv.textContent = '';
@@ -2635,9 +2635,9 @@ async function checkConnection() {
         el('conn-instructions').innerHTML = `
             <h3>${t('Setup')}</h3>
             <ol>
-                <li>${t('Clone and install simtrace2-pysniff:')}<br>
-                    <code>git clone https://github.com/anttro/simtrace2-pysniff.git</code><br>
-                    <code>cd simtrace2-pysniff && pip install -e .</code></li>
+                <li>${t('Clone and install SIMtrace Analyser:')}<br>
+                    <code>git clone https://github.com/anttro/simtrace-analyser.git</code><br>
+                    <code>cd simtrace-analyser && pip install -e .</code></li>
                 <li>${t('Start the server in direct mode (recommended):')}<br>
                     <code>./start.sh --capture direct</code><br>
                     <span style="color:var(--text-muted);">${t('Requires SIMtrace2 hardware connected via USB; captures directly from the device.')}</span></li>
@@ -2681,7 +2681,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '1.22.21';
+const PWA_VERSION = '2.0.0';
 const MIN_SERVER_VERSION = '1.0.0';
 
 function parseVersion(v) {
@@ -2705,8 +2705,8 @@ function compareVersions(a, b) {
 // ──────────────────── i18n ────────────────────
 let currentLang = 'en';
 
-const HINT_BLOCKED = 'The browser likely blocked access to the local server. Allow local network access for this site (Chrome/Edge/Vivaldi: Site settings → Local network access → Allow) and confirm simtrace2-pysniff-server is running at {url}.';
-const HINT_UNREACHABLE = 'Couldn\'t reach the server. Check that simtrace2-pysniff-server is running and the URL is correct ({url}). If this page is served over HTTPS, also allow local network access in the browser (Site settings → Local network access → Allow).';
+const HINT_BLOCKED = 'The browser likely blocked access to the local server. Allow local network access for this site (Chrome/Edge/Vivaldi: Site settings → Local network access → Allow) and confirm simtrace-analyser-server is running at {url}.';
+const HINT_UNREACHABLE = 'Couldn\'t reach the server. Check that simtrace-analyser-server is running and the URL is correct ({url}). If this page is served over HTTPS, also allow local network access in the browser (Site settings → Local network access → Allow).';
 
 const LANG_RU = {
     'Trace': 'Трассировка',
@@ -2785,10 +2785,10 @@ const LANG_RU = {
     'Empty file': 'Пустой файл',
     'Install from the address bar:\nclick the install icon (⊕ / monitor icon) at the right\nend of Chrome\'s address bar, then "Install SIMtrace Analyser".':
         'Установка из адресной строки:\nнажмите значок установки (⊕ / значок монитора) в правом\nконце адресной строки Chrome, затем «Установить SIMtrace Analyser».',
-    [HINT_BLOCKED]: 'Браузер, вероятно, заблокировал доступ к локальному серверу. Разрешите доступ к локальной сети для этого сайта (Chrome/Edge/Vivaldi: Настройки сайта → Доступ к локальной сети → Разрешить) и убедитесь, что simtrace2-pysniff-server запущен по адресу {url}.',
-    [HINT_UNREACHABLE]: 'Не удалось связаться с сервером. Проверьте, что simtrace2-pysniff-server запущен и URL указан верно ({url}). Если эта страница открыта по HTTPS, также разрешите доступ к локальной сети в браузере (Настройки сайта → Доступ к локальной сети → Разрешить).',
+    [HINT_BLOCKED]: 'Браузер, вероятно, заблокировал доступ к локальному серверу. Разрешите доступ к локальной сети для этого сайта (Chrome/Edge/Vivaldi: Настройки сайта → Доступ к локальной сети → Разрешить) и убедитесь, что simtrace-analyser-server запущен по адресу {url}.',
+    [HINT_UNREACHABLE]: 'Не удалось связаться с сервером. Проверьте, что simtrace-analyser-server запущен и URL указан верно ({url}). Если эта страница открыта по HTTPS, также разрешите доступ к локальной сети в браузере (Настройки сайта → Доступ к локальной сети → Разрешить).',
     'Setup': 'Настройка',
-    'Clone and install simtrace2-pysniff:': 'Клонируйте и установите simtrace2-pysniff:',
+    'Clone and install SIMtrace Analyser:': 'Клонируйте и установите SIMtrace Analyser:',
     'Start the server in direct mode (recommended):': 'Запустите сервер в режиме direct (рекомендуется):',
     'Requires SIMtrace2 hardware connected via USB; captures directly from the device.': 'Требуется оборудование SIMtrace2, подключённое по USB; захват выполняется напрямую с устройства.',
     'Then set the URL above to http://127.0.0.1:8081 and return to the Trace tab.': 'Затем укажите URL выше (http://127.0.0.1:8081) и вернитесь на вкладку «Трассировка».',
@@ -2797,9 +2797,9 @@ const LANG_RU = {
     'Start the server:': 'Запустите сервер:',
     'Start a GSMTAP source in another terminal — either:': 'Запустите источник GSMTAP в другом терминале — либо:',
     '(original Osmocom tool)': '(оригинальный инструмент Osmocom)',
-    'Server version unknown — update simtrace2-pysniff-server.': 'Версия сервера неизвестна — обновите simtrace2-pysniff-server.',
-    'Server version {v} is outdated. Please update simtrace2-pysniff-server.': 'Версия сервера {v} устарела. Обновите simtrace2-pysniff-server.',
-    'Server version {v} is newer than expected. Update simtrace2-pysniff for full compatibility.': 'Версия сервера {v} новее ожидаемой. Обновите simtrace2-pysniff для полной совместимости.',
+    'Server version unknown — update simtrace-analyser-server.': 'Версия сервера неизвестна — обновите simtrace-analyser-server.',
+    'Server version {v} is outdated. Please update simtrace-analyser-server.': 'Версия сервера {v} устарела. Обновите simtrace-analyser-server.',
+    'Server version {v} is newer than expected. Update SIMtrace Analyser for full compatibility.': 'Версия сервера {v} новее ожидаемой. Обновите SIMtrace Analyser для полной совместимости.',
     'Capture mode: GSMTAP — the server is listening for incoming UDP/GSMTAP traffic. Ensure a GSMTAP source (e.g. simtrace2-pysniff or simtrace2-sniff) is feeding the server.': 'Режим захвата: GSMTAP — сервер ожидает входящий UDP/GSMTAP-трафик. Убедитесь, что источник GSMTAP (например, simtrace2-pysniff или simtrace2-sniff) передаёт данные серверу.',
     'Capture mode: direct — the server captures from SIMtrace2 hardware. Keep the device connected.': 'Режим захвата: direct — сервер захватывает данные с устройства SIMtrace2. Не отключайте устройство.',
     'Capture is disabled — only pre-captured traces (saved sessions / PCAP import) are available.': 'Захват отключён — доступны только ранее записанные трассировки (сохранённые сессии / импорт PCAP).',
