@@ -224,7 +224,7 @@ class TestImportEndpoint(unittest.TestCase):
 class TestVersion(unittest.TestCase):
     def test_package_version(self):
         from simtrace2_pysniff import __version__
-        self.assertEqual(__version__, '2.1.0')
+        self.assertEqual(__version__, '2.1.1')
 
     def test_status_includes_version(self):
         import os

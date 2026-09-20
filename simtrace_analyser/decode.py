@@ -17,18 +17,18 @@ SW_NAMES = {
     (0x62, 0x83): 'Warning — selected file deactivated',
     (0x62, 0x84): 'Warning — FCI not formatted per ISO',
     (0x62, 0x85): 'Warning — selected file in termination state',
+    (0x62, 0x86): 'No input data available from a sensor on the card',
     (0x62, 0xf1): 'More data available',
     (0x62, 0xf2): 'More data available and proactive command pending',
     (0x62, 0xf3): 'Response data available',
     (0x63, 0x00): 'Warning — no information',
+    (0x63, 0x81): 'File filled up by the last write',
     (0x63, 0xf1): 'More data expected',
     (0x63, 0xf2): 'More data expected and proactive command pending',
     (0x64, 0x00): 'Execution error — no information',
     (0x64, 0x01): 'Execution error — immediate response required',
     (0x65, 0x00): 'Execution error — no information, NV memory changed',
     (0x65, 0x81): 'Execution error — memory failure',
-    (0x66, 0x00): 'Security error — no information',
-    (0x66, 0x81): 'Reserved for security-related issues',
     (0x67, 0x00): 'Checking error — wrong length',
     (0x68, 0x00): 'Checking error — no information',
     (0x68, 0x81): 'Logical channel not supported',
@@ -1030,8 +1030,8 @@ REFRESH_MODES = {
     0x04: 'UICC Reset',
     0x05: 'NAA Application Reset',
     0x06: 'NAA Session Reset',
-    0x07: 'Reserved (Steering of Roaming)',
-    0x08: 'Reserved (Steering of Roaming for I-WLAN)',
+    0x07: 'Steering of Roaming',
+    0x08: 'Steering of Roaming for I-WLAN',
     0x09: 'eUICC Profile State Change',
     0x0A: 'Application Update',
 }
@@ -1053,9 +1053,8 @@ ENVELOPE_TYPES = {
     0xDE: 'ENVELOPE CONTAINER',
     0xDF: 'PROSE REPORT',
     0xE0: '5G PROSE REPORT',
-    0xE1: 'Reserved for 3GPP',
-    0xE2: 'Reserved for 3GPP',
-    0xE3: 'Reserved for 3GPP',
+    # 'E1'-'E3': reserved for 3GPP (for future usage) per TS 31.111 §9.1 —
+    # no name assigned yet, so they decode as unknown.
     0xE4: 'GSMA',
 }
 
@@ -1100,12 +1099,14 @@ PLI_QUALIFIERS = {
     0x02: 'Network Measurement results',
     0x03: 'Date, time and time zone',
     0x04: 'Language setting',
+    # ETSI TS 102 223: "Reserved for GSM" — defined by TS 31.111 §8.6.
     0x05: 'Timing Advance',
     0x06: 'Access Technology (single)',
     0x07: 'ESN of the terminal',
     0x08: 'IMEISV',
     0x09: 'Search Mode',
     0x0A: 'Battery charge state',
+    0x0B: 'MEID of the terminal',
     0x0C: 'Current WSID',
     0x0D: 'Broadcast Network info',
     0x0E: 'Multiple Access Technologies',
@@ -1410,7 +1411,8 @@ TR_RESULTS = {
     0x25: 'Interaction with call control by NAA, temporary problem',
     0x26: 'Launch browser generic error',
     0x27: 'MMS temporary problem',
-    # '28'-'29' reserved for 3GPP
+    0x28: 'Bearer Independent Protocol temporary error',
+    # '29' reserved for 3GPP (for future usage)
     0x30: 'Command beyond ME capabilities',
     0x31: 'Command type not understood by ME',
     0x32: 'Command data not understood by ME',

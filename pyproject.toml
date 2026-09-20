@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "simtrace-analyser"
-version = "2.1.0"
+version = "2.1.1"
 description = "SIMtrace Analyser — APDU trace analyser for GSMTAP/PCAP captures (bundles the simtrace2-pysniff utility)"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "GPL-2.0-or-later"}

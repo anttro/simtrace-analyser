@@ -136,6 +136,12 @@ class TestCommandTypeTables(unittest.TestCase):
         self.assertEqual(ENVELOPE_TYPES[0xD3], 'MENU SELECTION')
         self.assertEqual(ENVELOPE_TYPES[0xD6], 'EVENT DOWNLOAD')
 
+    def test_unassigned_envelope_tags_unnamed(self):
+        # TS 31.111 §9.1: 'E1'-'E3' reserved for 3GPP (for future usage);
+        # no name exists, so no placeholder label may be shown.
+        for tag in (0xE1, 0xE2, 0xE3):
+            self.assertNotIn(tag, ENVELOPE_TYPES)
+
 
 class TestChangeAndFidiDecoding(unittest.TestCase):
     def test_change_reset_assert(self):
@@ -214,6 +220,13 @@ class TestPliQualifier(unittest.TestCase):
             '801200000BD0098103012603820281829000'))
         self.assertEqual(r['cat_command'], 'PROVIDE LOCAL INFORMATION')
         self.assertEqual(r['cmd']['qualifier'], '0x03 Date, time and time zone')
+
+    def test_fetch_pli_meid(self):
+        # '0B' = MEID of the terminal (TS 102 223 §8.6).
+        r = decode_message(bytes.fromhex(
+            '801200000BD009810301260B820281829000'))
+        self.assertEqual(r['cat_command'], 'PROVIDE LOCAL INFORMATION')
+        self.assertEqual(r['cmd']['qualifier'], '0x0B MEID of the terminal')
 
     def test_non_pli_no_qualifier(self):
         r = decode_message(bytes.fromhex(
@@ -1757,6 +1770,23 @@ class TestSwWrongLength(unittest.TestCase):
         from simtrace_analyser.decode import decode_sw
         self.assertIsNone(decode_sw(bytes.fromhex('6205'))['name'])
 
+    def test_62_86_sensor_warning(self):
+        from simtrace_analyser.decode import decode_sw
+        self.assertEqual(decode_sw(bytes.fromhex('6286'))['name'],
+                         'No input data available from a sensor on the card')
+
+    def test_63_81_file_filled_warning(self):
+        from simtrace_analyser.decode import decode_sw
+        self.assertEqual(decode_sw(bytes.fromhex('6381'))['name'],
+                         'File filled up by the last write')
+
+    def test_66_class_not_fabricated(self):
+        # No '66xx' row exists in ISO 7816-4:2005 Table 6 or TS 102 221
+        # tables 10.9/10.10 — the decoder must not invent a name.
+        from simtrace_analyser.decode import decode_sw
+        self.assertIsNone(decode_sw(bytes.fromhex('6600'))['name'])
+        self.assertIsNone(decode_sw(bytes.fromhex('6681'))['name'])
+
 
 class TestStatusFcp(unittest.TestCase):
     def test_status_body_is_fcp(self):
@@ -1848,6 +1878,32 @@ class TestRefresh(unittest.TestCase):
         r = decode_message(bytes.fromhex('8012000011d00f81030101018202818292046f076f209000'))
         self.assertEqual(r['cmd']['qualifier'], '0x01 File Change Notification')
         self.assertEqual(r['cmd']['file_list'], ['6F07', '6F20'])
+
+    def test_steering_of_roaming(self):
+        # ETSI "Reserved for GSM/3G" — TS 31.111 §8.6 defines the mode.
+        r = decode_message(bytes.fromhex('801200000bd0098103010107820281829000'))
+        self.assertEqual(r['cmd']['qualifier'], '0x07 Steering of Roaming')
+
+    def test_steering_of_roaming_iwlan(self):
+        r = decode_message(bytes.fromhex('801200000bd0098103010108820281829000'))
+        self.assertEqual(r['cmd']['qualifier'],
+                         '0x08 Steering of Roaming for I-WLAN')
+
+
+class TestNoReservedLabels(unittest.TestCase):
+    # ETSI 'Reserved for GSM/3GPP' values must be resolved via the sibling
+    # spec or left unnamed — never surfaced as a 'Reserved ...' label.
+
+    def test_no_reserved_labels(self):
+        from simtrace_analyser import decode as d
+        for name in ('SW_NAMES', 'REFRESH_MODES', 'ENVELOPE_TYPES',
+                     'TR_RESULTS', 'PLI_QUALIFIERS', 'CAT_COMMAND_TYPES',
+                     'EVENT_TYPES'):
+            table = getattr(d, name)
+            for value in table.values():
+                if isinstance(value, str):
+                    self.assertFalse(value.startswith('Reserved'),
+                                     f'{name}: {value}')
 
 
 class TestIdleModeText(unittest.TestCase):
@@ -2004,6 +2060,13 @@ class TestSpecRegistry(unittest.TestCase):
                          'Access Technology unable to process command')
         self.assertEqual(TR_RESULTS[0x3C], 'Frames error')
         self.assertEqual(TR_RESULTS[0x3D], 'MMS error')
+
+    def test_tr_result_bip_temporary(self):
+        # '28' per TS 102 223 §8.12 (timer in Additional information).
+        from simtrace_analyser.decode import TR_RESULTS
+        self.assertEqual(TR_RESULTS[0x28],
+                         'Bearer Independent Protocol temporary error')
+        self.assertNotIn(0x29, TR_RESULTS)
 
     def test_envelope_types_extended(self):
         from simtrace_analyser.decode import ENVELOPE_TYPES
