@@ -2620,6 +2620,7 @@ _P_TEXT_STRING = 0x0D
 _P_ITEM = 0x0F
 _P_FILE_LIST = 0x12
 _P_RESPONSE_LEN = 0x11
+_P_NEXT_ACTION = 0x18
 _P_EVENT_LIST = 0x19
 _P_ICON_ID = 0x1E
 _P_AID = 0x2F
@@ -2666,6 +2667,8 @@ def _decode_proactive(body):
     file_list = []
     aid = None
     raw_tlv = []
+    next_actions = None
+    next_actions_hex = None
     text_seen = False
     for tag, _length, value in inner:
         base = tag & 0x7F
@@ -2704,6 +2707,11 @@ def _decode_proactive(body):
             result['text'] = _decode_dcs_text(value)
             result['text_note'] = "text string with non-standard tag '10'"
             text_seen = True
+        elif base == _P_NEXT_ACTION and value:
+            # TS 102 223 §8.24 — one byte per item (§9.4 coding); '00' and
+            # reserved values mean "no next action" and decode to None.
+            next_actions = [CAT_COMMAND_TYPES.get(b) for b in value]
+            next_actions_hex = value.hex().upper()
         elif base == _P_FILE_LIST and value:
             file_list = [value[i:i + 2].hex().upper() for i in range(0, len(value), 2)]
         elif base == _P_AID and value:
@@ -2712,6 +2720,15 @@ def _decode_proactive(body):
             result['device_ids'] = _decode_device_ids(value)
         else:
             raw_tlv.append({'tag': f'{base:02X}', 'value': value.hex().upper()})
+
+    if next_actions is not None:
+        if len(next_actions) == len(items):
+            for item, action in zip(items, next_actions):
+                if action:
+                    item['next_action'] = action
+        else:
+            # §8.24 requires X = number of items; keep unexpected lists raw.
+            raw_tlv.append({'tag': '18', 'value': next_actions_hex})
 
     if cmd_type is None:
         return None

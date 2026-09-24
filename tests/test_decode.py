@@ -1890,6 +1890,49 @@ class TestRefresh(unittest.TestCase):
                          '0x08 Steering of Roaming for I-WLAN')
 
 
+class TestItemsNextActionIndicator(unittest.TestCase):
+    """Items Next Action Indicator (TS 102 223 §8.24, tag '18') — real
+    SET UP MENU samples from the local trace sessions (47/53/57)."""
+
+    def test_second_item_display_text(self):
+        # session 53: 2 items, item 2 → DISPLAY TEXT ('21'); '00' = no action.
+        r = decode_message(bytes.fromhex(
+            '8012000040D03E810301250082028182850B416C6661204D6F62696C'
+            '658F16808112089DB0C1C2C0BEB9BAB82F53657474696E67738F0A81'
+            '416C66612D494D4549180200219000'))
+        items = r['cmd']['items']
+        self.assertNotIn('next_action', items[0])
+        self.assertEqual(items[1]['next_action'], 'DISPLAY TEXT')
+        # Detail-only: the APDU-list summary stays unchanged.
+        self.assertEqual(r['summary'], 'Alfa Mobile, 2 items')
+
+    def test_second_item_select_item(self):
+        # session 57: 2 items, item 2 → SELECT ITEM ('24').
+        r = decode_message(bytes.fromhex(
+            '8012000044D042810301250082028182050B416C6661204D6F62696C'
+            '658F16808112089DB0C1C2C0BEB9BAB82F53657474696E67738F0E81'
+            '416C66612053494D2074657374180200249000'))
+        self.assertEqual(r['cmd']['items'][1]['next_action'], 'SELECT ITEM')
+
+    def test_last_item_of_nine(self):
+        # session 47: 9 items, only the last has SELECT ITEM ('24').
+        r = decode_message(bytes.fromhex(
+            '80120000E6D081E3810301250082028182051580004D0065006700610046006F006E00500052004F8F100180041C0435043304300424043E043D8F1802800420043004370432043B043504470435043D0438044F8F0C03800421043F043E044004428F100480041D043E0432043E0441044204388F10058004240438043D0430043D0441044B8F1006800421043F044004300432043A04308F100780041E043104490435043D043804358F188080041A0430043B043504390434043E0441043A043E043F8F1A8180041C043E04310438043B044C043D044B043900200049004418090000000000000000249000'))
+        items = r['cmd']['items']
+        self.assertEqual(len(items), 9)
+        self.assertNotIn('next_action', items[0])
+        self.assertEqual(items[-1]['next_action'], 'SELECT ITEM')
+
+    def test_length_mismatch_kept_raw(self):
+        # §8.24 requires X = number of items; a mismatched list stays raw.
+        r = decode_message(bytes.fromhex(
+            '8012000014D0128103012500820281828F03014142180224249000'))
+        items = r['cmd']['items']
+        self.assertEqual(len(items), 1)
+        self.assertNotIn('next_action', items[0])
+        self.assertEqual(r['cmd']['raw_tlv'], [{'tag': '18', 'value': '2424'}])
+
+
 class TestNoReservedLabels(unittest.TestCase):
     # ETSI 'Reserved for GSM/3GPP' values must be resolved via the sibling
     # spec or left unnamed — never surfaced as a 'Reserved ...' label.
