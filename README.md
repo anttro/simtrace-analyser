@@ -23,7 +23,8 @@ GSMTAP into this analyser.
   one GSMTAP source of several that the analyser accepts (see also
   [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
 - **PWA** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
-  SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP import, EN/RU UI.
+  SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP and COMPRION trace
+  import, EN/RU UI.
 
 ## Features
 
@@ -61,6 +62,7 @@ GSMTAP into this analyser.
 - Trace view with Map/List modes — proactive, TERMINAL RESPONSE, ENVELOPE
   and AUTH commands get distinctive styling in map view
 - Sessions with deep links (`#session=N`), PCAP import (`.pcap/.pcapng/.cap`),
+  COMPRION trace import (the Device Manager *ISO Protocol Layer* text export),
   search and type filtering
 - Installable PWA, dark theme, English/Russian UI
 
@@ -140,6 +142,49 @@ packets carrying the `GSMTAP_FLAG_BAD_FCS` desync flag (set by that decoder
 on mis-framed exchanges) are surfaced as a flagged/desynced entry in the
 capture timeline, so such artefacts are easy to spot when reviewing a capture
 rather than silently altering the decode.
+
+### COMPRION text export import
+
+The **Import COMPRION trace** button accepts the tab-separated **ISO Protocol
+Layer** export of COMPRION's Device Manager — the byte-accurate protocol view
+(ATR, PPS, APDUs with their return codes). The *ISO Application Layer* export
+carries no raw response bytes and is not needed; selecting it answers with a
+pointer to the Protocol Layer file (the same check runs in the PWA before the
+upload and on the server for API callers).
+
+Exchanges are re-encoded into the same wire-shaped TPDUs a GSMTAP capture
+carries (a case-4 exchange becomes the command, a `61 xx` status word and a
+GET RESPONSE with the response data and the final SW), so command/response
+pairing, FCP/file decoding and the filters behave exactly as for a live
+capture.
+
+**Exact timestamps:** the import dialog asks for the *ISO Protocol Layer*
+export (required) and, optionally, the matching *ISO Application Layer*
+export — two separate pickers, both file names visible, and an error stays in
+the dialog until it is fixed or cancelled. With both files the Application
+Layer's per-exchange wall-clock times become the trace's timeline — the
+session window and the inter-APDU gaps are then exact; without it the
+timeline is the estimate described below. Before anything is imported the
+two files are verified to belong to the same session (`Session Name`,
+falling back to `Working directory`; the export timestamps of the two layers
+differ and are not compared) and their exchange counts must align (the two
+exports must cover the same set of exchanges) — a mismatch refuses the import
+instead of mixing sessions. The ATR and the PPS exchange have no Application
+Layer blocks, so they carry the timestamp of the preceding exchange.
+
+**Protocol Layer alone:** the `Delay` column measures only card/line activity
+— host pauses between APDU bursts are absent — so the timeline keeps the
+message order and the short-term gaps but is much shorter than the real
+session. Its unit comes from an assumed 3.8 MHz interface clock (`CLK_HZ` in
+`simtrace_analyser/comprion.py`), which is a scale, not a measurement: the
+export carries no CLK, and the import deliberately does not invent one (the
+ATR shows the F/D the file states, with no data-rate/ETU annotation, unlike
+a capture from the sigrok-iso7816-stream sniffer). The session's wall-clock
+window is taken from the file's `Session Name` timestamp when it carries
+one.
+
+Exchanges larger than 255 bytes (extended-length APDUs) cannot be represented
+in the stored wire shape and are skipped with a note in the import report.
 
 Server options:
 

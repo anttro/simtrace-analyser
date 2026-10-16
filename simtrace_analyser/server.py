@@ -11,6 +11,8 @@ from urllib.parse import urlparse, parse_qs, quote
 
 from .database import Database
 from .capture import CaptureManager, GsmtapListener, DirectSniffer, _log
+from .comprion import (ComprionError, decode_text, looks_like_comprion,
+                       parse_comprion)
 from simtrace2_pysniff.gsmtap import build_gsmtap_packet, GSMTAP_SIM_ATR, GSMTAP_SIM_APDU
 from simtrace2_pysniff.pcap import build_pcap, parse_pcap, parse_pcapng
 from .version import __version__
@@ -70,8 +72,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _send_error(self, status, message):
-        self._send_json({'error': message}, status)
+    def _send_error(self, status, message, code=None):
+        body = {'error': message}
+        if code:
+            body['code'] = code
+        self._send_json(body, status)
 
     def _read_json(self):
         length = int(self.headers.get('Content-Length', 0))
@@ -166,7 +171,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         elif path == '/api/capture/stop':
             self._handle_capture_stop()
         elif path == '/api/sessions/import':
-            self._handle_import_pcap(params)
+            self._handle_import_session(params)
         else:
             self._send_error(404, 'Not found')
 
@@ -311,8 +316,22 @@ class RequestHandler(BaseHTTPRequestHandler):
             'messages_count': self.db.count_messages(session_id),
         })
 
-    def _handle_import_pcap(self, params):
+    def _handle_import_session(self, params):
+        """Import a saved trace: PCAP/PCAPNG (default) or a COMPRION text
+        export (`?format=comprion`)."""
         raw = self._read_body()
+        fmt = (params.get('format', [''])[0] or '').strip().lower()
+        if fmt in ('', 'pcap', 'pcapng'):
+            self._handle_import_pcap(params, raw)
+        elif fmt == 'comprion':
+            self._handle_import_comprion(params, raw)
+        else:
+            self._send_error(400, f"Unknown import format '{fmt}' "
+                                  "(use 'pcap' or 'comprion')")
+
+    def _handle_import_pcap(self, params, raw=None):
+        if raw is None:
+            raw = self._read_body()
         name = (params.get('name', [''])[0]).strip()
 
         if not raw:
@@ -325,6 +344,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             packets = list(parse_pcap(raw))
 
         if not packets:
+            if looks_like_comprion(raw):
+                self._send_error(
+                    400,
+                    "This looks like a COMPRION export — use 'Import "
+                    "COMPRION trace'.",
+                    code='comprion_export')
+                return
             self._send_error(400, 'No GSMTAP data found in trace')
             return
 
@@ -356,6 +382,83 @@ class RequestHandler(BaseHTTPRequestHandler):
             'session_id': session_id,
             'name': name,
             'message_count': len(packets),
+        })
+
+    def _handle_import_comprion(self, params, raw):
+        """Import a COMPRION 'ISO Protocol Layer' text export.
+
+        The body is the export text, or a JSON object ``{text, times_text}``
+        when the matching ISO Application Layer export is supplied as the
+        time base.
+        """
+        name = (params.get('name', [''])[0]).strip()
+
+        if not raw:
+            self._send_error(400, 'Empty file')
+            return
+
+        text = None
+        times_text = None
+        if raw.lstrip()[:1] == b'{':
+            try:
+                payload = json.loads(raw.decode('utf-8'))
+            except (ValueError, UnicodeDecodeError):
+                payload = None
+            if isinstance(payload, dict):
+                if not isinstance(payload.get('text'), str):
+                    self._send_error(400, "JSON import body must carry a "
+                                          "'text' string")
+                    return
+                text = payload['text']
+                times_text = payload.get('times_text') or None
+                if times_text is not None and not isinstance(times_text, str):
+                    self._send_error(400, 'times_text must be a string')
+                    return
+        if text is None:
+            text = decode_text(raw)
+
+        try:
+            result = parse_comprion(text, times_text=times_text)
+        except ComprionError as e:
+            self._send_error(400, e.message, code=e.code)
+            return
+
+        meta = result['metadata']
+        # The file's own Session Name beats the uploaded file name.
+        session_name = meta.get('session_name') or name
+        session_id = self.db.create_session('comprion')
+        if session_name:
+            self.db.rename_session(session_id, session_name)
+
+        rows = [(elapsed, msg_type, data, 0)
+                for elapsed, msg_type, data in result['messages']]
+        self.db.insert_messages(session_id, rows)
+        started = result.get('started')
+        if started:
+            # Wall-clock window from the Session Name; with the Application
+            # Layer time base the span is exact, otherwise the delay estimate.
+            self.db.set_session_times_from_ts(
+                session_id, started, started + result['duration'])
+        else:
+            self.db.close_session(session_id, result['duration'])
+
+        for note in result['warnings']:
+            _log(f'COMPRION import warning: {note}')
+        _log(f'Session imported: session={session_id} '
+             f'name={session_name or "(untitled)"} format=comprion '
+             f'time_base={result["time_base"]} '
+             f'exchanges={result["exchange_count"]} apdus={result["apdu_count"]} '
+             f'messages={result["message_count"]} '
+             f'skipped={len(result["skipped"])}')
+        self._send_json({
+            'session_id': session_id,
+            'name': session_name,
+            'message_count': result['message_count'],
+            'format': 'comprion',
+            'time_base': result['time_base'],
+            'apdu_count': result['apdu_count'],
+            'skipped': result['skipped'],
+            'warnings': result['warnings'],
         })
 
     def _handle_rename_session(self, session_id, name):

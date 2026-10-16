@@ -278,6 +278,18 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .modal-buttons button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
 .modal-buttons .confirm { background: var(--accent); color: #fff; }
 .modal-buttons .cancel { background: var(--bg-input); color: var(--text-faint); }
+.modal-buttons button:disabled { opacity: 0.5; cursor: default; }
+
+/* COMPRION import dialog */
+.comprion-modal { max-width: 560px; }
+.comprion-slot { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.comprion-slot label { flex: 0 0 200px; font-size: 13px; color: var(--text-muted); }
+.comprion-slot button { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; background: var(--bg-input); color: var(--text); flex: 0 0 auto; }
+.comprion-slot button:disabled { opacity: 0.5; cursor: default; }
+.comprion-slot .file-name { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.comprion-hint { font-size: 12px; line-height: 1.45; margin: 10px 0 0; }
+.comprion-error { font-size: 12px; line-height: 1.45; color: var(--error); margin-top: 8px; }
+.comprion-error:empty { display: none; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
@@ -342,6 +354,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <span class="sessions-stats" id="sessions-stats"></span>
         <span class="import-msg" id="import-msg"></span>
         <button id="import-pcap-btn" data-l10n="Import PCAP">Import PCAP</button>
+        <button id="import-comprion-btn" data-l10n="Import COMPRION trace" data-l10n-title="Import the 'ISO Protocol Layer' export, optionally with the matching 'ISO Application Layer' export for exact timestamps.">Import COMPRION trace</button>
         <button id="new-capture-btn" data-l10n="New capture">New capture</button>
         <input type="file" id="import-pcap-file" accept=".pcap,.pcapng,.cap" style="display:none;">
         <div class="session-view-toggle">
@@ -402,6 +415,32 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <div class="modal-buttons">
             <button class="cancel" id="delete-cancel" data-l10n="Cancel">Cancel</button>
             <button class="confirm" id="delete-confirm" data-l10n="Delete">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- COMPRION trace import dialog -->
+<div class="modal-overlay" id="comprion-modal">
+    <div class="modal comprion-modal">
+        <h3 data-l10n="Import COMPRION trace">Import COMPRION trace</h3>
+        <p data-l10n="Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.">Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.</p>
+        <div class="comprion-slot">
+            <label data-l10n="ISO Protocol Layer export (required)">ISO Protocol Layer export (required)</label>
+            <button id="comprion-protocol-btn" data-l10n="Choose file…">Choose file…</button>
+            <span class="file-name" id="comprion-protocol-name"></span>
+        </div>
+        <div class="comprion-slot">
+            <label data-l10n="ISO Application Layer export (optional)">ISO Application Layer export (optional)</label>
+            <button id="comprion-application-btn" data-l10n="Choose file…">Choose file…</button>
+            <span class="file-name" id="comprion-application-name"></span>
+        </div>
+        <input type="file" id="comprion-protocol-file" accept=".txt,.tsv" style="display:none;">
+        <input type="file" id="comprion-application-file" accept=".txt,.tsv" style="display:none;">
+        <p class="comprion-hint" id="comprion-hint"></p>
+        <div class="comprion-error" id="comprion-error"></div>
+        <div class="modal-buttons">
+            <button class="cancel" id="comprion-cancel" data-l10n="Cancel">Cancel</button>
+            <button class="confirm" id="comprion-import" data-l10n="Import" disabled>Import</button>
         </div>
     </div>
 </div>
@@ -1112,15 +1151,27 @@ const API = {
     getLatest(after)        { return this._fetch('GET', `/api/capture/latest?after=${after}`); },
     searchMessages(sessionId, query) { return this._fetch('GET', `/api/apdu/search?session_id=${sessionId}&q=${encodeURIComponent(query)}`); },
     filterMessages(sessionId, type) { return this._fetch('GET', `/api/apdu/filter?session_id=${sessionId}&type=${type}`); },
-    async importPcap(name, bytes) {
-        const res = await fetch(API_BASE() + '/api/sessions/import?name=' + encodeURIComponent(name), {
+    async _importPost(params, body, contentType) {
+        const res = await fetch(API_BASE() + '/api/sessions/import?' + params, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/octet-stream' },
-            body: bytes,
+            headers: { 'Content-Type': contentType },
+            body: body,
         });
         const data = await res.json();
-        if (!res.ok) throw Object.assign(new Error(data.error || 'Import failed'), { status: res.status });
+        if (!res.ok) throw Object.assign(new Error(data.error || 'Import failed'),
+            { status: res.status, code: data.code });
         return data;
+    },
+    async importSession(name, bytes, format) {
+        const params = 'name=' + encodeURIComponent(name) +
+            (format ? '&format=' + encodeURIComponent(format) : '');
+        return this._importPost(params, bytes, 'application/octet-stream');
+    },
+    async importComprionBundle(name, text, timesText) {
+        const params = 'name=' + encodeURIComponent(name) + '&format=comprion';
+        return this._importPost(params,
+            JSON.stringify({ text: text, times_text: timesText }),
+            'application/json');
     },
 };
 
@@ -2418,20 +2469,175 @@ async function loadSessions() {
     } catch (e) {}
 }
 
-async function importPcapFile(file) {
+// Import failure codes -> user-facing strings (the server answers the same
+// text; the map is what gets translated).
+const IMPORT_ERROR_KEYS = {
+    app_layer: "This is the 'ISO Application Layer' export — select the 'ISO Protocol Layer' file (it contains the raw APDU bytes).",
+    not_comprion: "Not a COMPRION export — expected the 'ISO Protocol Layer' text file.",
+    unsupported_layout: "Unsupported COMPRION export layout (expected the 'ISO Protocol Layer' table).",
+    no_data: 'No APDU exchanges found in the COMPRION export.',
+    times_unparsable: 'No usable Time entries found in the ISO Application Layer export.',
+    session_mismatch: 'The two files belong to different sessions — select the ISO Application Layer export of the same session.',
+    time_base_unverified: 'Cannot verify that the two files belong to the same session (no Session Name in either file).',
+    time_base_mismatch: 'The ISO Application Layer file does not match this trace (different exchange count).',
+    protocol_slot: "This is the ISO Protocol Layer export — select it in the first slot.",
+    identical: 'The two files are identical.',
+    comprion_export: "This looks like a COMPRION export — use 'Import COMPRION trace'.",
+};
+
+// Cheap pre-upload check of a COMPRION export's layer title: 'app_layer' /
+// 'not_comprion' when the file is clearly the wrong one, '' to upload (the
+// server performs the full layout validation).
+function comprionFileCheck(text) {
+    const heads = [];
+    for (const line of text.split(/\r?\n/).slice(0, 12)) {
+        const cells = line.split('\t').map(c => c.trim());
+        heads.push(cells[0] || '');
+    }
+    if (heads.includes('ISO Application Layer')) return 'app_layer';
+    if (heads.includes('ISO Protocol Layer')) return '';
+    return 'not_comprion';
+}
+
+function importErrorText(e) {
+    const key = e && e.code && IMPORT_ERROR_KEYS[e.code];
+    return t(key || (e && e.message) || 'Import failed');
+}
+
+// Which slot accepts which export?  *slot* is 'protocol' | 'application',
+// *kind* is a comprionFileCheck() result.  Returns '' when acceptable, or the
+// error code to show.
+function comprionSlotCheck(slot, kind) {
+    if (kind === 'not_comprion') return 'not_comprion';
+    if (slot === 'protocol' && kind === 'app_layer') return 'app_layer';
+    if (slot === 'application' && kind === '') return 'protocol_slot';
+    return '';
+}
+
+function importMsg(text, error) {
     const msg = el('import-msg');
-    msg.classList.remove('error');
-    msg.textContent = t('Importing…');
+    msg.classList.toggle('error', !!error);
+    msg.textContent = text;
+}
+
+function importBaseName(file) {
+    return file.name.replace(/\.[^.]+$/, '') || file.name;
+}
+
+function importSuccessText(data) {
+    let text = t('Imported \'{name}\' — {n} messages')
+        .replace('{name}', data.name).replace('{n}', data.message_count);
+    if (data.time_base === 'application-layer') {
+        text += ' · ' + t('exact timestamps (Application Layer)');
+    }
+    return text;
+}
+
+async function finishImport(run) {
+    importMsg(t('Importing…'));
     try {
-        const buf = await file.arrayBuffer();
-        const baseName = file.name.replace(/\.[^.]+$/, '') || file.name;
-        const data = await API.importPcap(baseName, buf);
-        msg.textContent = t('Imported \'{name}\' — {n} messages')
-            .replace('{name}', data.name).replace('{n}', data.message_count);
+        const data = await run();
+        importMsg(importSuccessText(data));
         loadSessions();
     } catch (e) {
-        msg.classList.add('error');
-        msg.textContent = t((e && e.message) || 'Import failed');
+        importMsg(importErrorText(e), true);
+    }
+}
+
+async function importPcapFile(file) {
+    await finishImport(async () =>
+        API.importSession(importBaseName(file), await file.arrayBuffer(), ''));
+}
+
+// ──────────────────── COMPRION import dialog ────────────────────
+
+const COMPRION_DLG = { protocol: null, application: null, busy: false, error: '' };
+
+function comprionSameFile(a, b) {
+    return !!a && !!b && a.name === b.name && a.size === b.size;
+}
+
+function renderComprionDialog() {
+    el('comprion-protocol-name').textContent =
+        COMPRION_DLG.protocol ? COMPRION_DLG.protocol.name : t('no file selected');
+    el('comprion-application-name').textContent =
+        COMPRION_DLG.application ? COMPRION_DLG.application.name : t('no file selected');
+    el('comprion-hint').textContent = COMPRION_DLG.application
+        ? t('The ISO Application Layer export adds exact per-APDU timestamps (ms precision) — the session window and the gaps between APDUs become exact. Both files are verified to belong to the same session before importing.')
+        : t("Without the ISO Application Layer export the timeline is card/line activity time from the Protocol Layer's Delay column (the unit assumes 3.8 MHz) — the order is right, but host pauses are missing and the absolute times are not exact.");
+    el('comprion-error').textContent = COMPRION_DLG.error
+        ? t(IMPORT_ERROR_KEYS[COMPRION_DLG.error] || COMPRION_DLG.error) : '';
+    const busy = COMPRION_DLG.busy;
+    el('comprion-protocol-btn').disabled = busy;
+    el('comprion-application-btn').disabled = busy;
+    el('comprion-cancel').disabled = busy;
+    el('comprion-import').disabled = busy || !COMPRION_DLG.protocol;
+    el('comprion-import').textContent = busy ? t('Importing…') : t('Import');
+}
+
+function openComprionDialog() {
+    COMPRION_DLG.protocol = null;
+    COMPRION_DLG.application = null;
+    COMPRION_DLG.busy = false;
+    COMPRION_DLG.error = '';
+    el('comprion-protocol-file').value = '';
+    el('comprion-application-file').value = '';
+    renderComprionDialog();
+    el('comprion-modal').classList.add('show');
+}
+
+function closeComprionDialog() {
+    if (COMPRION_DLG.busy) return;
+    el('comprion-modal').classList.remove('show');
+}
+
+async function comprionPick(slot, file) {
+    if (!file) return;
+    let kind = 'not_comprion';
+    try {
+        kind = comprionFileCheck(await file.slice(0, 8192).text());
+    } catch (e) { /* unreadable: treat as unrelated */ }
+    const other = slot === 'protocol' ? COMPRION_DLG.application : COMPRION_DLG.protocol;
+    if (comprionSameFile(file, other)) {
+        // The same export in both slots beats the generic slot mismatch.
+        COMPRION_DLG[slot] = null;
+        COMPRION_DLG.error = 'identical';
+    } else {
+        const error = comprionSlotCheck(slot, kind);
+        if (error) {
+            COMPRION_DLG[slot] = null;
+            COMPRION_DLG.error = error;
+        } else {
+            COMPRION_DLG[slot] = file;
+            COMPRION_DLG.error = '';
+        }
+    }
+    renderComprionDialog();
+}
+
+async function confirmComprionImport() {
+    if (COMPRION_DLG.busy || !COMPRION_DLG.protocol) return;
+    COMPRION_DLG.busy = true;
+    COMPRION_DLG.error = '';
+    renderComprionDialog();
+    const file = COMPRION_DLG.protocol;
+    const app = COMPRION_DLG.application;
+    try {
+        const data = app
+            ? await API.importComprionBundle(importBaseName(file),
+                await file.text(), await app.text())
+            : await API.importSession(importBaseName(file),
+                await file.arrayBuffer(), 'comprion');
+        el('comprion-modal').classList.remove('show');
+        importMsg(importSuccessText(data));
+        loadSessions();
+    } catch (e) {
+        // Keep the dialog (and both selections) so the user can fix them.
+        COMPRION_DLG.error = (e && e.code && IMPORT_ERROR_KEYS[e.code])
+            ? e.code : ((e && e.message) || 'Import failed');
+    } finally {
+        COMPRION_DLG.busy = false;
+        renderComprionDialog();
     }
 }
 
@@ -2476,7 +2682,8 @@ function formatDuration(start, end) {
 }
 
 function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function showDeleteModal(id) {
@@ -2707,8 +2914,8 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.1.2';
-const MIN_SERVER_VERSION = '1.0.0';
+const PWA_VERSION = '2.2.0';
+const MIN_SERVER_VERSION = '2.2.0';
 
 function parseVersion(v) {
     const parts = String(v || '').trim().split('.').map(n => parseInt(n, 10));
@@ -2764,6 +2971,42 @@ const LANG_RU = {
     'No saved sessions': 'Нет сохранённых сессий',
     'Start a capture from the Trace tab to create sessions.': 'Начните захват на вкладке «Трассировка», чтобы создать сессии.',
     'Import PCAP': 'Импорт PCAP',
+    'Import COMPRION trace': 'Импорт трассы COMPRION',
+    'Import the \'ISO Protocol Layer\' export, optionally with the matching \'ISO Application Layer\' export for exact timestamps.':
+        'Импорт экспорта «ISO Protocol Layer», при наличии — с соответствующим экспортом «ISO Application Layer» для точных меток времени.',
+    'Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.':
+        'Выберите экспорт «ISO Protocol Layer» и, если есть, соответствующий ему экспорт «ISO Application Layer» той же сессии.',
+    'ISO Protocol Layer export (required)': 'Экспорт «ISO Protocol Layer» (обязательно)',
+    'ISO Application Layer export (optional)': 'Экспорт «ISO Application Layer» (необязательно)',
+    'Choose file…': 'Выбрать файл…',
+    'no file selected': 'файл не выбран',
+    'Import': 'Импортировать',
+    'Without the ISO Application Layer export the timeline is card/line activity time from the Protocol Layer\'s Delay column (the unit assumes 3.8 MHz) — the order is right, but host pauses are missing and the absolute times are not exact.':
+        'Без экспорта «ISO Application Layer» таймлайн — это время активности карты/линии по столбцу Delay из Protocol Layer (единица измерения предполагает 3,8 МГц) — порядок верен, но паузы хоста отсутствуют, а абсолютное время неточно.',
+    'The ISO Application Layer export adds exact per-APDU timestamps (ms precision) — the session window and the gaps between APDUs become exact. Both files are verified to belong to the same session before importing.':
+        'Экспорт «ISO Application Layer» добавляет точные метки времени по APDU (точность до мс) — окно сессии и интервалы между APDU становятся точными. Перед импортом проверяется, что файлы относятся к одной сессии.',
+    'This is the ISO Protocol Layer export — select it in the first slot.':
+        'Это экспорт «ISO Protocol Layer» — выберите его в первом поле.',
+    'The two files are identical.': 'Это один и тот же файл.',
+    'This is the \'ISO Application Layer\' export — select the \'ISO Protocol Layer\' file (it contains the raw APDU bytes).':
+        'Это экспорт «ISO Application Layer» — выберите файл «ISO Protocol Layer» (в нём есть необработанные APDU-байты).',
+    'Not a COMPRION export — expected the \'ISO Protocol Layer\' text file.':
+        'Это не экспорт COMPRION — ожидается текстовый файл «ISO Protocol Layer».',
+    'Unsupported COMPRION export layout (expected the \'ISO Protocol Layer\' table).':
+        'Неподдерживаемый формат экспорта COMPRION (ожидается таблица «ISO Protocol Layer»).',
+    'No APDU exchanges found in the COMPRION export.':
+        'В экспорте COMPRION не найдено ни одного APDU-обмена.',
+    'No usable Time entries found in the ISO Application Layer export.':
+        'В экспорте «ISO Application Layer» не найдено пригодных записей Time.',
+    'The two files belong to different sessions — select the ISO Application Layer export of the same session.':
+        'Файлы относятся к разным сессиям — выберите экспорт «ISO Application Layer» той же сессии.',
+    'Cannot verify that the two files belong to the same session (no Session Name in either file).':
+        'Не удалось убедиться, что файлы относятся к одной сессии (ни в одном нет Session Name).',
+    'The ISO Application Layer file does not match this trace (different exchange count).':
+        'Файл «ISO Application Layer» не соответствует этой трассировке (другое число обменов).',
+    'This looks like a COMPRION export — use \'Import COMPRION trace\'.':
+        'Похоже на экспорт COMPRION — используйте «Импорт трассы COMPRION».',
+    'exact timestamps (Application Layer)': 'точные метки времени (ISO Application Layer)',
     'New capture': 'Новый захват',
     'Tiles': 'Плитки',
     'List': 'Список',
@@ -2848,6 +3091,9 @@ function translatePage() {
             el.textContent = t(key);
         }
     });
+    document.querySelectorAll('[data-l10n-title]').forEach(el => {
+        el.setAttribute('title', t(el.getAttribute('data-l10n-title')));
+    });
 }
 
 function applyLang() {
@@ -2867,6 +3113,7 @@ function toggleLang() {
     renderMessages();
     loadSessions();
     checkConnection();
+    if (el('comprion-modal').classList.contains('show')) renderComprionDialog();
 }
 
 // ──────────────────── Theme ────────────────────
@@ -2978,6 +3225,25 @@ function init() {
         const file = el('import-pcap-file').files[0];
         if (file) importPcapFile(file);
         el('import-pcap-file').value = '';
+    });
+    $on('import-comprion-btn', 'click', openComprionDialog);
+    $on('comprion-protocol-btn', 'click', () => el('comprion-protocol-file').click());
+    $on('comprion-application-btn', 'click', () => el('comprion-application-file').click());
+    $on('comprion-protocol-file', 'change', async () => {
+        await comprionPick('protocol', el('comprion-protocol-file').files[0]);
+        el('comprion-protocol-file').value = '';
+    });
+    $on('comprion-application-file', 'change', async () => {
+        await comprionPick('application', el('comprion-application-file').files[0]);
+        el('comprion-application-file').value = '';
+    });
+    $on('comprion-cancel', 'click', closeComprionDialog);
+    $on('comprion-import', 'click', confirmComprionImport);
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape'
+            && el('comprion-modal').classList.contains('show')) {
+            closeComprionDialog();
+        }
     });
 
     $on('view-grid-btn', 'click', () => toggleSessionView('grid'));
