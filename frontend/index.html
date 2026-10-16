@@ -282,11 +282,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 
 /* COMPRION import dialog */
 .comprion-modal { max-width: 560px; }
-.comprion-slot { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.comprion-slot label { flex: 0 0 200px; font-size: 13px; color: var(--text-muted); }
+.comprion-slot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.comprion-slot label { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text-muted); }
 .comprion-slot button { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; background: var(--bg-input); color: var(--text); flex: 0 0 auto; }
 .comprion-slot button:disabled { opacity: 0.5; cursor: default; }
-.comprion-slot .file-name { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.comprion-slot .file-name { flex: 1 1 100%; min-width: 0; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comprion-hint { font-size: 12px; line-height: 1.45; margin: 10px 0 0; }
 .comprion-error { font-size: 12px; line-height: 1.45; color: var(--error); margin-top: 8px; }
 .comprion-error:empty { display: none; }
@@ -2971,7 +2971,7 @@ const LANG_RU = {
     'No saved sessions': 'Нет сохранённых сессий',
     'Start a capture from the Trace tab to create sessions.': 'Начните захват на вкладке «Трассировка», чтобы создать сессии.',
     'Import PCAP': 'Импорт PCAP',
-    'Import COMPRION trace': 'Импорт трассы COMPRION',
+    'Import COMPRION trace': 'Импорт трейсов COMPRION',
     'Import the \'ISO Protocol Layer\' export, optionally with the matching \'ISO Application Layer\' export for exact timestamps.':
         'Импорт экспорта «ISO Protocol Layer», при наличии — с соответствующим экспортом «ISO Application Layer» для точных меток времени.',
     'Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.':
@@ -3005,7 +3005,7 @@ const LANG_RU = {
     'The ISO Application Layer file does not match this trace (different exchange count).':
         'Файл «ISO Application Layer» не соответствует этой трассировке (другое число обменов).',
     'This looks like a COMPRION export — use \'Import COMPRION trace\'.':
-        'Похоже на экспорт COMPRION — используйте «Импорт трассы COMPRION».',
+        'Похоже на экспорт COMPRION — используйте «Импорт трейсов COMPRION».',
     'exact timestamps (Application Layer)': 'точные метки времени (ISO Application Layer)',
     'New capture': 'Новый захват',
     'Tiles': 'Плитки',
