@@ -466,6 +466,7 @@ eval(
 test('Change details modal: header, summary, legend and both views', () => {
 	renderFileDiff({
 		name: 'EF_ICCID',
+		path: 'MF/EF_ICCID (2FE2)',
 		op: 'READ BINARY',
 		record: null,
 		n_records: null,
@@ -478,7 +479,7 @@ test('Change details modal: header, summary, legend and both views', () => {
 		image_truncated: false,
 	});
 	const sub = el('file-diff-sub').textContent;
-	assert.match(sub, /EF_ICCID — READ BINARY/);
+	assert.match(sub, /MF\/EF_ICCID \(2FE2\) — READ BINARY/);
 	assert.match(sub, /#12/);
 	const body = el('file-diff-body').innerHTML;
 	assert.match(body, /2 bytes changed, 4 bytes newly observed/);
@@ -488,6 +489,9 @@ test('Change details modal: header, summary, legend and both views', () => {
 	assert.match(body, /Before/);
 	assert.match(body, /After/);
 	assert.equal((body.match(/class="hex-view"/g) || []).length, 2);
+	// The legend sits below the two views, each swatch bound to its label.
+	assert.ok(body.indexOf('hex-legend') > body.lastIndexOf('hex-view'));
+	assert.equal((body.match(/class="hex-legend-item"/g) || []).length, 3);
 	// The record header variant and the frozen-image note.
 	renderFileDiff({
 		name: 'EF_IMSI', op: 'READ RECORD', record: 2, n_records: 5, index: 40,
