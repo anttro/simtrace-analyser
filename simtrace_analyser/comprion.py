@@ -30,7 +30,7 @@ pairing, FCP decoding and the GET RESPONSE filters all work as usual.
 import re
 import time
 
-from .decode import _fidi_dict
+from .decode import _fidi_dict, cla_channel
 
 # Unit scale for the Delay-derived timeline: the COMPRION export states no
 # clock, so this only converts the Delay column's etu into seconds (card/line
@@ -442,11 +442,16 @@ def _emit_apdu(exchange, messages, skipped, warn_bucket, warnings):
     if incoming and outgoing:
         # Case 4 on the wire (T=0): the command carries no Le, the card
         # answers 61 <len> and the terminal fetches with GET RESPONSE.
-        # The GET RESPONSE keeps the command's logical channel (CLA low bits).
+        # The GET RESPONSE keeps the command's logical channel: the terminal
+        # answers with a plain first-interindustry CLA for channels 0-3 and
+        # the further-interindustry coding for the extended channels 4-19
+        # (real traces drop the class/SM bits, TS 102 221 §10.3).
         _push(messages, t1, 'tpdu',
               head + incoming + bytes([0x61, len(outgoing)]))
         t2 = max(items[-1]['t'], t1)
-        cmd = bytes([head[0] & 0x03, 0xC0, 0x00, 0x00, len(outgoing)])
+        channel = cla_channel(head[0])
+        gr_cla = channel if channel < 4 else 0x40 | (channel - 4)
+        cmd = bytes([gr_cla, 0xC0, 0x00, 0x00, len(outgoing)])
         _push(messages, t2, 'tpdu', cmd + outgoing + sw)
     elif incoming:
         _push(messages, t1, 'tpdu', head + incoming + sw)

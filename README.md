@@ -30,9 +30,12 @@ GSMTAP into this analyser.
 
 **APDU decoder** (server-side, rendered by the PWA):
 
-- Full APDU decode — CLA per ISO 7816-4 / ETSI coding (logical channel,
-  secure messaging, command chaining), INS names from a spec table,
-  SFI-aware P1/P2 for READ/UPDATE BINARY and record commands
+- Full APDU decode — CLA per ISO 7816-4 / ETSI coding with the **logical
+  channel 0-19** (standard channels from b2-b1, the extended channels 4-19
+  from b4-b1 per TS 102 221 §10.3), secure messaging and command chaining,
+  INS names from a spec table, SFI-aware P1/P2 for READ/UPDATE BINARY and
+  record commands; MANAGE CHANNEL replies show the channel the card
+  assigned
 - Status words — full ISO 7816-4 set plus UICC-specific values:
   `91XX` (proactive command pending), `62F1/F2/F3`, `63F1/F2` (more data),
   `9300` (SAT busy), `9850`, `9862–64`
@@ -55,7 +58,12 @@ GSMTAP into this analyser.
   decoded as a stream of **C-APDUs** (SELECT, UPDATE BINARY, …) with
   full CLA/INS/P1/P2/Lc/Le breakdown — plaintext immediately, or after
   decryption for ciphered packets
-- ATR parse (clock-rate conversion, Fi/Di, T-bitmask) and FCP/FCI TLV
+- ATR parse (clock-rate conversion, Fi/Di, T-bitmask, truncated-ATR safe)
+  and FCP/FCI TLV; the historical bytes are decoded as the UICC's
+  COMPACT-TLV objects (TS 102 221 §6.3.1) — card service data, the **card
+  capabilities** (ISO 7816-4 §8.1.1.2.7 Table 88: the assignment methods
+  and the announced maximum number of logical channels, `8 or more` for the
+  extended-capable cards) and the trailing status indicator (LCS/SW)
 
 **SIMtrace Analyser PWA** ([`frontend/`](frontend/)):
 
@@ -121,7 +129,10 @@ with the local time): `Capture started` on begin, a periodic
 `Capture stopped` (or `ERROR: capture thread stopped on error …` if the
 capture thread died unexpectedly). A mis-framed or non-SIM GSMTAP
 datagram is dropped and counted (`dropped`) rather than silently
-killing the capture. The heartbeat interval defaults to 60 s and is
+killing the capture; a `tpdu` packet that is not APDU-shaped at all
+(shorter than the header, the invalid CLA `FF` or an ISO-reserved class)
+is skipped and counted (`skipped`) — a character-level or mis-sampled
+stream no longer pollutes the decode. The heartbeat interval defaults to 60 s and is
 tunable via `--log-interval SECONDS`.
 
 The GSMTAP listener also accepts the **sigrok-iso7816-stream** decoder

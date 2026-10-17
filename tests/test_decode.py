@@ -950,11 +950,101 @@ class TestAtrPps(unittest.TestCase):
 
     def test_atr_historical_life_cycle(self):
         from simtrace_analyser.decode import _decode_atr
-        # T0 = 0x03 (3 historical bytes); historical = 80 00 05 (life cycle: operational)
-        r = _decode_atr(bytes.fromhex('3B03800005'))
+        # T0 = 0x03 (3 historical bytes).  Category '80' (the value a UICC
+        # always uses, TS 102 221 §6.3.1) carries COMPACT-TLV objects; the
+        # trailing '81' object is a status indicator holding the LCS
+        # (ISO 7816-4 §8.1.1.3).
+        r = _decode_atr(bytes.fromhex('3B03808105'))
         self.assertEqual(r['historical_len'], 3)
-        self.assertEqual(r['historical']['category'], 'status information (life cycle)')
-        self.assertEqual(r['historical']['life_cycle'], 'operational state (activated)')
+        self.assertEqual(r['historical']['category'], 'COMPACT-TLV objects')
+        self.assertEqual(r['historical']['life_cycle'],
+                         'operational state (activated)')
+        self.assertEqual(r['historical']['objects'], [])
+
+    def test_atr_historical_status_bytes(self):
+        from simtrace_analyser.decode import _decode_atr
+        # '82' = SW1-SW2, '83' = LCS + SW1-SW2 (ISO 7816-4 §8.1.1.3).
+        r = _decode_atr(bytes.fromhex('3B0480829000'))
+        self.assertEqual(r['historical']['sw'], '9000')
+        r = _decode_atr(bytes.fromhex('3B058083059000'))
+        self.assertEqual(r['historical']['life_cycle'],
+                         'operational state (activated)')
+        self.assertEqual(r['historical']['sw'], '9000')
+
+    def test_atr_historical_status_category_00(self):
+        from simtrace_analyser.decode import _decode_atr
+        # Category '00': the last three bytes are the status indicator, the
+        # bytes before it optional COMPACT-TLVs.
+        r = _decode_atr(bytes.fromhex('3B0400059000'))
+        self.assertEqual(r['historical']['category'],
+                         'COMPACT-TLV objects + status indicator')
+        self.assertEqual(r['historical']['life_cycle'],
+                         'operational state (activated)')
+        self.assertEqual(r['historical']['sw'], '9000')
+
+    def test_atr_card_capabilities(self):
+        from simtrace_analyser.decode import _decode_atr
+        # A real workspace-card ATR's historical bytes: '31 E0' card service
+        # data, '73 FE 21 1B' card capabilities (3 tables: selection methods
+        # FE, data coding 21, 1B = card-assigned channels, 4 maximum) and
+        # '66 ...' pre-issuing data.  TS 102 221 §6.3.1 pins the first two
+        # objects.
+        r = _decode_atr(bytes.fromhex('3B0E8031E073FE211B66D0022A761300'))
+        hist = r['historical']
+        self.assertEqual(hist['category'], 'COMPACT-TLV objects')
+        self.assertEqual([o['tag'] for o in hist['objects']], ['3', '7', '6'])
+        cs = hist['objects'][0]['card_service']
+        self.assertEqual(cs['selection'], ['full DF name', 'partial DF name'])
+        self.assertTrue(cs['ber_tlv_in_dir'])
+        self.assertFalse(cs['ber_tlv_in_atr'])
+        self.assertTrue(cs['card_with_mf'])
+        caps = hist['card_capabilities']
+        self.assertEqual(caps['tables'], 3)
+        self.assertEqual(caps['max_channels'], 4)
+        # b5/b4 declare the assignment methods the card supports (here both).
+        self.assertEqual(caps['channel_assignment'],
+                         ['by the card', 'by the interface device'])
+        self.assertFalse(caps['command_chaining'])
+        self.assertFalse(caps['extended_lc_le'])
+        self.assertIn('full DF name', caps['selection_methods'])
+        self.assertEqual(caps['data_coding']['write'], 'proprietary')
+
+    def test_atr_card_capabilities_extended(self):
+        from simtrace_analyser.decode import _decode_atr
+        # '73 FE 21 57': y=z=t=1 → "eight or more" logical channels
+        # (ISO 7816-4 Table 88) — the extended-channel capable cards.
+        r = _decode_atr(bytes.fromhex('3B0E8031E073FE215766D0022A761300'))
+        caps = r['historical']['card_capabilities']
+        self.assertEqual(caps['max_channels'], '8 or more')
+        self.assertEqual(caps['channel_assignment'], ['by the card'])
+        self.assertTrue(caps['extended_lc_le'])
+
+    def test_atr_historical_reserved_and_proprietary(self):
+        from simtrace_analyser.decode import _decode_atr
+        r = _decode_atr(bytes.fromhex('3B018F'))
+        self.assertEqual(r['historical']['category'],
+                         'reserved (ISO 7816-4)')
+        r = _decode_atr(bytes.fromhex('3B01A0'))
+        self.assertEqual(r['historical']['category'], 'proprietary')
+        r = _decode_atr(bytes.fromhex('3B021001'))
+        self.assertEqual(r['historical']['category'], 'DIR data reference')
+        self.assertEqual(r['historical']['dir_reference'], '01')
+
+    def test_manage_channel_response(self):
+        # MANAGE CHANNEL open: the card returns the assigned channel as the
+        # response data byte (ISO 7816-4 §7.1.5); a close carries none.
+        from simtrace_analyser.decode import decode_message
+        r = decode_message(bytes.fromhex('0070000001019110'))
+        self.assertEqual(r['p1']['name'], 'Open channel')
+        self.assertEqual(r['response'], {'channel': 1})
+        r = decode_message(bytes.fromhex('0070000001029000'))
+        self.assertEqual(r['response'], {'channel': 2})
+        r = decode_message(bytes.fromhex('00708002009000'))
+        self.assertEqual(r['p1']['name'], 'Close channel')
+        self.assertNotIn('response', r)
+        # The extended channels are assigned the same way (1-19).
+        r = decode_message(bytes.fromhex('0070000001139000'))
+        self.assertEqual(r['response'], {'channel': 0x13})
 
     def test_atr_t15_is_pps_capability(self):
         from simtrace_analyser.decode import _decode_atr
@@ -1658,6 +1748,49 @@ class TestSelectionTracking(unittest.TestCase):
             up = msgs[2]
             # channel 0 still selects EF_MSISDN, not channel 1's EF_IMPI.
             self.assertEqual(up['decoded']['file']['ef'], 'EF_MSISDN')
+
+    def test_extended_channel_selection_isolated(self):
+        # CLA 0x44 = further-interindustry coding, extended channel 8
+        # (TS 102 221 §10.3: b4-b1 + 4); 0x48 = channel 12.  Each channel
+        # keeps its own selection — before the channel fix the state was
+        # keyed by CLA & 0x03, so these all clobbered channel 0.
+        import tempfile
+        from simtrace_analyser.database import Database
+        with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
+            db = Database(tmp.name)
+            sid = db.create_session('capture')
+            db.insert_message(sid, 0.0, 'tpdu',
+                              bytes.fromhex('00a40804047fff6f409000'))   # ch0: MSISDN
+            db.insert_message(sid, 0.1, 'tpdu',
+                              bytes.fromhex('44a40804047fff6f029000'))   # ch8: OCST
+            db.insert_message(sid, 0.2, 'tpdu',
+                              bytes.fromhex('48a40804047fff6fb79000'))   # ch12: ECC
+            read = (bytes.fromhex('b2010427') +
+                    bytes.fromhex('8109089cbeb920bdbebcb5c0ffffffffffffffffffffffffff07919752738981f7ffffffffffff') +
+                    bytes.fromhex('9000'))
+            db.insert_message(sid, 0.3, 'tpdu', bytes([0x44]) + read)
+            db.insert_message(sid, 0.4, 'tpdu', bytes([0x00]) + read)
+            db.insert_message(sid, 0.5, 'tpdu', bytes([0x48]) + read)
+            msgs = db.get_messages(sid)
+            self.assertEqual(msgs[3]['decoded']['file']['ef'], 'EF_OCST')
+            self.assertEqual(msgs[4]['decoded']['file']['ef'], 'EF_MSISDN')
+            self.assertEqual(msgs[5]['decoded']['file']['ef'], 'EF_ECC')
+            self.assertEqual(msgs[3]['decoded']['cla']['channel'], 8)
+            self.assertEqual(msgs[5]['decoded']['cla']['channel'], 12)
+
+    def test_manage_channel_opens_use_their_channel(self):
+        # The MANAGE CHANNEL open/close exchanges themselves run on the
+        # basic channel; a later extended-channel command must not disturb it.
+        import tempfile
+        from simtrace_analyser.database import Database
+        with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
+            db = Database(tmp.name)
+            sid = db.create_session('capture')
+            db.insert_message(sid, 0.0, 'tpdu', bytes.fromhex('0070000001059000'))
+            db.insert_message(sid, 0.1, 'tpdu', bytes.fromhex('44a40804047fff6f079000'))
+            msgs = db.get_messages(sid)
+            self.assertEqual(msgs[0]['decoded']['response'], {'channel': 5})
+            self.assertEqual(msgs[1]['decoded']['cla']['channel'], 8)
 
 
 class TestSfiResolution(unittest.TestCase):
@@ -2721,14 +2854,27 @@ class TestClaDecode(unittest.TestCase):
         self.assertEqual(r['secure_messaging'], 'SM header authenticated')
 
     def test_sm_proprietary(self):
-        # 0x0C = 0000 1100: b4-b3 = 01 → proprietary secure messaging
-        r = self._cla(0x0c)
+        # 0x04 = 0000 0100: b4-b3 = 01 → proprietary secure messaging;
+        # 0x0C = b4-b3 = 11 → header authenticated (ISO 7816-4 Table 2).
+        r = self._cla(0x04)
         self.assertEqual(r['secure_messaging'], 'proprietary')
+        r = self._cla(0x0c)
+        self.assertEqual(r['channel'], 0)
+        self.assertEqual(r['secure_messaging'], 'SM header authenticated')
 
     def test_chain_bit_b5(self):
-        # 0x20 = 0010 0000: b5=1 → first or continuing command of chain
-        r = self._cla(0x20)
+        # 0x10 = 0001 0000: b5=1 → first or continuing command of chain
+        # (ISO 7816-4 §5.1.1 Table 2).
+        r = self._cla(0x10)
         self.assertEqual(r['chain'], 'first or continuing')
+
+    def test_reserved_class_001x(self):
+        # 0x20 = 0010 0000: the '001x xxxx' range is reserved by ISO
+        # 7816-4; its bits carry no defined SM/chaining meaning.
+        r = self._cla(0x20)
+        self.assertEqual(r['interclass'], 'reserved (ISO 7816-4)')
+        self.assertEqual(r['chain'], 'n/a')
+        self.assertEqual(r['secure_messaging'], 'n/a')
 
     def test_further_interindustry_channel_offset(self):
         # 0x40 = 0100 0000: further format, channel = b4-b1 + 4 = 4
@@ -2736,13 +2882,79 @@ class TestClaDecode(unittest.TestCase):
         self.assertEqual(r['interclass'], 'inter-industry (further format)')
         self.assertEqual(r['channel'], 4)
 
+    def test_extended_channels_iso(self):
+        # TS 102 221 §10.3: the further-interindustry coding carries the
+        # extended channels 4-19 in b4-b1 (ISO 7816-4 §5.1.1 Table 3).
+        for cla, channel in ((0x44, 8), (0x49, 13), (0x4a, 14), (0x4f, 19),
+                             (0x60, 4), (0x6f, 19)):
+            r = self._cla(cla)
+            self.assertEqual(r['channel'], channel, f'CLA {cla:#04x}')
+        # b6 of the further format is the SM indication, b5 the chaining bit.
+        self.assertEqual(self._cla(0x60)['secure_messaging'],
+                         'SM header not authenticated')
+        self.assertEqual(self._cla(0x70)['chain'], 'first or continuing')
+
+    def test_extended_channels_etsi(self):
+        # TS 102 221 Table 10.4a: the ETSI '11x0 xxxx' coding addresses the
+        # extended channels too (b4-b1 + 4).
+        for cla, channel in ((0xc0, 4), (0xc5, 9), (0xcf, 19), (0xe0, 4),
+                             (0xe5, 9), (0xef, 19)):
+            r = self._cla(cla)
+            self.assertEqual(r['interclass'],
+                             'ETSI-defined (extended logical channels)',
+                             f'CLA {cla:#04x}')
+            self.assertEqual(r['channel'], channel, f'CLA {cla:#04x}')
+        # b6 is the SM indication (Table 10.4b), b5 must be 0.
+        self.assertEqual(self._cla(0xe5)['secure_messaging'],
+                         'SM header not authenticated')
+        self.assertEqual(self._cla(0xc5)['secure_messaging'], 'none')
+
     def test_etsi_uicc(self):
         r = self._cla(0x80)
         self.assertEqual(r['interclass'], 'ETSI-defined (UICC/USIM)')
+        self.assertEqual(r['channel'], 0)
+        # The low nibble of the ETSI classes carries SM (b4-b3) and the
+        # standard channel (b2-b1), TS 102 221 Table 10.3/10.4.
+        r = self._cla(0x8c)
+        self.assertEqual(r['interclass'], 'ETSI-defined (UICC/USIM)')
+        self.assertEqual(r['channel'], 0)
+        self.assertEqual(r['secure_messaging'], 'SM header authenticated')
+        r = self._cla(0x83)
+        self.assertEqual(r['channel'], 3)
 
     def test_etsi_sim(self):
         r = self._cla(0xa0)
         self.assertEqual(r['interclass'], 'ETSI-defined (SIM/GSM)')
+        r = self._cla(0xa3)
+        self.assertEqual(r['interclass'], 'ETSI-defined (SIM/GSM)')
+        self.assertEqual(r['channel'], 3)
+
+    def test_proprietary_and_invalid(self):
+        # b5 = 1 contradicts the ETSI class codings (TS 102 221 §10.1.1) and
+        # 0xFF is invalid; both keep the best-effort channel reading.
+        self.assertEqual(self._cla(0x90)['interclass'], 'proprietary')
+        self.assertEqual(self._cla(0xd5)['channel'], 9)
+        self.assertEqual(self._cla(0xff)['interclass'], 'invalid (ISO 7816-4)')
+
+    def test_cla_channel_helper(self):
+        # The tracker/state paths share this helper with decode_cla.
+        from simtrace_analyser.decode import cla_channel
+        self.assertEqual(cla_channel(0x00), 0)
+        self.assertEqual(cla_channel(0x03), 3)
+        self.assertEqual(cla_channel(0x80), 0)
+        self.assertEqual(cla_channel(0x44), 8)
+        self.assertEqual(cla_channel(0x4f), 19)
+        self.assertEqual(cla_channel(0xef), 19)
+
+    def test_looks_like_apdu(self):
+        from simtrace_analyser.decode import looks_like_apdu
+        self.assertTrue(looks_like_apdu(bytes.fromhex('00a40004023f00')))
+        self.assertTrue(looks_like_apdu(bytes.fromhex('80f2000000')))
+        self.assertFalse(looks_like_apdu(b''))
+        self.assertFalse(looks_like_apdu(bytes.fromhex('00a4')))
+        self.assertFalse(looks_like_apdu(bytes.fromhex('ff10957aff10957a')))
+        self.assertFalse(looks_like_apdu(bytes.fromhex('2d6ccfb0ff')))
+        self.assertFalse(looks_like_apdu(bytes.fromhex('31e073fe211b66')))
 
 
 class TestLineEvents(unittest.TestCase):

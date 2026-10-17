@@ -9,8 +9,9 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 
-from .database import Database
 from .capture import CaptureManager, GsmtapListener, DirectSniffer, _log
+from .database import Database
+from .decode import looks_like_apdu
 from .comprion import (ComprionError, decode_text, looks_like_comprion,
                        parse_comprion)
 from simtrace2_pysniff.gsmtap import build_gsmtap_packet, GSMTAP_SIM_ATR, GSMTAP_SIM_APDU
@@ -367,7 +368,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         first_ts = packets[0][0]
         last_ts = packets[-1][0]
         rows = []
+        skipped = 0
         for ts, msg_type, payload, flags in packets:
+            # A captured 'tpdu' must at least be APDU-shaped; mis-sampled or
+            # character-level streams would only pollute the decode.
+            if msg_type == 'tpdu' and not looks_like_apdu(payload):
+                skipped += 1
+                continue
             elapsed = round(ts - first_ts, 6) if ts is not None else 0.0
             rows.append((max(0.0, elapsed), msg_type, payload, flags))
         self.db.insert_messages(session_id, rows)
@@ -382,12 +389,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.db.close_session(session_id, duration)
 
         _log(f'Session imported: session={session_id} '
-             f'name={name or "(untitled)"} messages={len(packets)} '
-             f'bytes={sum(len(p) for _, _, p, _ in packets)}')
+             f'name={name or "(untitled)"} messages={len(rows)} '
+             f'skipped={skipped} '
+             f'bytes={sum(len(r[2]) for r in rows)}')
         self._send_json({
             'session_id': session_id,
             'name': name,
-            'message_count': len(packets),
+            'message_count': len(rows),
+            'skipped': skipped,
         })
 
     def _handle_import_comprion(self, params, raw):

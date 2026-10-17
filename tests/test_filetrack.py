@@ -512,6 +512,25 @@ class TestNaming(TrackerCase):
         self.assertEqual(entry['path'], 'ADF/EF_SMS (6F3C)')
         self.assertEqual(entry['counters']['select'], 1)
 
+    def test_selections_are_per_extended_channel(self):
+        # CLA 0x44 / 0x48 address the extended channels 8 / 12 (TS 102 221
+        # §10.3); each channel's selection drives its own reads.  Before the
+        # channel fix both CLAs collapsed into channel 0's state, so both
+        # reads resolved to the last selected file.
+        data = self.track(
+            '44' + sel_fid('7fff')[2:], '44' + gr(fcp('7fff'))[2:],
+            '44' + sel_fid('6f07')[2:], '44' + gr(fcp('6f07', size=9))[2:],
+            '48' + sel_fid('7fff')[2:], '48' + gr(fcp('7fff'))[2:],
+            '48' + sel_fid('6fb7')[2:], '48' + gr(fcp('6fb7', size=2))[2:],
+            '44' + read_binary(0, '082905102143658709')[2:],
+            '48' + read_binary(0, '0A0B')[2:],
+        )
+        self.assertIn('7fff/6f07', data['files'])
+        self.assertIn('7fff/6fb7', data['files'])
+        self.assertEqual(data['files']['7fff/6f07']['counters']['read'], 1)
+        self.assertEqual(data['files']['7fff/6fb7']['counters']['read'], 1)
+        self.assertEqual(data['files']['7fff/6f07']['name'], 'EF_IMSI')
+
     def test_sim_df_names(self):
         # The same FID resolves against the SIM DF_GSM table.
         data = self.track(

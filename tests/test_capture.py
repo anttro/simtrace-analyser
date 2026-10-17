@@ -66,6 +66,20 @@ class TestCaptureManager(unittest.TestCase):
         self.assertIsNotNone(db.get_session(sid))
         self.assertEqual(db.count_messages(sid), 1)
 
+    def test_non_apdu_packets_are_skipped(self):
+        # A character-level or mis-sampled stream is not APDU-shaped and must
+        # not be stored as decodable exchanges; valid rows pass.
+        backend = _FakeBackend([
+            ('tpdu', bytes.fromhex('ff10957aff10957a'), 0),
+            ('tpdu', bytes.fromhex('2d6ccfb0ff'), 0),
+            ('tpdu', bytes.fromhex('00a40004023f00'), 0),
+        ])
+        mgr, db = self._manager(backend)
+        sid = mgr.start_session()
+        self.assertEqual(mgr.stop_session(), sid)
+        self.assertEqual(db.count_messages(sid), 1)
+        self.assertEqual(mgr.skipped, 2)
+
     def test_direct_sniffer_device_disconnect(self):
         from simtrace_analyser.capture import DirectSniffer
         sn = DirectSniffer()

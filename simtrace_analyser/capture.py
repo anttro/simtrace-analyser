@@ -10,6 +10,8 @@ from simtrace2_pysniff.gsmtap import (GsmtapReceiver, GSMTAP_SIM_ATR,
                                       GSMTAP_SIM_PPS_REQ, GSMTAP_SIM_PPS_RSP,
                                       GSMTAP_SIM_RST_EVENT, GSMTAP_SIM_VCC_EVENT)
 
+from .decode import looks_like_apdu
+
 
 def _ts():
     """Local-time stamp for server-side capture log lines."""
@@ -120,6 +122,7 @@ class CaptureManager:
         self._latest_msg_id = 0
         self._msg_count = 0
         self._byte_count = 0
+        self._skipped = 0
         self._log_interval = log_interval
 
     @property
@@ -139,6 +142,11 @@ class CaptureManager:
         return self._latest_msg_id
 
     @property
+    def skipped(self):
+        """Packets dropped because they were not APDU-shaped."""
+        return self._skipped
+
+    @property
     def device_connected(self):
         """True while the capture device is connected, or None when the
         backend has no device concept (gsmtap)."""
@@ -156,6 +164,7 @@ class CaptureManager:
         self._latest_msg_id = 0
         self._msg_count = 0
         self._byte_count = 0
+        self._skipped = 0
         self._backend.start()
 
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
@@ -187,7 +196,7 @@ class CaptureManager:
             return None
         self._db.close_session(sid)
         _log(f'Capture stopped: session={sid} messages={self._msg_count} '
-             f'bytes={self._byte_count}')
+             f'bytes={self._byte_count} skipped={self._skipped}')
         return sid
 
     def _capture_loop(self):
@@ -195,6 +204,14 @@ class CaptureManager:
             for msg_type, data, flags in self._backend.iter_messages():
                 if self._session_id is None:
                     break
+                if msg_type == 'tpdu' and not looks_like_apdu(data):
+                    # Not APDU-shaped at all: a mis-sampled or character-level
+                    # GSMTAP stream would only pollute the decode.
+                    self._skipped += 1
+                    if self._skipped <= 1 or self._skipped % 100 == 0:
+                        _log(f'Capture: skipped packet {self._skipped} that is '
+                             f'not APDU-shaped — check the sniffer stream')
+                    continue
                 try:
                     elapsed = round(time.monotonic() - self._start_time, 3)
                     mid = self._db.insert_message(
@@ -226,4 +243,4 @@ class CaptureManager:
             dropped = getattr(self._backend, 'dropped', 0)
             _log(f'Capture alive: session={self._session_id} '
                  f'messages={self._msg_count} bytes={self._byte_count} '
-                 f'dropped={dropped}')
+                 f'dropped={dropped} skipped={self._skipped}')

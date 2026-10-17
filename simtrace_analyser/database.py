@@ -288,7 +288,7 @@ class Database:
         selection, DF, SFI map, and the last RST-reported CLK frequency.
 
         Returns ``(states, clk_hz)``."""
-        from .decode import decode_sniff_msg
+        from .decode import cla_channel, decode_sniff_msg
         rows = self._conn.execute(
             "SELECT data, type FROM messages WHERE session_id=? AND id < ? "
             "AND type IN ('tpdu','atr','change','gap','rst','vcc') "
@@ -307,7 +307,7 @@ class Database:
                 if d and d.get('clk_hz'):
                     clk_hz = d['clk_hz']
                 continue
-            channel = data[0] & 0x03 if data and len(data) >= 1 else 0
+            channel = cla_channel(data[0]) if data else 0
             st = self._channel_state(states, channel)
             ctx = dict(st['prev']) if st['prev'] else {}
             ctx['sel'] = st['sel']
@@ -387,7 +387,7 @@ class Database:
         return sel
 
     def _decode_rows(self, rows, initial_states=None, clk_hz=None, on_message=None):
-        from .decode import atr_rate_fields
+        from .decode import atr_rate_fields, cla_channel
         msgs = []
         states = dict(initial_states or {})
         last_atr_i = None       # index of the most recent ATR in *msgs*
@@ -395,7 +395,7 @@ class Database:
         for row in rows:
             channel = 0
             if row[3] == 'tpdu' and row[4] and len(row[4]) >= 5:
-                channel = row[4][0] & 0x03
+                channel = cla_channel(row[4][0])
             st = self._channel_state(states, channel)
             ctx = dict(st['prev']) if st['prev'] else {}
             ctx['sel'] = st['sel']

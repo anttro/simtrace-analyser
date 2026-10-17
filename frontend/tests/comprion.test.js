@@ -519,6 +519,13 @@ test('stopCaptureIfRunning tolerates "no active capture" (400)', async () => {
 	assert.equal(calls, 2);
 });
 
+test('importSuccessText mentions skipped non-APDU packets', () => {
+	const text = importSuccessText({name: 'x', message_count: 3, skipped: 2});
+	assert.match(text, /3 messages/);
+	assert.match(text, /2 packets skipped \(not APDU-shaped\)/);
+	assert.doesNotMatch(importSuccessText({name: 'x', message_count: 3}), /skipped/);
+});
+
 test('loadSession stops a capture tolerantly', () => {
 	const body = extractFunc(src, 'loadSession');
 	assert.match(body, /await stopCaptureIfRunning\(\)/);

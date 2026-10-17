@@ -252,6 +252,22 @@ class TestMessageEncoding(unittest.TestCase):
         self.assertIn('01a40004023f00612a', pairs)
         self.assertIn('01c000002a' + FCP.lower() + '9000', pairs)
 
+    def test_get_response_keeps_extended_channel(self):
+        # Extended channels (4-19) are fetched with the further-interindustry
+        # CLA: channel 4 (command 0x60 = further + SM) becomes a plain 0x40,
+        # channel 12 (0x48) stays 0x48 (TS 102 221 §10.3).
+        extra = apdu(10, '60 A4 00 04', '3F 00', FCP)
+        msgs = rows_of(build_trace(extra=extra))
+        pairs = [(data.hex()) for _t, typ, data in msgs if typ == 'tpdu']
+        self.assertIn('60a40004023f00612a', pairs)
+        self.assertIn('40c000002a' + FCP.lower() + '9000', pairs)
+
+        extra = apdu(10, '48 A4 00 04', '3F 00', FCP)
+        msgs = rows_of(build_trace(extra=extra))
+        pairs = [(data.hex()) for _t, typ, data in msgs if typ == 'tpdu']
+        self.assertIn('48a40004023f00612a', pairs)
+        self.assertIn('48c000002a' + FCP.lower() + '9000', pairs)
+
     def test_continuation_rows_join(self):
         # A long outgoing block wraps onto rows with an empty description;
         # the parser must fold them back into the element's value.

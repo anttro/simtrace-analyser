@@ -1302,6 +1302,7 @@ function responseRows(resp) {
     if (resp.life_cycle) rows.push(['Life cycle', resp.life_cycle]);
     if (resp.file_size != null) rows.push(['File Size', resp.file_size + ' B']);
     if (resp.short_ef_id) rows.push(['Short EF ID', resp.short_ef_id]);
+    if (resp.channel != null) rows.push(['Assigned channel', resp.channel]);
 
     if (resp.type === 'GSM' || resp.type === '3G/EPS/5G') {
         rows.push(['Auth', resp.type + (resp.status ? ' (' + resp.status + ')' : '')]);
@@ -1710,6 +1711,24 @@ function atrPpsRows(decoded) {
             if (h.life_cycle) v += ' — ' + h.life_cycle;
             if (h.sw) v += ' (SW ' + h.sw + ')';
             rows.push(['Historical', v + ' · ' + h.raw]);
+            if (h.card_capabilities) {
+                const caps = h.card_capabilities;
+                const cv = [];
+                if (caps.max_channels != null) {
+                    cv.push('logical channels: ' + (typeof caps.max_channels === 'number'
+                        ? 'up to ' + caps.max_channels : caps.max_channels));
+                }
+                if (caps.channel_assignment && caps.channel_assignment.length) {
+                    cv.push('assigned ' + caps.channel_assignment.join(', '));
+                }
+                if (caps.command_chaining) cv.push('command chaining');
+                if (caps.extended_lc_le) cv.push('extended Lc/Le');
+                rows.push(['Card capabilities', cv.join(' · ') + (cv.length ? ' · ' : '') + caps.raw]);
+            }
+            if (h.objects && h.objects.length) {
+                const names = h.objects.map(o => o.name + (o.value ? ' (' + o.value + ')' : ''));
+                rows.push(['Historical objects', names.join(', ')]);
+            }
         }
         if (decoded.tck) {
             rows.push(['TCK', '0x' + decoded.tck + (decoded.tck_valid ? ' (valid)' : ' (mismatch)')]);
@@ -2780,6 +2799,10 @@ function importSuccessText(data) {
     if (data.time_base === 'application-layer') {
         text += ' · ' + t('exact timestamps (Application Layer)');
     }
+    if (data.skipped) {
+        text += ' · ' + t('{n} packets skipped (not APDU-shaped)')
+            .replace('{n}', data.skipped);
+    }
     return text;
 }
 
@@ -3168,7 +3191,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.5.0';
+const PWA_VERSION = '2.6.0';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3282,6 +3305,7 @@ const LANG_RU = {
     'This looks like a COMPRION export — use \'Import COMPRION trace\'.':
         'Похоже на экспорт COMPRION — используйте «Импорт трейсов COMPRION».',
     'exact timestamps (Application Layer)': 'точные метки времени (ISO Application Layer)',
+    '{n} packets skipped (not APDU-shaped)': 'пропущено пакетов (не APDU): {n}',
     'New capture': 'Новый захват',
     'Tiles': 'Плитки',
     'List': 'Список',

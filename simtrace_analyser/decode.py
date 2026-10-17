@@ -108,46 +108,84 @@ def decode_sw(raw_sw):
 
 # ──────────────────── CLA byte ────────────────────
 
+# ISO 7816-4 §5.1.1 (Tables 2/3) and TS 102 221 §10.1.1/§10.3: the logical
+# channel number lives in the CLA byte in two codings —
+#   * standard channels 0-3: the two least significant bits (CLA '0X',
+#     '8X' (UICC class) and 'AX' (SIM class), TS 102 221 Table 10.3);
+#   * extended channels 4-19: the four least significant bits plus four
+#     (CLA '01x0 xxxx' further interindustry and '11x0 xxxx' ETSI-defined,
+#     TS 102 221 Table 10.4a).
+_SM_NAMES = {0: 'none', 1: 'proprietary', 2: 'SM header not authenticated',
+             3: 'SM header authenticated'}
+_CHAIN_NAMES = {0: 'last or only', 1: 'first or continuing'}
+
+
+def cla_channel(cla):
+    """The logical channel number a CLA byte addresses (0-19, TS 102 221 §10.3)."""
+    if cla & 0x40:                     # b7: 01x0 xxxx / 11x0 xxxx codings
+        return (cla & 0x0F) + 4        # b4-b1 + 4 = extended channels 4-19
+    return cla & 0x03                  # b2-b1 = standard channels 0-3
+
+
 def decode_cla(cla):
-    if cla == 0x80:
+    if cla == 0xff:
+        interclass = 'invalid (ISO 7816-4)'
+    elif 0x80 <= cla <= 0x8f:
         interclass = 'ETSI-defined (UICC/USIM)'
-    elif cla == 0xa0:
+    elif 0xa0 <= cla <= 0xaf:
         interclass = 'ETSI-defined (SIM/GSM)'
+    elif 0xc0 <= cla <= 0xef:
+        interclass = 'ETSI-defined (extended logical channels)'
+    elif 0x40 <= cla <= 0x7f:
+        interclass = 'inter-industry (further format)'
+    elif 0x20 <= cla <= 0x3f:
+        interclass = 'reserved (ISO 7816-4)'
     elif cla & 0x80:
         interclass = 'proprietary'
-    elif (cla >> 6) & 0x03 == 0x00:
+    else:
         interclass = 'inter-industry (ISO 7816-4)'
-    elif (cla >> 6) & 0x03 == 0x01:
-        interclass = 'inter-industry (further format)'
-    else:
-        interclass = 'reserved'
-    if cla & 0x80:
-        # proprietary / ETSI-defined: no standard SM/chaining/channel coding
-        result = {
-            'hex': f'{cla:02x}',
-            'interclass': interclass,
-            'channel': cla & 0x03,
-            'secure_messaging': 'none',
-            'chain': 'last or only',
-        }
-    else:
-        # ISO 7816-4 §5.1.1 first/further interindustry
-        chain_bit = (cla >> 5) & 0x01
-        chain_names = {0: 'last or only', 1: 'first or continuing'}
-        sm_names = {0: 'none', 1: 'proprietary', 2: 'SM header not authenticated',
-                    3: 'SM header authenticated'}
-        sm_ind = (cla >> 3) & 0x03
-        channel = cla & 0x03
-        if (cla >> 6) & 0x03 == 0x01:
-            channel += 4  # further format: b4-b1 = channel + 4
-        result = {
-            'hex': f'{cla:02x}',
-            'interclass': interclass,
-            'channel': channel,
-            'secure_messaging': sm_names.get(sm_ind, 'none'),
-            'chain': chain_names.get(chain_bit, 'last or only'),
-        }
+
+    result = {
+        'hex': f'{cla:02x}',
+        'interclass': interclass,
+        'channel': cla_channel(cla),
+        'secure_messaging': 'n/a',
+        'chain': 'n/a',
+    }
+    if 0x00 <= cla <= 0x1f:
+        # First interindustry values: b5 chaining, b4-b3 SM, b2-b1 channel.
+        result['secure_messaging'] = _SM_NAMES[(cla >> 2) & 0x03]
+        result['chain'] = _CHAIN_NAMES[(cla >> 4) & 0x01]
+    elif 0x40 <= cla <= 0x7f:
+        # Further interindustry values: b6 SM, b5 chaining, b4-b1 channel.
+        result['secure_messaging'] = ('none' if not cla & 0x20
+                                      else 'SM header not authenticated')
+        result['chain'] = _CHAIN_NAMES[(cla >> 4) & 0x01]
+    elif 0x80 <= cla <= 0x8f or 0xa0 <= cla <= 0xaf:
+        # UICC/SIM classes (TS 102 221 Table 10.3/10.4): b4-b3 SM, b5 = 0.
+        result['secure_messaging'] = _SM_NAMES[(cla >> 2) & 0x03]
+        result['chain'] = 'last or only'
+    elif 0xc0 <= cla <= 0xef:
+        # Extended-channel classes (TS 102 221 Table 10.4a/10.4b): b6 SM,
+        # b5 = 0.
+        result['secure_messaging'] = ('none' if not cla & 0x20
+                                      else 'SM header not authenticated')
+        result['chain'] = 'last or only'
     return result
+
+
+def looks_like_apdu(data):
+    """Conservative sanity check for a captured TPDU byte string.
+
+    Rejects only shapes that cannot be a command APDU: anything shorter than
+    the 5-byte header, the invalid CLA 'FF' (ISO 7816-4 §5.1.1) and the
+    reserved '001x xxxx' class range.  Used by the capture/import paths to
+    drop non-APDU streams (mis-sampled or character-level GSMTAP capturers)
+    instead of storing them as decodable exchanges.
+    """
+    if not data or len(data) < 5:
+        return False
+    return not (data[0] == 0xFF or 0x20 <= data[0] <= 0x3F)
 
 
 # ──────────────────── Known FIDs ────────────────────
@@ -461,6 +499,7 @@ APDU_SPEC = {
     },
     0x70: {
         'name': 'MANAGE CHANNEL',
+        'le': True,
         'p1': {0x00: 'Open channel', 0x80: 'Close channel'},
         'p2': {0x00: 'Auto-assign channel', **{n: f'Channel {n}' for n in range(1, 20)}},
         'body': None,
@@ -3898,6 +3937,9 @@ def decode_message(raw_data, prev=None):
                 fcp = _decode_fcp(body)
                 if fcp:
                     result['response'] = fcp
+            elif ins == 0x70:  # MANAGE CHANNEL → the channel the card assigned
+                if p1 == 0x00 and cmd_body_len == 1:
+                    result['response'] = {'channel': body[0]}
             elif ins == 0x10:  # TERMINAL PROFILE → device characteristics
                 tp = _decode_terminal_profile(body)
                 if tp:
@@ -4201,26 +4243,149 @@ def atr_rate_fields(clk_hz, decoded):
     }
 
 
+# COMPACT-TLV data object names (ISO 7816-4 §8.1.1.2; the UICC always uses
+# this form — category indicator '80', TS 102 221 §6.3.1).
+_COMPACT_TLV_NAMES = {
+    0x1: 'Country or issuer indicator', 0x2: 'Issuer identification',
+    0x3: 'Card service data', 0x4: 'Initial access data',
+    0x5: "Card issuer's data", 0x6: 'Pre-issuing data',
+    0x7: 'Card capabilities', 0x8: 'Status indicator',
+    0xf: 'Application identifier',
+}
+# Card capabilities, first software function table (ISO 7816-4 §8.1.1.2.7
+# Table 86): selection methods.
+_CARD_CAP_SELECTION = [
+    (0x80, 'full DF name'), (0x40, 'partial DF name'), (0x20, 'by path'),
+    (0x10, 'by file identifier'), (0x08, 'implicit DF selection'),
+    (0x04, 'short EF identifier'), (0x02, 'record number'),
+    (0x01, 'record identifier'),
+]
+# ...second table (Table 87): b7-b6 the write behaviour.
+_CARD_CAP_WRITE = {0x00: 'one-time', 0x20: 'proprietary', 0x40: 'write OR',
+                   0x60: 'write AND'}
+
+
+def _decode_card_capabilities(value):
+    """Card capabilities on the compact TLV '7Y': up to three software
+    function tables (ISO 7816-4 §8.1.1.2.7) — selection methods, data
+    coding, and the chaining / length / logical-channels table."""
+    out = {'raw': value.hex().upper(), 'tables': len(value)}
+    if len(value) >= 1:
+        out['selection_methods'] = [name for bit, name in _CARD_CAP_SELECTION
+                                    if value[0] & bit]
+    if len(value) >= 2:
+        unit = value[1] & 0x0F
+        out['data_coding'] = {
+            'tlv_structure': bool(value[1] & 0x80),
+            'write': _CARD_CAP_WRITE.get(value[1] & 0x60, 'reserved'),
+            'ff_first_byte': bool(value[1] & 0x10),
+            'data_unit_bytes': 2 ** (unit - 1) if unit else None,
+        }
+    if len(value) >= 3:
+        t = value[2]
+        out['command_chaining'] = bool(t & 0x80)
+        out['extended_lc_le'] = bool(t & 0x40)
+        # b5 = assignment by the card, b4 = by the interface device, b3-b1
+        # y,z,t: 4y+2z+t+1 channels (all three set = eight or more).
+        assignment = []
+        if t & 0x10:
+            assignment.append('by the card')
+        if t & 0x08:
+            assignment.append('by the interface device')
+        out['channel_assignment'] = assignment
+        y, z, v = (t >> 2) & 1, (t >> 1) & 1, t & 1
+        out['max_channels'] = ('8 or more' if y and z and v
+                               else 4 * y + 2 * z + v + 1)
+    return out
+
+
+def _parse_compact_tlvs(data):
+    """Parse COMPACT-TLV objects: one byte = tag (b8-b5) and length (b4-b1),
+    then the value (ISO 7816-4 §8.1.1.2).  A truncated object is reported,
+    never invented."""
+    objects = []
+    i = 0
+    while i < len(data):
+        head = data[i]
+        tag, length = head >> 4, head & 0x0F
+        value = data[i + 1:i + 1 + length]
+        obj = {'tag': f'{tag:X}', 'length': length,
+               'name': _COMPACT_TLV_NAMES.get(tag, 'Reserved'),
+               'value': value.hex().upper()}
+        if len(value) < length:
+            obj['truncated'] = True
+        elif tag == 0x7:
+            obj['card_capabilities'] = _decode_card_capabilities(value)
+        elif tag == 0x3 and length == 1:
+            obj['card_service'] = {
+                'selection': [name for bit, name in
+                              ((0x80, 'full DF name'),
+                               (0x40, 'partial DF name')) if value[0] & bit],
+                'ber_tlv_in_dir': bool(value[0] & 0x20),
+                'ber_tlv_in_atr': bool(value[0] & 0x10),
+                'card_with_mf': not (value[0] & 0x01),
+            }
+        objects.append(obj)
+        i += 1 + length
+    return objects
+
+
+def _status_indicator(lcs, sw1, sw2):
+    """The card's status (life cycle + processing status), ISO 7816-4
+    §8.1.1.3: '00' is not reported."""
+    out = {}
+    if lcs:
+        name = _LIFE_CYCLE.get(lcs)
+        if name:
+            out['life_cycle'] = name
+    if sw1 is not None and sw2 is not None and (sw1 or sw2):
+        out['sw'] = f'{sw1:02X}{sw2:02X}'
+    return out
+
+
 def _decode_historical(hist):
-    """Decode ATR historical bytes (ISO 7816-4 §8.1.1)."""
+    """Decode ATR historical bytes (ISO 7816-4 §8.1.1).
+
+    Category '00' carries optional COMPACT-TLVs and a mandatory trailing
+    three-byte status indicator; '80' (the value a UICC always uses,
+    TS 102 221 §6.3.1) carries COMPACT-TLVs with an optional trailing '8Y'
+    status indicator; '10' carries the DIR data reference; the rest are
+    proprietary or reserved.
+    """
     result = {'raw': hist.hex().upper()}
     cat = hist[0]
-    if cat == 0x80 and len(hist) >= 3:
-        result['category'] = 'status information (life cycle)'
-        result['sw'] = f'{hist[1]:02X}{hist[2]:02X}'
-        life_cycle = _LIFE_CYCLE.get(hist[2])
-        if life_cycle:
-            result['life_cycle'] = life_cycle
-    elif cat == 0x8F:
-        result['category'] = 'TLV list'
-    elif 0x00 <= cat <= 0x7F or 0x90 <= cat <= 0x9F:
-        result['category'] = 'proprietary'
-    elif 0x81 <= cat <= 0x8E or 0xA0 <= cat <= 0xFE:
-        result['category'] = 'reserved'
-    elif cat == 0xFF:
-        result['category'] = 'default'
+    body = hist[1:]
+    if cat == 0x00:
+        result['category'] = 'COMPACT-TLV objects + status indicator'
+        if len(body) >= 3:
+            result.update(_status_indicator(body[-3], body[-2], body[-1]))
+            body = body[:-3]
+        result['objects'] = _parse_compact_tlvs(body)
+    elif cat == 0x80:
+        result['category'] = 'COMPACT-TLV objects'
+        objects = _parse_compact_tlvs(body)
+        result['objects'] = objects
+        if objects and objects[-1]['tag'] == '8' \
+                and not objects[-1].get('truncated'):
+            last = objects.pop()
+            value = bytes.fromhex(last['value'])
+            if last['length'] == 1:
+                result.update(_status_indicator(value[0], None, None))
+            elif last['length'] == 2:
+                result.update(_status_indicator(None, value[0], value[1]))
+            elif last['length'] == 3:
+                result.update(_status_indicator(*value))
+        for obj in objects:
+            if 'card_capabilities' in obj:
+                result['card_capabilities'] = obj['card_capabilities']
+    elif cat == 0x10:
+        result['category'] = 'DIR data reference'
+        if body:
+            result['dir_reference'] = f'{body[0]:02X}'
+    elif 0x81 <= cat <= 0x8f:
+        result['category'] = 'reserved (ISO 7816-4)'
     else:
-        result['category'] = f'0x{cat:02X}'
+        result['category'] = 'proprietary'
     return result
 
 
@@ -4266,6 +4431,12 @@ def _decode_atr(data, clk_hz=None):
     cur_t = None  # protocol T governing the TA/TB/TC bytes at this level (None = global)
 
     while flags and i < len(body):
+        # The interface bytes indicated by b5-b8 of the previous byte must
+        # all fit; a truncated ATR (a mis-sampled capture) stops here
+        # instead of raising.
+        if i + bin(flags >> 4).count('1') > len(body):
+            result['truncated'] = True
+            break
         if flags & 0x10:  # TA
             b = body[i]
             i += 1
