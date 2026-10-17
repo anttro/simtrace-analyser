@@ -324,8 +324,14 @@ test('Files view: the hex image respects the row limit', () => {
 	assert.equal(view.end, 64);
 });
 
-test('Files view: side-panel dropdown and the timeline are wired', () => {
+test('Files view: the view selector (topbar) and the timeline are wired', () => {
 	assert.match(src, /<select class="side-view-select" id="side-view-select"[^>]*>/);
+	// The selector is a topbar control (before the two-column trace area), so
+	// it stays visible while the side panel scrolls.
+	const topbar = src.indexOf('<div class="trace-topbar">');
+	const sel = src.indexOf('id="side-view-select"');
+	const main = src.indexOf('<div class="trace-main">');
+	assert.ok(topbar >= 0 && topbar < sel && sel < main, 'selector in the topbar');
 	assert.match(src, /<option value="files" data-l10n="Files">/);
 	assert.doesNotMatch(src, /class="side-tab/);
 	assert.match(src, /id="file-view"/);

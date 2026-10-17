@@ -199,8 +199,10 @@ in the stored wire shape and are skipped with a note in the import report.
 
 ### Files view (per-file tracking)
 
-The Trace tab's side panel has a view selector (*Map* / *Stats* / **Files**;
-a drop-down, since three tab captions no longer fit).  The Files view is a
+The Trace tab has a view selector (*Map* / *Stats* / **Files**) in its topbar,
+right-aligned over the side panel with the panel's width, so it stays visible
+while the panel scrolls (a drop-down, since three tab captions no longer
+fit).  The Files view is a
 trace-wide timeline of file operations — every **Read**, **Update** and
 **Changed on card** row shows the same file name as the Map view, and clicking
 a row jumps straight to the APDU in the trace and leaves it highlighted

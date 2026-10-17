@@ -9,6 +9,11 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <meta name="theme-color" content="#0f172a">
 <style>
+:root {
+    /* Layout sizes (theme-independent) */
+    --side-panel-w: 260px;
+}
+
 :root, [data-theme="dark"] {
     --bg: #0f172a;
     --bg-panel: #1e293b;
@@ -104,10 +109,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 
 /* Trace view */
 .trace-topbar { display: flex; gap: 12px; padding: 12px 16px; background: var(--bg-panel); align-items: center; flex-shrink: 0; }
-.trace-topbar input { flex: 0 1 33.333%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
+.trace-topbar input { flex: 0 1 16.667%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
 .trace-topbar input::placeholder { color: var(--text-muted); }
 .trace-topbar select { padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
 .trace-topbar .filter-label { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.trace-topbar #session-name-display { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trace-topbar button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
 .trace-topbar button:hover { background: var(--accent-hover); }
 .trace-topbar button.stop { background: var(--danger); color: #fff; }
@@ -171,7 +177,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .detail-body td.name { color: var(--accent); font-weight: 600; }
 
 /* Side panel */
-.side-panel { width: 260px; background: var(--bg-panel); padding: 12px; overflow-y: auto; flex-shrink: 0; border-left: 1px solid var(--bg-input); }
+.side-panel { width: var(--side-panel-w); background: var(--bg-panel); padding: 12px; overflow-y: auto; flex-shrink: 0; border-left: 1px solid var(--bg-input); }
 .side-panel h3 { color: var(--accent); margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
 .side-item { display: flex; justify-content: space-between; padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; }
 .side-item:hover { background: var(--bg-input); }
@@ -179,8 +185,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .side-tabs { display: flex; margin-bottom: 8px; border-bottom: 1px solid var(--bg-input); }
 .side-tab { flex: 1; padding: 6px 0; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid transparent; }
 .side-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.side-view-select { width: 100%; margin-bottom: 8px; padding: 6px 8px; background: var(--bg-input); color: var(--text);
-    border: 1px solid var(--border); border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+/* Side-panel view selector: it lives in the trace topbar, right-aligned over
+   the side panel with the panel's width, so it stays visible while the panel
+   scrolls.  The negative right margin cancels the topbar's 16px padding, so
+   its right edge lines up with the panel's. */
+.trace-topbar .side-view-select { width: var(--side-panel-w); flex: 0 0 auto; margin-left: auto; margin-right: -16px; }
 .file-op { display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; word-break: break-word; }
 .file-op:hover { background: var(--bg-input); }
 .file-op-read { color: var(--text-muted); }
@@ -330,7 +339,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <div class="header-tab" data-tab="sessions" data-l10n="Sessions">Sessions</div>
         <div class="header-tab" data-tab="settings" data-l10n="Settings">Settings</div>
     </div>
-    <div class="header-title">UICC <a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> <span data-l10n="trace analyser">trace analyser</span> <span class="pwa-version" id="pwa-version"></span></div>
+    <div class="header-title"><a href="https://osmocom.org/projects/baseband/wiki/GSMTAP" target="_blank" rel="noopener">GSMTAP</a> <span data-l10n="trace analyser">trace analyser</span> <span class="pwa-version" id="pwa-version"></span></div>
     <div class="header-right">
         <span class="capture-chip" id="capture-chip" style="display:none"></span>
         <button id="install-btn" data-l10n="Install PWA">Install PWA</button>
@@ -348,6 +357,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
         <option value="" data-l10n="All commands">All commands</option>
     </select>
     <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:15px; font-weight:700;"></span>
+    <select class="side-view-select" id="side-view-select" aria-label="Side panel view">
+        <option value="map" data-l10n="Map">Map</option>
+        <option value="stats" data-l10n="Stats">Stats</option>
+        <option value="files" data-l10n="Files">Files</option>
+    </select>
 </div>
     <div class="trace-main">
         <div class="trace-left">
@@ -358,11 +372,6 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
             </div>
         </div>
         <div class="side-panel" id="side-panel">
-            <select class="side-view-select" id="side-view-select" aria-label="Side panel view">
-                <option value="map" data-l10n="Map">Map</option>
-                <option value="stats" data-l10n="Stats">Stats</option>
-                <option value="files" data-l10n="Files">Files</option>
-            </select>
             <div id="type-counts">—</div>
             <div id="type-map" style="display:none">—</div>
             <div id="file-view" style="display:none">—</div>
@@ -3216,7 +3225,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.6.2';
+const PWA_VERSION = '2.6.3';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
