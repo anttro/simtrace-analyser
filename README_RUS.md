@@ -73,7 +73,12 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
   TERMINAL RESPONSE, ENVELOPE и AUTH-команды выделяются в режиме карты
 - Сессии с прямыми ссылками (`#session=N`), импорт PCAP
   (`.pcap/.pcapng/.cap`), импорт трасс COMPRION (текстовый экспорт
-  «ISO Protocol Layer» из Device Manager), поиск и фильтрация по типу
+  «ISO Protocol Layer» из Device Manager), поиск и **фильтр команд с
+  множественным выбором** — любые команды и/или готовые пресеты («Проактивные
+  сессии»: FETCH, TERMINAL PROFILE и все команды с ответом SW 91xx;
+  «Проактивные + события»: то же плюс ENVELOPE; «Файловые операции»: SELECT,
+  READ/UPDATE BINARY и READ/UPDATE RECORD, вместе с GET RESPONSE, несущим
+  данные выбранной команды)
 - Устанавливаемая PWA, тёмная тема, интерфейс на английском/русском
 
 ## Требования

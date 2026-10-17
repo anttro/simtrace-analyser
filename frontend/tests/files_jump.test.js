@@ -15,6 +15,7 @@ let renders = [];
 let focused = [];
 let el = () => ({});
 let showDetail = () => {};
+function renderFilterMenu() {}   // the real one needs the menu DOM
 function renderMessages(skipScroll, forceStick) {
 	renders.push([skipScroll, forceStick]);
 }
@@ -27,7 +28,8 @@ eval(
 );
 // The real focusMessage, under an alias: the stub above stays in place for
 // the jumpToMessage tests.
-eval('var realFocusMessage = ' + extractFunc(src, 'focusMessage') + ';');
+eval(extractFunc(src, 'clearFilter') + '\n' +
+	'var realFocusMessage = ' + extractFunc(src, 'focusMessage') + ';');
 
 test('jumpToMessage pages, renders without stick-to-bottom, then focuses', async () => {
 	renders = [];
@@ -97,7 +99,8 @@ test('focusMessage marks the record persistently and updates the detail', () => 
 		classList: { add: c => classes.add(c), remove: c => classes.delete(c) },
 		scrollIntoView: () => {},
 	};
-	STATE = { messages: [{ id: 'a' }, { id: 'b' }], selectedIdx: 0 };
+	STATE = { messages: [{ id: 'a' }, { id: 'b' }], selectedIdx: 0,
+		filter: new Set() };
 	el = () => ({ value: '', querySelector: () => entry });
 	let detailed = null;
 	showDetail = (msg, e) => { detailed = [msg, e]; };
@@ -116,12 +119,15 @@ test('focusMessage clears a filter before focusing', () => {
 		classList: { add: () => {}, remove: () => {} },
 		scrollIntoView: () => {},
 	};
-	STATE = { messages: {}, selectedIdx: null };
+	STATE = { messages: {}, selectedIdx: null,
+		filter: new Set(['cmd:SELECT']) };
 	el = () => ({ value: 'x', querySelector: () => entry });
 	showDetail = () => {};
 	realFocusMessage(3);
 	assert.deepEqual(renders, [[true, undefined]]);
 	assert.equal(STATE.selectedIdx, 3);
+	// The stale filter is gone, so the focused record is visible.
+	assert.equal(STATE.filter.size, 0);
 });
 
 test('the selection persists across renders (source pins)', () => {

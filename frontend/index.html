@@ -121,6 +121,24 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .trace-topbar button.connect { background: var(--warn); color: #0f172a; }
 .trace-topbar button.connect:hover { background: var(--warn-hover); }
 .trace-topbar button.disabled { background: var(--bg-input); color: var(--text-muted); cursor: not-allowed; opacity: 0.6; }
+
+/* Command filter: a button + a checkbox dropdown (presets and commands) */
+.filter-dropdown { position: relative; }
+#filter-btn { background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 8px 12px; cursor: pointer; font-weight: 400;
+    max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#filter-btn:hover { background: var(--border); }
+.filter-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 260px;
+    max-height: 60vh; overflow-y: auto; padding: 6px; background: var(--bg-panel);
+    border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 8px 24px var(--modal-bg); }
+.filter-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px;
+    cursor: pointer; font-size: 13px; white-space: nowrap; }
+.filter-item:hover { background: var(--bg-input); }
+.filter-item input { margin: 0; cursor: pointer; }
+.filter-item .filter-count { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+.filter-menu .filter-heading { margin: 6px 8px 2px; color: var(--text-muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 1px; }
+.filter-sep { height: 1px; margin: 6px 4px; background: var(--border); }
 .trace-main { display: flex; flex: 1; overflow: hidden; }
 .trace-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -352,10 +370,11 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <div class="trace-topbar">
     <button id="capture-btn" data-l10n="Start Capture">Start Capture</button>
     <input type="text" id="search-input" data-l10n="Search hex bytes..." placeholder="Search hex bytes..." autocomplete="off">
-    <label for="filter-select" class="filter-label" data-l10n="Filter">Filter</label>
-    <select id="filter-select">
-        <option value="" data-l10n="All commands">All commands</option>
-    </select>
+    <span class="filter-label" data-l10n="Filter">Filter</span>
+    <div class="filter-dropdown" id="filter-dropdown">
+        <button type="button" id="filter-btn" aria-haspopup="true" aria-expanded="false">All commands</button>
+        <div class="filter-menu" id="filter-menu" role="group" aria-label="Filter" style="display:none"></div>
+    </div>
     <span id="session-name-display" style="display:none; color:var(--text-muted); font-size:15px; font-weight:700;"></span>
     <select class="side-view-select" id="side-view-select" aria-label="Side panel view">
         <option value="map" data-l10n="Map">Map</option>
@@ -515,6 +534,7 @@ const STATE = {
     livePoller: null,
     messages: [],
     selectedIdx: null,     // the focused APDU entry (persists across renders)
+    filter: new Set(),     // command-filter entries (empty = all commands)
     typeCounts: [],
     traceMap: [],
     sideView: 'map',
@@ -2320,20 +2340,107 @@ function mapFilesHtml(g) {
     return `<span class="map-files-toggle" data-start="${g.start}">${label} <span class="map-arrow">${expanded ? '▾' : '▸'}</span></span>`;
 }
 
-function populateFilterOptions() {
-    const sel = el('filter-select');
+// ──────────────────── Command filter ────────────────────
+// The filter holds a set of entries — a conversation preset or a single
+// command label ("cmd:<label>") — and an empty set means "all commands".
+const FILTER_PRESETS = [
+    {
+        id: 'preset:proactive', name: 'Proactive sessions',
+        // FETCH / TERMINAL PROFILE plus every proactive-session initiator:
+        // a command the card answers with SW 91xx.
+        labels: ['FETCH: ANY PROACTIVE', 'TERMINAL PROFILE'],
+        test: m => _sw1(m) === 0x91,
+    },
+    {
+        id: 'preset:proactive-events', name: 'Proactive + events',
+        labels: ['FETCH: ANY PROACTIVE', 'TERMINAL PROFILE', 'ENVELOPE'],
+        test: m => _sw1(m) === 0x91,
+    },
+    {
+        id: 'preset:files', name: 'File operations',
+        labels: ['SELECT', 'READ BINARY', 'READ RECORD', 'UPDATE BINARY',
+                 'UPDATE RECORD'],
+        test: m => ['a4', 'b0', 'b2', 'd6', 'dc'].includes(_ins_hex(m)),
+    },
+];
+
+function _sw1(m) {
+    const sw = (m.decoded || {}).sw;
+    return sw && sw.sw1 ? parseInt(sw.sw1, 16) : null;
+}
+
+function filterPreset(id) {
+    return FILTER_PRESETS.find(p => p.id === id) || null;
+}
+
+function filterEntryName(entry) {
+    const p = filterPreset(entry);
+    return p ? t(p.name) : entry.slice(4);
+}
+
+function filterSummary() {
+    if (!STATE.filter.size) return t('All commands');
+    if (STATE.filter.size === 1) return filterEntryName([...STATE.filter][0]);
+    return t('{n} commands').replace('{n}', STATE.filter.size);
+}
+
+let _filterMenuSig = null;
+
+// Rebuild the dropdown's rows (presets, then every command seen in the
+// session with its count).  The DOM is only rewritten when the command set
+// changed or the menu is open; the summary button always follows the state.
+function renderFilterMenu(force) {
+    const menu = el('filter-menu');
+    if (!menu) return;
     const counts = {};
     for (const m of STATE.messages) {
         const lbl = filter_label(m);
         counts[lbl] = (counts[lbl] || 0) + 1;
     }
     const keys = Object.keys(counts).sort((a, b) => a.localeCompare(b));
-    const existing = Array.from(sel.options).slice(1).map(o => o.value);
-    if (existing.length === keys.length && existing.every((k, i) => k === keys[i])) return;
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">' + t('All commands') + '</option>' +
-        keys.map(k => `<option value="${escapeHtml(k).replace(/"/g, '&quot;')}">${escapeHtml(k)}</option>`).join('');
-    sel.value = keys.includes(cur) ? cur : '';
+    const sig = keys.join('\n');
+    if (!force && menu.style.display === 'none' && sig === _filterMenuSig) {
+        el('filter-btn').textContent = filterSummary();
+        return;
+    }
+    _filterMenuSig = sig;
+    const item = (value, label, checked, count) =>
+        `<label class="filter-item"><input type="checkbox" data-filter="${escapeHtml(value)}"` +
+        `${checked ? ' checked' : ''}> ${escapeHtml(label)}` +
+        `${count === undefined ? '' : `<span class="filter-count">${count}</span>`}</label>`;
+    menu.innerHTML = [
+        item('all', t('All commands'), !STATE.filter.size),
+        `<div class="filter-heading">${t('Presets')}</div>`,
+        ...FILTER_PRESETS.map(p => item(p.id, t(p.name), STATE.filter.has(p.id))),
+        '<div class="filter-sep"></div>',
+        `<div class="filter-heading">${t('Commands')}</div>`,
+        ...keys.map(k => item('cmd:' + k, k, STATE.filter.has('cmd:' + k),
+                              counts[k])),
+    ].join('');
+    el('filter-btn').textContent = filterSummary();
+}
+
+function toggleFilterMenu(force) {
+    const menu = el('filter-menu');
+    if (!menu) return;
+    const open = force === undefined ? menu.style.display === 'none' : !!force;
+    if (open) renderFilterMenu(true);
+    menu.style.display = open ? '' : 'none';
+    el('filter-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function setFilterEntry(entry, on) {
+    if (entry === 'all') STATE.filter.clear();
+    else if (on) STATE.filter.add(entry);
+    else STATE.filter.delete(entry);
+    renderFilterMenu(true);
+    renderMessages();
+}
+
+function clearFilter() {
+    if (!STATE.filter.size) return;
+    STATE.filter.clear();
+    renderFilterMenu(true);
 }
 
 function scrollToType(typeKey) {
@@ -2356,10 +2463,9 @@ function scrollToType(typeKey) {
 }
 
 function focusMessage(idx) {
-    const filterEl = el('filter-select');
     const searchEl = el('search-input');
-    const needRender = filterEl.value !== '' || searchEl.value !== '';
-    filterEl.value = '';
+    const needRender = STATE.filter.size > 0 || searchEl.value !== '';
+    clearFilter();
     searchEl.value = '';
     // The focused entry stays selected until another one is focused; the
     // state lets a re-render (the live poll included) keep it marked.
@@ -2382,13 +2488,29 @@ function isOriginalCommand(i) {
     return false;
 }
 
-function matchesFilter(m, i, filterType) {
-    if (!filterType) return true;
-    if (filter_label(m) === filterType) return true;
+function matchesFilter(m, i, filterSet) {
+    if (!filterSet || !filterSet.size) return true;
+    const label = filter_label(m);
     const d = m.decoded;
     const isGR = m.type === 'tpdu' && d && d.ins_name === 'GET RESPONSE';
-    if (isGR && d.response_for === filterType) return true;
-    if (filterType === 'GET RESPONSE' && isOriginalCommand(i)) return true;
+    const origin = isGR ? d.response_for : null;
+    for (const entry of filterSet) {
+        const preset = filterPreset(entry);
+        if (preset) {
+            // A preset covers the commands it names and the rows its rule
+            // matches (SW 91xx / the file-operation INS set); the GET
+            // RESPONSE that carries a selected command's data comes along.
+            if (preset.test(m) || preset.labels.includes(label) ||
+                (origin && preset.labels.includes(origin))) return true;
+            continue;
+        }
+        const want = entry.slice(4);
+        if (want === label) return true;
+        // A GET RESPONSE belongs to the command that fetched it; selecting
+        // GET RESPONSE also shows those commands.
+        if (origin && want === origin) return true;
+        if (want === 'GET RESPONSE' && isOriginalCommand(i)) return true;
+    }
     return false;
 }
 
@@ -2429,12 +2551,12 @@ function renderMessages(skipScroll, forceStick) {
     // scrollHeight, which would hide the fact that the reader was at the end.
     const stick = shouldStickToBottom(list, skipScroll, forceStick);
     const searchQ = el('search-input').value.toLowerCase();
-    const filterType = el('filter-select').value;
+    const filterSet = STATE.filter;
 
     const filtered = [];
     for (let i = 0; i < STATE.messages.length; i++) {
         const m = STATE.messages[i];
-        if (!matchesFilter(m, i, filterType)) continue;
+        if (!matchesFilter(m, i, filterSet)) continue;
         if (searchQ && !m.data.toLowerCase().includes(searchQ)) continue;
         filtered.push({ m, idx: i });
     }
@@ -2442,7 +2564,7 @@ function renderMessages(skipScroll, forceStick) {
     buildTypeCounts();
     buildTraceMap();
     renderSidePanel();
-    populateFilterOptions();
+    renderFilterMenu();
 
     if (!STATE.captureActive && !STATE.sessionViewId) {
         renderTraceEmptyState();
@@ -3221,12 +3343,8 @@ function onSearchChange() {
     _searchTimer = setTimeout(renderMessages, 200);
 }
 
-function onFilterChange() {
-    renderMessages();
-}
-
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.6.5';
+const PWA_VERSION = '2.7.0';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3261,6 +3379,12 @@ const LANG_RU = {
     'Install PWA': 'Установить PWA',
     'Search hex bytes...': 'Поиск по данным (hex)...',
     'All commands': 'Все команды',
+    'Presets': 'Пресеты',
+    'Commands': 'Команды',
+    'Proactive sessions': 'Проактивные сессии',
+    'Proactive + events': 'Проактивные + события',
+    'File operations': 'Файловые операции',
+    '{n} commands': 'команд: {n}',
     'Filter': 'Фильтр',
     'Start Capture': 'Начать захват',
     'Stop Capture': 'Остановить захват',
@@ -3586,7 +3710,17 @@ function init() {
     $on('view-list-btn', 'click', () => toggleSessionView('list'));
 
     $on('search-input', 'input', onSearchChange);
-    $on('filter-select', 'change', onFilterChange);
+    $on('filter-btn', 'click', () => toggleFilterMenu());
+    $on('filter-menu', 'change', e => {
+        const box = e.target.closest('input[data-filter]');
+        if (box) setFilterEntry(box.dataset.filter, box.checked);
+    });
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#filter-dropdown')) toggleFilterMenu(false);
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') toggleFilterMenu(false);
+    });
 
     $on('server-source', 'change', () => {
         if (el('server-source').value === 'same') {
