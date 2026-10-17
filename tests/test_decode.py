@@ -323,10 +323,14 @@ class TestFcpResponse(unittest.TestCase):
         self.assertIsNone(fcp['sfi'])
 
     def test_fcp_sfi_absent_uses_fid_lsbs(self):
-        # No SFI tag → SFI = 5 LSBs of the FID (TS 102 221 §11.1.2).
+        # No SFI tag → SFI = 5 LSBs of the FID (TS 102 221 §11.1.1.4.8).
         from simtrace_analyser.decode import _decode_fcp
         fcp = _decode_fcp(bytes.fromhex('8202412183022f06'))
         self.assertEqual(fcp['sfi'], 0x06)
+        # …but only for an EF: a DF/ADF's FCP carries no SFI.
+        df = _decode_fcp(bytes.fromhex('82017883025f3a'))
+        self.assertEqual(df['file_descriptor']['file_type'], 'DF or ADF')
+        self.assertNotIn('sfi', df)
 
     def test_fcp_summary_transparent(self):
         # GET RESPONSE (FCP) for a transparent EF of 9 bytes

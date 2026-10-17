@@ -1472,8 +1472,13 @@ def _decode_fcp(data):
         elif tag == 0xAB:
             result['security_attr_template'] = value.hex().upper()
     if not sfi_seen and fid:
-        sfi = int(fid, 16) & 0x1F
-        result['sfi'] = sfi if 1 <= sfi <= 30 else None
+        # TS 102 221 §11.1.1.4.8: without the '88' DO the SFI is the file
+        # identifier's five least-significant bits — an EF rule; a DF/ADF's
+        # FCP has no SFI at all.
+        ft = (result.get('file_descriptor') or {}).get('file_type')
+        if ft != 'DF or ADF':
+            sfi = int(fid, 16) & 0x1F
+            result['sfi'] = sfi if 1 <= sfi <= 30 else None
     return result
 
 

@@ -42,6 +42,7 @@ from .database import _SUCCESS_SW1
 from .decode import (DF_CHILDREN, KNOWN_FIDS, _file_name, _is_df_fid,
                      select_target_fid, selected_df_fid, selected_df_state,
                      sfi_table)
+from .pbr import parse_pbr_record
 
 IMAGE_CAP = 64 * 1024      # observed bytes kept per file
 EVENTS_CAP = 1000          # change events kept per file
@@ -250,6 +251,7 @@ class FileTracker:
         self.files = {}            # key -> _FileEntry
         self.timeline = []         # one item per read/update/card change
         self.sfi_relations = {}    # df -> {sfi: fid}
+        self.pb_names = {}         # df -> {fid: EF_*} from the card's EF_PBR
         self.aid_labels = {}       # AID (upper hex) -> application label
         self._index = 0
         self._pending_read = {}    # channel -> {'d', 'df'} read awaiting its data
@@ -287,7 +289,8 @@ class FileTracker:
             # A file first seen via its FCP (or an operation whose decode had
             # no name) still gets its DF-scoped dictionary name.
             entry = _FileEntry(key, df, fid,
-                               (name or _file_name(fid, df)) if fid else '?',
+                               (name or self.pb_names.get(df, {}).get(fid)
+                                or _file_name(fid, df)) if fid else '?',
                                image_cap=self._image_cap, df_path=df_path)
             self.files[key] = entry
         elif df_path and len(df_path) > len(entry.df_path) and \
@@ -476,7 +479,34 @@ class FileTracker:
                        if idx is not None else None)
         else:
             self._push('read', entry, index, msg, record=record)
+        self._observe_pbr(df, fid, data)
         self._note_dir_content(d)
+
+    def _observe_pbr(self, df, fid, data):
+        """Learn the phonebook structure from an EF_PBR record.
+
+        The card declares each phonebook file's FID, its role (EF_ADN, EF_PBC,
+        …) and — when the object is three bytes long — its SFI
+        (TS 31.102 §4.4.2.1); the files then get their symbolic names and the
+        SFI relations resolve without waiting for an FCP.
+        """
+        if fid != '4f30' or not data:
+            return
+        parsed = parse_pbr_record(bytes(data))
+        if not parsed['groups']:
+            return
+        names = self.pb_names.setdefault(df, {})
+        for group in parsed['groups']:
+            for item in group['files']:
+                if 'fid' not in item:
+                    continue
+                names[item['fid']] = item['name']
+                if item.get('sfi'):
+                    self._learn_sfi(df, item['sfi'], item['fid'])
+                entry = self.files.get((df, item['fid']))
+                if entry is not None and entry.name in (entry.fid,
+                                                        entry.fid.upper()):
+                    entry.name = item['name']
 
     def _observe_write(self, d, df, index, msg, df_path=None):
         data = _body_bytes(d)
@@ -502,6 +532,7 @@ class FileTracker:
                 change_ref = {'file': _key_str(entry.key), 'idx': idx}
         self._push('update', entry, index, msg, record=record, change_ref=change_ref,
                    no_change=(not diffs and compared_all))
+        self._observe_pbr(df, fid, data)
 
     # -- helpers ---------------------------------------------------------
 

@@ -560,6 +560,37 @@ class TestDfChain(TrackerCase):
         self.assertEqual(entry['n_records'], 100)
 
 
+class TestPbrNames(TrackerCase):
+    def test_pbr_names_the_phonebook_files(self):
+        # The card's EF_PBR declares the phonebook files' FIDs, roles and SFIs
+        # (TS 31.102 §4.4.2.1): 4FA1 = EF_PBC with SFI 4.
+        pbr_rec = 'a80ac0034f3a02c5034fa104aa0ac2034f4a06cb034f4f07'
+        data = self.track(
+            sel_path('7f105f3a'), gr(fcp('5f3a')),
+            sel_fid('4f30'), gr(fcp('4f30', rec_len=24, n_rec=1)),
+            read_record(1, pbr_rec),
+            sel_fid('4fa1'), gr(fcp('4fa1', rec_len=44, n_rec=100)),
+        )
+        entry = data['files']['5f3a/4fa1']
+        self.assertEqual(entry['name'], 'EF_PBC')
+        self.assertEqual(entry['path'],
+                         'DF_TELECOM/DF_PHONEBOOK/EF_PBC (4FA1)')
+        # The PBR's SFI feeds the DF's SFI relation map.
+        self.assertEqual(data['sfi_relations'].get('5f3a', {}).get('4'), '4fa1')
+
+    def test_pbr_name_upgrades_an_earlier_placeholder(self):
+        # A file seen before its PBR record is named once the record arrives.
+        pbr_rec = 'a80ac0034f3a02c5034fa104aa0ac2034f4a06cb034f4f07'
+        data = self.track(
+            sel_path('7f105f3a'), gr(fcp('5f3a')),
+            sel_fid('4fa1'), gr(fcp('4fa1', rec_len=44, n_rec=100)),
+            sel_fid('4f30'), gr(fcp('4f30', rec_len=24, n_rec=1)),
+            read_record(1, pbr_rec),
+        )
+        entry = data['files']['5f3a/4fa1']
+        self.assertEqual(entry['name'], 'EF_PBC')
+
+
 class TestFilePath(unittest.TestCase):
     def test_paths(self):
         from simtrace_analyser.filetrack import _file_path

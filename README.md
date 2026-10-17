@@ -228,6 +228,15 @@ and the bytes the operation first observed in another, the changed/new byte
 counts, the APDU reference and a colour legend below the views that lists only
 the marks actually shown.
 
+Phonebook files have issuer-assigned FIDs, so the dictionary cannot name
+them: when the trace carries the card's **EF_PBR** records, they are decoded
+(TS 31.102 §4.4.2.1 — the `A8`/`A9`/`AA` type groups and the `C0`…`CC`
+primitive tags, each with its FID and, for a three-byte object, its SFI) and
+the Files view names the files from the card's own declaration — e.g.
+`DF_TELECOM/DF_PHONEBOOK/EF_PBC (4FA1)` — while the declared SFIs feed the
+DF's SFI→FID map (the `88`-less FCP fallback of TS 102 221 §11.1.1.4.8 still
+applies for other files).
+
 The images come from `GET /api/sessions/<id>/files/image?key=…&change=…` and
 are reconstructed from the current image by undoing the later changes
 (`filetrack.FileTracker.change_images`) — nothing is duplicated per event.
