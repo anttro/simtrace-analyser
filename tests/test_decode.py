@@ -1782,6 +1782,53 @@ class TestSelectionTracking(unittest.TestCase):
             self.assertEqual(msgs[3]['decoded']['cla']['channel'], 8)
             self.assertEqual(msgs[5]['decoded']['cla']['channel'], 12)
 
+    def test_pbr_sfi_resolves_after_the_pbr_read(self):
+        # The card declares the phonebook SFIs in EF_PBR (TS 31.102 §4.4.2.1:
+        # FID + SFI per primitive tag).  A SEARCH RECORD addressed by SFI 2
+        # after the PBR read must resolve to the declared file (EF_ADN 4F3A)
+        # even though nothing selected it and no FCP carried its '88' DO.
+        import tempfile
+        from simtrace_analyser.database import Database
+        with tempfile.NamedTemporaryFile(suffix='.db') as tmp:
+            db = Database(tmp.name)
+            sid = db.create_session('capture')
+            db.insert_message(sid, 0.0, 'tpdu',
+                              bytes.fromhex('00a40804047f105f3a6102'))
+            db.insert_message(sid, 0.1, 'tpdu',
+                              bytes.fromhex('00c0000008' +
+                                            '62088202412183025f3a' + '9000'))
+            db.insert_message(sid, 0.2, 'tpdu',
+                              bytes.fromhex('00a40000024f306102'))
+            db.insert_message(sid, 0.3, 'tpdu',
+                              bytes.fromhex('00c000000b' +
+                                            '620b8205422100180183024f30' +
+                                            '9000'))
+            db.insert_message(sid, 0.4, 'tpdu',
+                              bytes.fromhex('00b2010418' +
+                                            'a80ac0034f3a02c5034fa104'
+                                            'aa0ac2034f4a06cb034f4f07' +
+                                            '9000'))
+            # Leave DF_PHONEBOOK and come back (the live trace does this):
+            # the learned SFI relations must survive the excursion.
+            db.insert_message(sid, 0.5, 'tpdu',
+                              bytes.fromhex('00a40804047f106f066102'))
+            db.insert_message(sid, 0.6, 'tpdu',
+                              bytes.fromhex('00c000000b' +
+                                            '620b82054221004b0183026f06' +
+                                            '9000'))
+            db.insert_message(sid, 0.7, 'tpdu',
+                              bytes.fromhex('00a40804047f105f3a6120'))
+            db.insert_message(sid, 0.8, 'tpdu',
+                              bytes.fromhex('00c0000008' +
+                                            '620882013883025f3a' +
+                                            '9000'))
+            db.insert_message(sid, 0.9, 'tpdu',
+                              bytes.fromhex('00a2011427' + 'ff' * 39 +
+                                            '9000'))
+            search = db.get_messages(sid)[9]['decoded']
+            self.assertEqual(search['p2']['sfi'], 2)
+            self.assertEqual(search['file'], {'fid': '4f3a', 'ef': '4F3A'})
+
     def test_manage_channel_opens_use_their_channel(self):
         # The MANAGE CHANNEL open/close exchanges themselves run on the
         # basic channel; a later extended-channel command must not disturb it.

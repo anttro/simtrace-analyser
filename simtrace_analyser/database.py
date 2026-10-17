@@ -296,6 +296,7 @@ class Database:
             "ORDER BY id DESC LIMIT 500",
             (session_id, before_id)).fetchall()
         states = {}
+        learned = {}          # df -> {sfi: fid} learned this session
         clk_hz = None
         for data, typ in reversed(rows):
             if typ in ('atr', 'change', 'gap'):
@@ -320,13 +321,19 @@ class Database:
                 continue
             (st['sel'], st['df'], st['sfi_map'],
              st['df_path']) = self._advance_state(d, st['sel'], st['df'],
-                                                  st['sfi_map'], st['df_path'])
+                                                  st['sfi_map'], st['df_path'],
+                                                  learned)
             st['prev'] = self._context_from_decoded(d)
         return states, clk_hz
 
-    def _advance_state(self, d, sel, df, sfi_map, df_path=None):
-        """Update (sel, df, sfi_map, df_path) for one decoded TPDU."""
+    def _advance_state(self, d, sel, df, sfi_map, df_path=None, learned=None):
+        """Update (sel, df, sfi_map, df_path) for one decoded TPDU.
+
+        *learned* caches the session's SFI→FID relations per DF (from the
+        FCPs' '88' DO and the card's EF_PBR), so leaving the DF and coming
+        back does not forget them."""
         from .decode import selected_df_state, sfi_table, KNOWN_FIDS
+        from .pbr import parse_pbr_record
         new_df, new_path = selected_df_state(d, df, df_path)
         if new_df is not None and new_df != df:
             # Only a successful SELECT changes the current DF.
@@ -334,12 +341,34 @@ class Database:
                 df = new_df
                 df_path = new_path
                 sfi_map = dict(sfi_table(new_df))
+                sfi_map.update((learned or {}).get(new_df, {}))
         # Learn SFI from the FCP of the last SELECT (GET RESPONSE).
         if d.get('ins_hex') == 'c0' and d.get('response_for') == 'SELECT' and sel:
             sfi = (d.get('response') or {}).get('sfi')
             if sfi is not None:
                 sfi_map = dict(sfi_map)
                 sfi_map[sfi] = sel['fid']
+                if learned is not None:
+                    learned.setdefault(df, {})[sfi] = sel['fid']
+        # Learn the phonebook file references from an EF_PBR record
+        # (TS 31.102 §4.4.2.1): the card declares each file's FID and SFI, so
+        # an SFI-addressed SEARCH/READ after the PBR read resolves even
+        # without the file's own FCP.
+        f = d.get('file') or {}
+        hx = (d.get('body') or {}).get('hex') if f.get('fid') == '4f30' else None
+        if hx:
+            try:
+                parsed = parse_pbr_record(bytes.fromhex(hx))
+            except ValueError:
+                parsed = None
+            if parsed:
+                for group in parsed['groups']:
+                    for item in group['files']:
+                        if item.get('sfi') and 'fid' in item:
+                            sfi_map = dict(sfi_map)
+                            sfi_map[item['sfi']] = item['fid']
+                            if learned is not None:
+                                learned.setdefault(df, {})[item['sfi']] = item['fid']
         sel = self._selection_after(d, sel)
         # A record/SEARCH command with a valid SFI sets the file as current EF
         # (TS 102 221 §11.1.2).
@@ -395,6 +424,7 @@ class Database:
         from .decode import atr_rate_fields, cla_channel
         msgs = []
         states = dict(initial_states or {})
+        learned = {}            # df -> {sfi: fid} learned this session
         last_atr_i = None       # index of the most recent ATR in *msgs*
         last_atr_rated = False  # whether that ATR already carries a data rate
         for row in rows:
@@ -416,7 +446,8 @@ class Database:
             if msg['type'] == 'tpdu' and d and d.get('ins_hex'):
                 (st['sel'], st['df'], st['sfi_map'],
                  st['df_path']) = self._advance_state(d, st['sel'], st['df'],
-                                                      st['sfi_map'], st['df_path'])
+                                                      st['sfi_map'], st['df_path'],
+                                                      learned)
                 st['prev'] = self._context_from_decoded(d)
             elif msg['type'] == 'atr':
                 states = {}
