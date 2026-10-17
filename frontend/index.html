@@ -2290,7 +2290,9 @@ async function jumpToMessage(idx) {
             if (!data.messages || !data.messages.length) break;
             STATE.messages.push(...data.messages);
         }
-        renderMessages();
+        // Render without the stick-to-bottom: focusMessage() scrolls to the
+        // record (the render only materializes its element).
+        renderMessages(true);
         focusMessage(idx);
     } catch (e) { /* keep the current view */ }
 }
@@ -2395,8 +2397,21 @@ function renderTraceEmptyState() {
     updateStatus();
 }
 
-function renderMessages(skipScroll) {
+// Content-follow decision for the APDU list: pin the view to the newest
+// messages only when the reader is already at the bottom.  An explicit jump
+// (*skipScroll*) never sticks, and a freshly loaded session/capture
+// (*forceStick*) always starts at the bottom.
+function shouldStickToBottom(list, skipScroll, forceStick) {
+    if (forceStick) return true;
+    if (skipScroll) return false;
+    return list.scrollTop + list.clientHeight >= list.scrollHeight - 40;
+}
+
+function renderMessages(skipScroll, forceStick) {
     const list = el('apdu-list');
+    // Read the geometry before the DOM is touched: adding messages grows
+    // scrollHeight, which would hide the fact that the reader was at the end.
+    const stick = shouldStickToBottom(list, skipScroll, forceStick);
     const searchQ = el('search-input').value.toLowerCase();
     const filterType = el('filter-select').value;
 
@@ -2449,7 +2464,7 @@ function renderMessages(skipScroll) {
         </div>`;
     }).join('');
 
-    if (!skipScroll) list.scrollTop = list.scrollHeight;
+    if (stick) list.scrollTop = list.scrollHeight;
     updateStatus();
 }
 
@@ -2552,7 +2567,7 @@ async function startCapture() {
         buildTypeCounts();
         buildTraceMap();
         renderSidePanel();
-        renderMessages();
+        renderMessages(false, true);
         el('apdu-detail').innerHTML = `<div class="detail-empty" data-l10n="Click an APDU to see details">${t('Click an APDU to see details')}</div>`;
         updateCaptureButton();
         startPolling();
@@ -2937,7 +2952,7 @@ async function loadSession(id) {
         STATE.mapExpanded.clear();
         switchTab('trace');
         updateCaptureButton();
-        renderMessages();
+        renderMessages(false, true);
         el('apdu-detail').innerHTML = `<div class="detail-empty" data-l10n="Click an APDU to see details">${t('Click an APDU to see details')}</div>`;
         el('session-name-display').style.display = 'inline';
         el('session-name-display').textContent = t('Session: ') + (data.session.name || '#' + id);
@@ -3191,7 +3206,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.6.0';
+const PWA_VERSION = '2.6.1';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
