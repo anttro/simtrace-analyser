@@ -2320,8 +2320,12 @@ function renderFileDiff(image) {
         meta.push(`${t('Record')} ${image.record}` +
             (image.n_records ? ` / ${image.n_records}` : ''));
     }
-    if (image.index !== null && image.index !== undefined) meta.push(`#${image.index}`);
-    if (image.elapsed !== null && image.elapsed !== undefined) meta.push(fmt_elapsed(image.elapsed));
+    if (image.index !== null && image.index !== undefined) {
+        meta.push(`${t('APDU')} #${image.index}`);
+    }
+    if (image.elapsed !== null && image.elapsed !== undefined) {
+        meta.push(`${fmt_elapsed(image.elapsed)} ${t('sec')}`);
+    }
     el('file-diff-sub').textContent = `${image.path || image.name || ''} — ${meta.join(' · ')}`;
     const before = hexImageHtml(image, 'before');
     const after = hexImageHtml(image, 'after');
@@ -2337,9 +2341,12 @@ function renderFileDiff(image) {
         used.fresh ? `<span class="hex-legend-item"><span class="hex-cell hex-new">aa</span> ${t('newly observed')}</span>` : '',
         used.unknown ? `<span class="hex-legend-item"><span class="hex-cell hex-unknown">--</span> ${t('never observed')}</span>` : '',
     ].join('');
+    // Mention only what happened: "0 bytes newly observed" is noise.
+    const counts = [];
+    if (changed) counts.push(t('{c} bytes changed').replace('{c}', changed));
+    if (fresh) counts.push(t('{n} bytes newly observed').replace('{n}', fresh));
     el('file-diff-body').innerHTML =
-        `<div class="hex-summary">${t('{c} bytes changed, {n} bytes newly observed')
-            .replace('{c}', changed).replace('{n}', fresh)}</div>
+        `<div class="hex-summary">${counts.length ? counts.join(' · ') : t('No changes')}</div>
         <div class="hex-pair">
             <div><h4>${t('Before')}</h4>${before.html}</div>
             <div><h4>${t('After')}</h4>${after.html}</div>
@@ -3373,7 +3380,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.3';
+const PWA_VERSION = '2.7.4';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3430,7 +3437,11 @@ const LANG_RU = {
     'changed': 'изменено',
     'newly observed': 'впервые наблюдается',
     'never observed': 'не наблюдалось',
-    '{c} bytes changed, {n} bytes newly observed': 'Изменено байт: {c}; впервые наблюдается байт: {n}',
+    '{c} bytes changed': 'Изменено байт: {c}',
+    '{n} bytes newly observed': 'Впервые наблюдается байт: {n}',
+    'No changes': 'Изменений нет',
+    'APDU': 'APDU',
+    'sec': 'с',
     'Showing the first {n} bytes of the image': 'Показаны первые {n} байт образа',
     'The image is frozen (size cap reached) — later changes are not tracked.': 'Образ заморожен (достигнут предел размера) — последующие изменения не отслеживаются.',
     'Close': 'Закрыть',

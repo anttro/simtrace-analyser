@@ -379,7 +379,7 @@ test('Files view: strings carry Russian translations', () => {
 	for (const s of ['Files', 'Read', 'Update', 'Changed on card!', 'Change details',
 		'Show diff', 'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
 		'changed', 'newly observed', 'never observed',
-		'{c} bytes changed, {n} bytes newly observed',
+		'{c} bytes changed', '{n} bytes newly observed', 'No changes', 'sec',
 		'Showing the first {n} bytes of the image',
 		'The image is frozen (size cap reached) — later changes are not tracked.',
 		'No file operations recorded', 'Failed to load files', 'Loading…']) {
@@ -508,9 +508,10 @@ test('Change details modal: header, summary, legend and both views', () => {
 	});
 	const sub = el('file-diff-sub').textContent;
 	assert.match(sub, /MF\/EF_ICCID \(2FE2\) — READ BINARY/);
-	assert.match(sub, /#12/);
+	assert.match(sub, /APDU #12/);
+	assert.match(sub, /0003\.250 sec/);
 	const body = el('file-diff-body').innerHTML;
-	assert.match(body, /2 bytes changed, 4 bytes newly observed/);
+	assert.match(body, /2 bytes changed · 4 bytes newly observed/);
 	assert.match(body, /hex-cell hex-changed/);     // legend + the changed byte
 	assert.match(body, /hex-cell hex-new/);
 	assert.match(body, /hex-cell hex-unknown/);
@@ -542,6 +543,8 @@ test('Change details: a short file shows no filler, no offset, no stray legend',
 	const body = el('file-diff-body').innerHTML;
 	assert.doesNotMatch(body, /hex-unknown/);      // no '--' cells at all
 	assert.doesNotMatch(body, /hex-addr/);         // a single row: no offset column
+	// The summary mentions only what happened.
+	assert.match(body, /^<div class="hex-summary">1 bytes changed<\/div>/);
 	assert.match(body, /hex-cell hex-changed/);
 	// The legend lists only what the views show: 'changed' (the summary line
 	// above still counts the zero "newly observed" bytes).
@@ -549,6 +552,17 @@ test('Change details: a short file shows no filler, no offset, no stray legend',
 	assert.equal((legend.match(/class="hex-legend-item"/g) || []).length, 1);
 	assert.match(legend, /changed</);
 	assert.doesNotMatch(legend, /newly observed|never observed/);
+});
+
+test('Change details: an empty diff says so instead of counting zeros', () => {
+	renderFileDiff({
+		name: 'EF_ICCID', path: 'MF/EF_ICCID (2FE2)', op: 'READ BINARY',
+		record: null, size: 2, index: 1, elapsed: 0.5, ranges: [],
+		observed_ranges: [], before: [{offset: 0, hex: 'aaaa'}],
+		after: [{offset: 0, hex: 'aaaa'}], image_truncated: false,
+	});
+	assert.match(el('file-diff-body').innerHTML,
+		/^<div class="hex-summary">No changes<\/div>/);
 });
 
 test('Change details: a short record keeps its never-observed tail', () => {
