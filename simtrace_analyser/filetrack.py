@@ -39,8 +39,8 @@ keeps counting).
 """
 
 from .database import _SUCCESS_SW1
-from .decode import (DF_CHILDREN, KNOWN_FIDS, _is_df_fid, select_target_fid,
-                     selected_df_fid, sfi_table)
+from .decode import (DF_CHILDREN, KNOWN_FIDS, _file_name, _is_df_fid,
+                     select_target_fid, selected_df_fid, sfi_table)
 
 IMAGE_CAP = 64 * 1024      # observed bytes kept per file
 EVENTS_CAP = 1000          # change events kept per file
@@ -266,8 +266,10 @@ class FileTracker:
         key = (df, fid)
         entry = self.files.get(key)
         if entry is None:
+            # A file first seen via its FCP (or an operation whose decode had
+            # no name) still gets its DF-scoped dictionary name.
             entry = _FileEntry(key, df, fid,
-                               name or (fid.upper() if fid else '?'),
+                               (name or _file_name(fid, df)) if fid else '?',
                                image_cap=self._image_cap)
             self.files[key] = entry
         elif name:
@@ -321,6 +323,8 @@ class FileTracker:
             provisional.key = (df, fid)
             provisional.fid = fid
             provisional.sfi = sfi
+            if provisional.name == f'SFI:{sfi}':
+                provisional.name = _file_name(fid, df)
             self.files[(df, fid)] = provisional
             target = provisional
         else:

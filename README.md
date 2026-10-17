@@ -218,7 +218,8 @@ UPDATE operations seen in the trace; card-initiated ones are inferred when a
 read returns bytes differing from what the image already knew — bytes never
 seen before just fill the image (an observation, not a change).  Files reached
 by SFI share the entry of their path/FID accesses: the SFI ↔ FID relations come
-from the normative tables (TS 102 221 Annex H, TS 31.102 Annex H) and from every
+from the normative tables (TS 102 221 Annex H.1 and the TS 31.102 H.1–H.12
+annexes; the ISIM SFI rows come from TS 31.103) and from every
 surfaced FCP carrying the `88` DO, including the spec's "SFI = the 5 LSBs of the
 FID" rule when the DO is absent; an SFI used before its relation is learned
 stays provisional and merges into the resolved entry.  A file's DF context
@@ -228,6 +229,17 @@ as their DF identity, named from EF.DIR when the trace surfaced it.  Bounds: the
 image freezes past 64 KB of observed bytes per file (`image_truncated`) and the
 change log keeps the last 1000 events per file (`changes_total` keeps counting).
 Counters are returned by the API but not shown in this view yet.
+
+File names are **DF-scoped**: `simtrace_analyser/ef_tables.py` holds the complete
+per-DF file tables and SFI lists extracted from the pinned specs (TS 102 221,
+TS 31.102 including its H.1–H.12 SFI annexes, TS 31.103, TS 51.011), so a FID
+reused across DFs resolves to the file its DF context names — `4F09` is
+EF_SUPI_NAI under DF_5GS but EF_PROSE_GC under DF_ProSe, `6F07` is EF_IMSI in
+the USIM/SIM but EF_IST in the ISIM, `6F4E` is EF_EXT4 in DF_TELECOM but
+EF_EXT5 in the USIM ADF — with the flat table as the fallback when no DF is
+known.  `tests/extract_spec_tables.py` regenerates the pinned fixture
+(`tests/data/spec_files.json`) and `--check` re-verifies the tables against the
+PDFs.
 
 Server options:
 

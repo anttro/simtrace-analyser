@@ -499,6 +499,29 @@ class TestChangeImages(TrackerCase):
                           {'offset': 6, 'hex': 'cc00'}])
 
 
+class TestNaming(TrackerCase):
+    def test_select_only_file_gets_its_dictionary_name(self):
+        # A file whose FCP was surfaced but which was never read still carries
+        # its DF-scoped dictionary name: the entry is created by the select.
+        data = self.track(
+            sel_fid('7fff'),
+            sel_fid('6f3c'), gr(fcp('6f3c', structure=0b010, rec_len=176, n_rec=10)),
+        )
+        entry = data['files']['7fff/6f3c']
+        self.assertEqual(entry['name'], 'EF_SMS')
+        self.assertEqual(entry['path'], 'ADF/EF_SMS (6F3C)')
+        self.assertEqual(entry['counters']['select'], 1)
+
+    def test_sim_df_names(self):
+        # The same FID resolves against the SIM DF_GSM table.
+        data = self.track(
+            sel_fid('7f20'),
+            sel_fid('6f38'), gr(fcp('6f38', size=1)),
+        )
+        self.assertEqual(data['files']['7f20/6f38']['path'],
+                         'DF_GSM/EF_SST (6F38)')
+
+
 class TestFilePath(unittest.TestCase):
     def test_paths(self):
         from simtrace_analyser.filetrack import _file_path
@@ -511,6 +534,9 @@ class TestFilePath(unittest.TestCase):
         # A DF-qualified name from DF_CHILDREN wins over the flat FID.
         self.assertEqual(_file_path('5f3b', '4f52', '4F52'),
                          'DF_GSM_ACCESS/EF_KcGPRS (4F52)')
+        # The DF_TELECOM files are named from TS 51.011 10.5 / TS 31.102 4.5.
+        self.assertEqual(_file_path('7f10', '6f3a', '6F3A'),
+                         'DF_TELECOM/EF_ADN (6F3A)')
         # An application selected by an unknown AID: the AID is the DF name,
         # with the EF.DIR label when the trace surfaced it.
         self.assertEqual(_file_path('aid:a00000015141434c00', '4f09', '4F09'),
@@ -520,7 +546,7 @@ class TestFilePath(unittest.TestCase):
                                     {'A0000000871002FF49FF0589': 'USIM'}),
                          'AID A0000000871002FF49FF0589 (USIM)/EF_IMSI (6F07)')
         # An unnamed file: the FID alone, no duplicated parentheses.
-        self.assertEqual(_file_path('7f10', '6f3a', '6F3A'), 'DF_TELECOM/6F3A')
+        self.assertEqual(_file_path('3f00', '2f99', '2F99'), 'MF/2F99')
 
 
 class TestEndpoint(unittest.TestCase):

@@ -6,6 +6,8 @@ the SIMtrace2 sniffer into structured dicts for the PWA to display.
 
 from simtrace2_pysniff.gsmtap import GSMTAP_FLAG_BAD_FCS
 
+from .ef_tables import KNOWN_FIDS, DF_CHILDREN, SFI_BY_DF as _SFI_BY_DF
+
 # ──────────────────── Status Word names ────────────────────
 
 SW_NAMES = {
@@ -149,276 +151,8 @@ def decode_cla(cla):
 
 
 # ──────────────────── Known FIDs ────────────────────
-# Sourced from pySim (TS 102 221 common, TS 51.011 SIM, TS 31.102 USIM,
-# TS 31.103 ISIM).  Note: some FIDs are reused across DFs/ADFs; the
-# USIM/ISIM interpretation is preferred here because the '7FFF' (current
-# ADF) SELECT-path resolution is the primary use case.
-
-KNOWN_FIDS = {
-    # Master File and common files (TS 102 221 / TS 51.011)
-    '3f00': 'MF',
-    '2f00': 'EF_DIR',
-    '2f05': 'EF_PL',
-    '2f06': 'EF_ARR',
-    '2f07': 'EF_ENV-CLASSES',
-    '2f08': 'EF_UMPC',
-    '2fe2': 'EF_ICCID',
-
-    # Dedicated files (MF/ADF level)
-    '7f10': 'DF_TELECOM',
-    '7f20': 'DF_GSM',
-    '5f3b': 'DF_GSM_ACCESS',
-    '5f40': 'DF_WLAN',
-    '5f50': 'DF_HNB',
-    '5f90': 'DF_ProSe',
-    '5ff0': 'DF_5G_ProSe',
-    '5fc0': 'DF_5GS',
-    '5fe0': 'DF_SNPN',
-    '5ff1': 'DF_5MBSUECONFIG',
-
-    # SIM (TS 51.011) — DF_TELECOM / DF_GSM
-    '6f05': 'EF_LI',
-    '6f07': 'EF_IMSI',
-    '6f20': 'EF_Kc',
-    '6f2c': 'EF_DCK',
-    '6f30': 'EF_PLMNsel',
-    '6f31': 'EF_HPPLMN',
-    '6f32': 'EF_CNL',
-    '6f37': 'EF_ACMmax',
-    '6f38': 'EF_UST',
-    '6f39': 'EF_ACM',
-    '6f3a': 'EF_ADN',
-    '6f3b': 'EF_FDN',
-    '6f3c': 'EF_SMS',
-    '6f3d': 'EF_CCP',
-    '6f3e': 'EF_GID1',
-    '6f3f': 'EF_GID2',
-    '6f40': 'EF_MSISDN',
-    '6f41': 'EF_PUCT',
-    '6f42': 'EF_SMSP',
-    '6f43': 'EF_SMSS',
-    '6f44': 'EF_LND',
-    '6f45': 'EF_CBMI',
-    '6f46': 'EF_SPN',
-    '6f47': 'EF_SMSR',
-    '6f48': 'EF_CBMID',
-    '6f49': 'EF_SDN',
-    '6f4a': 'EF_EXT1',
-    '6f4b': 'EF_EXT2',
-    '6f4c': 'EF_EXT3',
-    '6f4d': 'EF_BDN',
-    '6f4e': 'EF_EXT4',
-    '6f4f': 'EF_ECCP',
-    '6f50': 'EF_CBMIR',
-    '6f51': 'EF_NIA',
-    '6f52': 'EF_KcGPRS',
-    '6f53': 'EF_LOCI_GPRS',
-    '6f58': 'EF_CMI',
-    '6f63': 'EF_CPBCCH',
-    '6f64': 'EF_InvScan',
-    '6f74': 'EF_BCCH',
-    '6f78': 'EF_ACC',
-    '6f7b': 'EF_FPLMN',
-    '6f7e': 'EF_LOCI',
-    '6fad': 'EF_AD',
-    '6fae': 'EF_Phase',
-    '6fb1': 'EF_VGCS',
-    '6fb2': 'EF_VGCSS',
-    '6fb3': 'EF_VBS',
-    '6fb4': 'EF_VBSS',
-    '6fb5': 'EF_eMLPP',
-    '6fb6': 'EF_AAeM',
-    '6fb7': 'EF_ECC',
-    '6fc5': 'EF_PNN',
-    '6fc6': 'EF_OPL',
-    '6fc9': 'EF_MBI',
-    '6fca': 'EF_MWIS',
-    '6fcb': 'EF_CFIS',
-    '6fcd': 'EF_SPDI',
-    '6fce': 'EF_MMSN',
-    '6fd0': 'EF_MMSICP',
-    '6fd1': 'EF_MMSUP',
-    '6fd2': 'EF_MMSUCP',
-
-    # USIM (TS 31.102) — ADF_USIM
-    '6f01': 'EF_eAKA',
-    '6f02': 'EF_IMPI',   # ISIM EF_IMPI (USIM reuses 6F02 for EF_OCST)
-    '6f06': 'EF_ARR',
-    '6f08': 'EF_Keys',
-    '6f09': 'EF_KeysPS',  # ISIM EF_P-CSCF also reuses 6F09
-    '6f55': 'EF_EXT4',
-    '6f56': 'EF_EST',
-    '6f57': 'EF_ACL',
-    '6f5b': 'EF_START-HFN',
-    '6f5c': 'EF_THRESHOLD',
-    '6f60': 'EF_PLMNwAcT',
-    '6f61': 'EF_OPLMNwAcT',
-    '6f62': 'EF_HPLMNwAcT',
-    '6f65': 'EF_RPLMNAcT',
-    '6f73': 'EF_PSLOCI',
-    '6f80': 'EF_ICI',
-    '6f81': 'EF_OCI',
-    '6f82': 'EF_ICT',
-    '6f83': 'EF_OCT',
-    '6fc4': 'EF_NETPAR',
-    '6fc7': 'EF_MBDN',
-    '6fc8': 'EF_EXT6',
-    '6fcc': 'EF_EXT7',
-    '6fcf': 'EF_EXT8',
-    '6fd3': 'EF_NIA',
-    '6fd4': 'EF_VGCSCA',
-    '6fd5': 'EF_VBSCA',
-    '6fd6': 'EF_GBABP',
-    '6fd7': 'EF_MSK',
-    '6fd8': 'EF_MUK',
-    '6fd9': 'EF_EHPLMN',
-    '6fda': 'EF_GBANL',
-    '6fdb': 'EF_EHPLMNPI',
-    '6fdd': 'EF_NAFKCA',
-    '6fde': 'EF_SPNI',
-    '6fdf': 'EF_PNNI',
-    '6fe2': 'EF_NCP-IP',
-    '6fe3': 'EF_EPSLOCI',
-    '6fe4': 'EF_EPSNSC',
-    '6fe6': 'EF_UFC',
-    '6fe8': 'EF_NASCONFIG',
-    '6fec': 'EF_PWS',
-    '6fed': 'EF_FDNURI',
-    '6fee': 'EF_BDNURI',
-    '6fef': 'EF_SDNURI',
-    '6ff1': 'EF_IPS',
-    '6ff3': 'EF_ePDGId',
-    '6ff4': 'EF_ePDGSelection',
-    '6ff5': 'EF_ePDGIdEm',
-    '6ff6': 'EF_ePDGSelectionEm',
-    '6ff7': 'EF_FromPreferred',
-    '6ff8': 'EF_IMSConfigData',
-    '6ffa': 'EF_WebRTCURI',
-    '6ffc': 'EF_XCAPConfigData',
-    '6ffd': 'EF_EARFCNList',
-    '6ffe': 'EF_MuDMiDConfigData',
-
-    # ISIM (TS 31.103) — ADF_ISIM
-    '6f03': 'EF_DOMAIN',
-    '6f04': 'EF_IMPU',
-    '6f0a': 'EF_GBAUAPI',
-    '6f0b': 'EF_IMSDCI',
-     '6fe7': 'EF_UICCIARI',
-}
-
-
-# DF/ADF children (child FID → name), for context-aware SELECT-path
-# resolution.  The '4Fxx' files are only meaningful within their parent
-# DF, and many FIDs collide across DFs (e.g. '4F01' differs between
-# DF_ProSe, DF_5GS, DF_MCS, DF_V2X, DF_SNPN), so they cannot live in the
-# flat KNOWN_FIDS table.  Sourced from pySim (TS 31.102 / TS 31.102 telecom).
-DF_CHILDREN = {
-    '7f10': {  # DF_TELECOM
-        '5f3a': 'DF_PHONEBOOK',
-        '5f3b': 'DF_MULTIMEDIA',
-        '5f3d': 'DF_MCS',
-        '5f3e': 'DF_V2X',
-    },
-    '5f3a': {  # DF_PHONEBOOK
-        '4f22': 'EF_PSC',
-        '4f23': 'EF_CC',
-        '4f24': 'EF_PUID',
-        '4f30': 'EF_PBR',
-    },
-    '5f3b': {  # DF_GSM_ACCESS (ADF) + DF_MULTIMEDIA (DF_TELECOM) share 5F3B
-        '4f20': 'EF_Kc',
-        '4f52': 'EF_KcGPRS',
-        '4f63': 'EF_CPBCCH',
-        '4f64': 'EF_InvScan',
-        '4f47': 'EF_MML',
-        '4f48': 'EF_MMDF',
-    },
-    '5f3d': {  # DF_MCS
-        '4f01': 'EF_MST',
-        '4f02': 'EF_MCS_CONFIG',
-    },
-    '5f3e': {  # DF_V2X
-        '4f01': 'EF_VST',
-        '4f02': 'EF_V2X_CONFIG',
-    },
-    '5f40': {  # DF_WLAN
-        '4f41': 'EF_Pseudo',
-        '4f42': 'EF_UPLMNWLAN',
-        '4f43': 'EF_OPLMNWLAN',
-        '4f44': 'EF_UWSIDL',
-        '4f45': 'EF_OWSIDL',
-        '4f46': 'EF_WRI',
-        '4f47': 'EF_HWSIDL',
-        '4f48': 'EF_WEHPLMNPI',
-        '4f49': 'EF_WHPI',
-        '4f4a': 'EF_WLRPLMN',
-        '4f4b': 'EF_HPLMNDAI',
-    },
-    '5f50': {  # DF_HNB
-        '4f81': 'EF_ACSGL',
-        '4f82': 'EF_CSGT',
-        '4f83': 'EF_HNBN',
-        '4f84': 'EF_OCSGL',
-        '4f85': 'EF_OCSGT',
-        '4f86': 'EF_OHNBN',
-    },
-    '5f90': {  # DF_ProSe
-        '4f01': 'EF_PROSE_MON',
-        '4f02': 'EF_PROSE_ANN',
-        '4f03': 'EF_PROSEFUNC',
-        '4f04': 'EF_PROSE_RADIO_COM',
-        '4f05': 'EF_PROSE_RADIO_MON',
-        '4f06': 'EF_PROSE_RADIO_ANN',
-        '4f07': 'EF_PROSE_POLICY',
-        '4f08': 'EF_PROSE_PLMN',
-        '4f09': 'EF_PROSE_GC',
-        '4f10': 'EF_PST',
-        '4f11': 'EF_UIRC',
-        '4f12': 'EF_PROSE_GM_DISCOVERY',
-        '4f13': 'EF_PROSE_RELAY',
-        '4f14': 'EF_PROSE_RELAY_DISCOVERY',
-    },
-    '5fc0': {  # DF_5GS
-        '4f01': 'EF_5GS3GPPLOCI',
-        '4f02': 'EF_5GSN3GPPLOCI',
-        '4f03': 'EF_5GS3GPPNSC',
-        '4f04': 'EF_5GSN3GPPNSC',
-        '4f05': 'EF_5GAUTHKEYS',
-        '4f06': 'EF_UAC_AIC',
-        '4f07': 'EF_SUCI_Calc_Info',
-        '4f08': 'EF_OPL5G',
-        '4f09': 'EF_SUPI_NAI',
-        '4f0a': 'EF_Routing_Indicator',
-        '4f0b': 'EF_URSP',
-        '4f0c': 'EF_TN3GPPSNN',
-        '4f0d': 'EF_CAG',
-        '4f0e': 'EF_SOR-CMCI',
-        '4f0f': 'EF_DRI',
-        '4f10': 'EF_5GSEDRX',
-        '4f11': 'EF_5GNSWO_CONF',
-        '4f15': 'EF_MCHPPLMN',
-        '4f16': 'EF_KAUSF_DERIVATION',
-    },
-    '5fd0': {  # DF_SAIP
-        '4f01': 'EF_SUCI_Calc_Info',
-    },
-    '5fe0': {  # DF_SNPN
-        '4f01': 'EF_PWS_SNPN',
-        '4f02': 'EF_NID',
-    },
-    '5ff0': {  # DF_5G_ProSe
-        '4f02': 'EF_5G_PROSE_DD',
-        '4f03': 'EF_5G_PROSE_DC',
-        '4f04': 'EF_5G_PROSE_U2NRU',
-        '4f05': 'EF_5G_PROSE_RU',
-        '4f06': 'EF_5G_PROSE_UIR',
-        '4f07': 'EF_5G_PROSE_U2URU',
-        '4f08': 'EF_5G_PROSE_EU',
-    },
-    '5ff1': {  # DF_5MBSUECONFIG
-        '4f01': 'EF_5MBSUECONFIG',
-    },
-}
+# The spec-sourced file/DF/SFI tables live in ef_tables.py (see its
+# header for the sources); _file_name() resolves DF-first.
 
 
 def _decode_select_path(body_hex):
@@ -427,15 +161,21 @@ def _decode_select_path(body_hex):
     Splits the body into 2-byte FIDs and names each component, tracking
     the parent DF so DF-specific children (e.g. '4Fxx') resolve against
     the correct DF.  '7fff' is the implicit FID for the current
-    application's ADF, whose children are the flat KNOWN_FIDS files.
+    application's ADF; its children resolve against DF_CHILDREN['7fff']
+    (the USIM ADF table — a message-level path has no AID context, so an
+    AID-selected application resolves exactly only in file operations,
+    where the tracker's DF identity carries the AID).
     """
     pairs = [body_hex[i:i + 4] for i in range(0, len(body_hex), 4)]
     parts = []
     parent = None
     for p in pairs:
         if p == '7fff':
+            # The running application's ADF; its children resolve against the
+            # USIM ADF table (an AID-selected application is tracked by its AID
+            # in file operations, where the DF is known exactly).
             parts.append('current ADF')
-            parent = None
+            parent = '7fff'
             continue
         name = None
         if parent and parent in DF_CHILDREN:
@@ -463,58 +203,6 @@ def select_target_fid(d):
             return None if last == '7fff' else last
         return None
     return None
-
-
-# Short File Identifier (SFI) → FID, scoped to the containing DF.
-# SFI is only unique within a DF (TS 102 221 §8.3).  Sourced from the
-# normative SFI lists: TS 31.102 Annex H (USIM ADF, DF GSM-ACCESS) and
-# TS 102 221 Annex H (MF level).
-_SFI_BY_DF = {
-    '3f00': {   # MF (TS 102 221 Annex H)
-        0x02: '2fe2',   # EF_ICCID
-        0x05: '2f05',   # EF_PL
-        0x06: '2f06',   # EF_ARR
-        0x07: '2f07',   # EF_ENV-CLASSES (TS 102 671)
-        0x08: '2f08',   # EF_UMPC
-        0x1e: '2f00',   # EF_DIR
-    },
-    '7fff': {   # ADF_USIM (TS 31.102 Annex H H.1)
-        0x01: '6fb7',   # EF_ECC
-        0x02: '6f05',   # EF_LI
-        0x03: '6fad',   # EF_AD
-        0x04: '6f38',   # EF_UST
-        0x05: '6f56',   # EF_EST
-        0x06: '6f78',   # EF_ACC
-        0x07: '6f07',   # EF_IMSI
-        0x08: '6f08',   # EF_Keys
-        0x09: '6f09',   # EF_KeysPS
-        0x0a: '6f60',   # EF_PLMNwAcT
-        0x0b: '6f7e',   # EF_LOCI
-        0x0c: '6f73',   # EF_PSLOCI
-        0x0d: '6f7b',   # EF_FPLMN
-        0x0e: '6f48',   # EF_CBMID
-        0x0f: '6f5b',   # EF_START-HFN
-        0x10: '6f5c',   # EF_THRESHOLD
-        0x11: '6f61',   # EF_OPLMNwAcT
-        0x12: '6f31',   # EF_HPPLMN
-        0x13: '6f62',   # EF_HPLMNwAcT
-        0x14: '6f80',   # EF_ICI
-        0x15: '6f81',   # EF_OCI
-        0x16: '6f4f',   # EF_CCP2
-        0x17: '6f06',   # EF_ARR
-        0x18: '6fe4',   # EF_EPSNSC
-        0x19: '6fc5',   # EF_PNN
-        0x1a: '6fc6',   # EF_OPL
-        0x1b: '6fcd',   # EF_SPDI
-        0x1c: '6f39',   # EF_ACM
-        0x1d: '6fd9',   # EF_EHPLMN
-        0x1e: '6fe3',   # EF_EPSLOCI
-    },
-    '5f3b': {   # DF_GSM_ACCESS (TS 31.102 Annex H H.2)
-        0x01: '4f20',   # EF_Kc
-        0x02: '4f52',   # EF_KcGPRS
-    },
-}
 
 
 def _is_df_fid(fid):
@@ -3744,7 +3432,15 @@ FILE_DECODERS = {
 }
 
 
-def _decode_file_data(fid, raw, p1=None):
+def _file_name(fid, df=None):
+    """The display name of a file: DF-scoped names first (DF_CHILDREN, so a
+    FID reused across DFs resolves to the right file), then the flat table, then
+    the FID itself."""
+    name = (DF_CHILDREN.get(df or '', {}) or {}).get(fid)
+    return name or KNOWN_FIDS.get(fid) or fid.upper()
+
+
+def _decode_file_data(fid, raw, p1=None, df=None):
     """Decode file data using the FID's registered decoder."""
     if not raw:
         return None
@@ -3758,7 +3454,7 @@ def _decode_file_data(fid, raw, p1=None):
     if not out:
         return None
     out['fid'] = fid
-    out['ef'] = KNOWN_FIDS.get(fid, fid.upper())
+    out['ef'] = _file_name(fid, df)
     return out
 
 
@@ -3782,7 +3478,7 @@ def _is_record_file(sel):
 def _stale_file_note(sel):
     """Mark a decode as skipped because the selection is inconsistent."""
     fid = sel.get('fid') or ''
-    return {'fid': fid, 'ef': KNOWN_FIDS.get(fid, fid.upper()), 'stale': True}
+    return {'fid': fid, 'ef': _file_name(fid), 'stale': True}
 
 
 def _file_summary(f):
@@ -4219,11 +3915,11 @@ def decode_message(raw_data, prev=None):
             sfi = p1p2['sfi']
             fid = (prev.get('sfi_map') or {}).get(sfi)
             if fid:
-                file_dec = _decode_file_data(fid, body, p1=p1)
+                file_dec = _decode_file_data(fid, body, p1=p1, df=prev.get('df'))
                 if file_dec:
                     result['file'] = file_dec
                 else:
-                    result['file'] = {'fid': fid, 'ef': KNOWN_FIDS.get(fid, fid.upper()),
+                    result['file'] = {'fid': fid, 'ef': _file_name(fid, prev.get('df')),
                                       'raw': body.hex().upper()}
             else:
                 result['file'] = {'sfi': sfi, 'unknown': True, 'ef': f'SFI {sfi}'}
@@ -4231,11 +3927,11 @@ def decode_message(raw_data, prev=None):
             # Record command with SFI (P2 b8-b4) → resolve the target EF.
             fid = (prev.get('sfi_map') or {}).get(rec_sfi)
             if fid:
-                file_dec = _decode_file_data(fid, body, p1=p1)
+                file_dec = _decode_file_data(fid, body, p1=p1, df=prev.get('df'))
                 if file_dec:
                     result['file'] = file_dec
                 else:
-                    result['file'] = {'fid': fid, 'ef': KNOWN_FIDS.get(fid, fid.upper()),
+                    result['file'] = {'fid': fid, 'ef': _file_name(fid, prev.get('df')),
                                       'raw': body.hex().upper()}
             else:
                 result['file'] = {'sfi': rec_sfi, 'unknown': True, 'ef': f'SFI {rec_sfi}'}
@@ -4244,7 +3940,7 @@ def decode_message(raw_data, prev=None):
             # is a search pattern, not file data).
             fid = (prev.get('sfi_map') or {}).get(rec_sfi)
             if fid:
-                result['file'] = {'fid': fid, 'ef': KNOWN_FIDS.get(fid, fid.upper())}
+                result['file'] = {'fid': fid, 'ef': _file_name(fid, prev.get('df'))}
             else:
                 result['file'] = {'sfi': rec_sfi, 'unknown': True, 'ef': f'SFI {rec_sfi}'}
         elif ins in (0xB0, 0xB2, 0xD6, 0xDC) and prev and prev.get('sel'):
@@ -4254,7 +3950,8 @@ def decode_message(raw_data, prev=None):
             else:
                 file_dec = None
                 if ins in (0xB2, 0xDC) or offset == 0:
-                    file_dec = _decode_file_data(prev['sel']['fid'], body, p1=p1)
+                    file_dec = _decode_file_data(prev['sel']['fid'], body, p1=p1,
+                                                 df=prev.get('df'))
                 if file_dec:
                     result['file'] = file_dec
                 else:
@@ -4262,8 +3959,7 @@ def decode_message(raw_data, prev=None):
                     # still attribute the operation to the selected file.
                     result['file'] = {
                         'fid': prev['sel']['fid'],
-                        'ef': KNOWN_FIDS.get(prev['sel']['fid'],
-                                             prev['sel']['fid'].upper()),
+                        'ef': _file_name(prev['sel']['fid'], prev.get('df')),
                     }
 
     # SW
@@ -4281,7 +3977,9 @@ def decode_message(raw_data, prev=None):
                     if prev_ins == 0xB2 and not _is_record_file(prev['sel']):
                         result['file'] = _stale_file_note(prev['sel'])
                     else:
-                        file_dec = _decode_file_data(prev['sel']['fid'], remaining[:cmd_body_len])
+                        file_dec = _decode_file_data(prev['sel']['fid'],
+                                                     remaining[:cmd_body_len],
+                                                     df=prev.get('df'))
                         if file_dec:
                             result['file'] = file_dec
                         else:
@@ -4289,7 +3987,7 @@ def decode_message(raw_data, prev=None):
                             fid = prev['sel']['fid']
                             result['file'] = {
                                 'fid': fid,
-                                'ef': KNOWN_FIDS.get(fid, fid.upper()),
+                                'ef': _file_name(fid, prev.get('df')),
                             }
                 elif prev_ins == 0xA2 and prev.get('sel') and prev.get('file_ok'):
                     if not _is_record_file(prev['sel']):
@@ -4299,7 +3997,7 @@ def decode_message(raw_data, prev=None):
                         fid = prev['sel']['fid']
                         result['file'] = {
                             'fid': fid,
-                            'ef': KNOWN_FIDS.get(fid, fid.upper()),
+                            'ef': _file_name(fid, prev.get('df')),
                             'record_numbers': list(remaining[:cmd_body_len]),
                         }
                 elif prev_ins == 0xC2:  # ENVELOPE → Response Packet (PoR)

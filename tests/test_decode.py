@@ -1699,12 +1699,16 @@ class TestSfiResolution(unittest.TestCase):
                          'aid:a00000015141434c00')
         self.assertIsNone(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '04'},
                                            'body': {'hex': ''}}))
-        # An AID DF has no normative SFI table.
+        # An unknown AID has no SFI table; the ISIM AID is keyed by its AID
+        # (TS 31.103 has no SFI annex, so its table comes from the file rows).
         self.assertEqual(sfi_table('aid:a00000015141434c00'), {})
+        self.assertEqual(sfi_table('aid:a0000000871004')[0x07], '6f07')  # EF_IST
         self.assertEqual(sfi_table('7fff')[0x1e], '6fe3')
         self.assertEqual(sfi_table('3f00')[0x1e], '2f00')
         self.assertEqual(sfi_table('7fff')[0x17], '6f06')
         self.assertEqual(sfi_table('7fff')[0x1a], '6fc6')
+        self.assertEqual(sfi_table('5f40')[0x07], '4f47')  # EF_HWSIDL (H.3)
+        self.assertEqual(sfi_table('5fc0')[0x10], '4f10')  # EF_5GSEDRX (H.9)
         self.assertEqual(sfi_table('6f7e'), {})
         # TS 102 221 §8.4.1: selecting an EF leaves its parent DF current.
         # 'path from MF', single component → directly under MF (Table 8.2).
@@ -2861,6 +2865,69 @@ class TestLineEvents(unittest.TestCase):
             db.insert_message(sid, 0.2, 'rst', bytes.fromhex('000101003d0900'), 0)
             msgs = db.get_messages(sid)
             self.assertEqual(msgs[0]['decoded']['data_rate'], 10753)
+
+
+class TestSpecTables(unittest.TestCase):
+    """The file/SFI dictionaries are spec-sourced: this pins them against
+    tests/data/spec_files.json (extracted from the PDFs in docs/uicc/)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        import pathlib
+        cls.fixture = json.loads(
+            (pathlib.Path(__file__).parent / 'data' / 'spec_files.json')
+            .read_text())
+
+    def test_file_name_is_df_aware(self):
+        from simtrace_analyser.decode import _file_name
+        # 4F09: SUPI-as-NAI under DF_5GS, group communication under DF_ProSe.
+        self.assertEqual(_file_name('4f09', '5fc0'), 'EF_SUPI_NAI')
+        self.assertEqual(_file_name('4f09', '5f90'), 'EF_PROSE_GC')
+        # 6F07: IMSI in the USIM/SIM, the ISIM service table in the ISIM.
+        self.assertEqual(_file_name('6f07', '7fff'), 'EF_IMSI')
+        self.assertEqual(_file_name('6f07', '7f20'), 'EF_IMSI')
+        self.assertEqual(_file_name('6f07', 'aid:a0000000871004'), 'EF_IST')
+        # 6F4E: EF_EXT4 under DF_TELECOM, EF_EXT5 in the USIM ADF.
+        self.assertEqual(_file_name('6f4e', '7f10'), 'EF_EXT4')
+        self.assertEqual(_file_name('6f4e', '7fff'), 'EF_EXT5')
+        # Without a DF the unambiguous flat table is the fallback; a FID
+        # that is ambiguous (or unknown) stays numeric.
+        self.assertEqual(_file_name('2fe2'), 'EF_ICCID')
+        self.assertEqual(_file_name('2fe2', '7fff'), 'EF_ICCID')
+        self.assertEqual(_file_name('4f09'), '4F09')
+        self.assertEqual(_file_name('1234', '7fff'), '1234')
+
+    def test_file_tables_cover_the_pinned_specs(self):
+        from simtrace_analyser.decode import _file_name
+        for df, files in self.fixture['files'].items():
+            for fid, name in files.items():
+                self.assertEqual(_file_name(fid, df), name, f'{df}/{fid}')
+
+    def test_sfi_tables_match_the_pinned_specs(self):
+        from simtrace_analyser.decode import sfi_table
+        for df, table in self.fixture['sfi'].items():
+            self.assertEqual(sfi_table(df),
+                             {int(s, 16): fid for s, fid in table.items()},
+                             df)
+
+    def test_flat_names_are_spec_verified(self):
+        import collections
+        from simtrace_analyser.decode import KNOWN_FIDS
+        # Every flat name must be the spec name of that FID somewhere (the DF
+        # tables, the DF identifiers, or the two intentional specials): a typo
+        # or an invented name fails, and a DF-specific name can no longer
+        # sneak into the flat table under a conflicting FID.
+        names = collections.defaultdict(set)
+        for files in self.fixture['files'].values():
+            for fid, name in files.items():
+                names[fid].add(name)
+        for fid, name in self.fixture['df_fids'].items():
+            names[fid].add(name)
+        names['3f00'].add('MF')
+        names['6f65'].add('EF_RPLMNAcT')  # legacy value, not re-assigned
+        for fid, name in KNOWN_FIDS.items():
+            self.assertIn(name, names.get(fid, set()), f'{fid}={name}')
 
 
 if __name__ == '__main__':
