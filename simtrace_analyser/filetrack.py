@@ -40,7 +40,8 @@ keeps counting).
 
 from .database import _SUCCESS_SW1
 from .decode import (DF_CHILDREN, KNOWN_FIDS, _file_name, _is_df_fid,
-                     select_target_fid, selected_df_fid, sfi_table)
+                     select_target_fid, selected_df_fid, selected_df_state,
+                     sfi_table)
 
 IMAGE_CAP = 64 * 1024      # observed bytes kept per file
 EVENTS_CAP = 1000          # change events kept per file
@@ -73,20 +74,35 @@ def _file_label(d):
     return None
 
 
-def _file_path(df, fid, name, aid_labels=None):
-    """A human-readable path for a tracked file: the DF (named when known),
-    the EF and the FID — e.g. ``MF/EF_ICCID (2FE2)``,
-    ``ADF/EF_IMSI (6F07)``, ``DF_GSM_ACCESS/EF_KcGPRS (4F52)``,
-    ``AID A00000015141434C00/4F09``."""
+def _file_path(df, fid, name, aid_labels=None, df_path=None):
+    """A human-readable path for a tracked file: the DF chain (named when
+    known), the EF and the FID — e.g. ``MF/EF_ICCID (2FE2)``,
+    ``ADF/EF_IMSI (6F07)``, ``DF_TELECOM/DF_PHONEBOOK/4FA1``,
+    ``AID A00000015141434C00/4F09``.  Without *df_path* the current DF is
+    named alone (the previous behaviour)."""
     ef = (DF_CHILDREN.get(df, {}) or {}).get(fid) or name or fid.upper()
-    if df.startswith('aid:'):
-        aid = df[4:].upper()
-        label = (aid_labels or {}).get(aid)
-        df_label = f'AID {aid}' + (f' ({label})' if label else '')
-    elif df == '7fff':
-        df_label = 'ADF'
-    else:
-        df_label = KNOWN_FIDS.get(df) or df.upper()
+    labels = []
+    for comp in df_path or []:
+        if comp == '3f00' and len(df_path) > 1:
+            continue                # MF is implicit in a longer path
+        if comp.startswith('aid:'):
+            aid = comp[4:].upper()
+            label = (aid_labels or {}).get(aid)
+            labels.append(f'AID {aid}' + (f' ({label})' if label else ''))
+        elif comp == '7fff':
+            labels.append('ADF')
+        else:
+            labels.append(KNOWN_FIDS.get(comp) or comp.upper())
+    if not labels:
+        if df.startswith('aid:'):
+            aid = df[4:].upper()
+            label = (aid_labels or {}).get(aid)
+            labels = [f'AID {aid}' + (f' ({label})' if label else '')]
+        elif df == '7fff':
+            labels = ['ADF']
+        else:
+            labels = [KNOWN_FIDS.get(df) or df.upper()]
+    df_label = '/'.join(labels)
     if ef.upper() == fid.upper():
         return f'{df_label}/{ef.upper()}'
     return f'{df_label}/{ef} ({fid.upper()})'
@@ -131,11 +147,12 @@ def _segments(buf, mask):
 class _FileEntry:
     """One tracked file: counters, sparse image, change log."""
 
-    def __init__(self, key, df, fid, name, image_cap=IMAGE_CAP):
+    def __init__(self, key, df, fid, name, image_cap=IMAGE_CAP, df_path=None):
         self.key = key
         self.df = df
         self.fid = fid
         self.name = name
+        self.df_path = list(df_path or [])
         self.image_cap = image_cap
         self.sfi = None
         self.structure = None
@@ -248,21 +265,22 @@ class FileTracker:
             return
         ins_hex = d['ins_hex']
         df = state.get('df') or '3f00'
+        df_path = state.get('df_path') or [df]
         if ins_hex == 'c0':
             self._observe_get_response(d, state, channel, index, msg)
             return
         self._pending_read.pop(channel, None)
         ins = int(ins_hex, 16)
         if ins == 0xA4:
-            self._observe_select(d, df)
+            self._observe_select(d, df, df_path)
         elif ins in _UPDATE_INS:
-            self._observe_write(d, df, index, msg)
+            self._observe_write(d, df, index, msg, df_path)
         elif ins in _READ_INS:
-            self._observe_read(d, df, channel, index, msg)
+            self._observe_read(d, df, channel, index, msg, df_path)
 
     # -- file registry ---------------------------------------------------
 
-    def _entry(self, df, fid, name=None):
+    def _entry(self, df, fid, name=None, df_path=None):
         key = (df, fid)
         entry = self.files.get(key)
         if entry is None:
@@ -270,9 +288,14 @@ class FileTracker:
             # no name) still gets its DF-scoped dictionary name.
             entry = _FileEntry(key, df, fid,
                                (name or _file_name(fid, df)) if fid else '?',
-                               image_cap=self._image_cap)
+                               image_cap=self._image_cap, df_path=df_path)
             self.files[key] = entry
-        elif name:
+        elif df_path and len(df_path) > len(entry.df_path) and \
+                list(df_path[:len(entry.df_path)]) == entry.df_path:
+            # A fuller path learned later (e.g. the DF was entered by a path
+            # selection after the first FCP-only sighting).
+            entry.df_path = list(df_path)
+        if name:
             placeholders = {entry.fid, entry.fid.upper(), '', '?'}
             if entry.sfi is not None:
                 placeholders.add(f'SFI {entry.sfi}')
@@ -371,15 +394,18 @@ class FileTracker:
 
     # -- operations ------------------------------------------------------
 
-    def _observe_select(self, d, df):
+    def _observe_select(self, d, df, df_path=None):
         fid = select_target_fid(d)
         if not fid or _is_df_fid(fid) or not _success(d):
             return
         # A path selection of an EF also enters the EF's parent DF
         # (TS 102 221 §8.4.1) — key the file by that DF, not the one the
-        # channel was in before the SELECT.
+        # channel was in before the SELECT, and keep the DF chain the
+        # selection's own path spells out (DF_TELECOM/DF_PHONEBOOK/…).
         effective = selected_df_fid(d, df) or df
-        self._entry(effective, fid).counters['select'] += 1
+        _new_df, new_path = selected_df_state(d, df, df_path)
+        self._entry(effective, fid,
+                    df_path=new_path or df_path).counters['select'] += 1
 
     def _observe_get_response(self, d, state, channel, index, msg):
         response = d.get('response') or {}
@@ -390,7 +416,7 @@ class FileTracker:
             if not fid or _is_df_fid(fid):
                 return
             df = state.get('df') or '3f00'
-            entry = self._entry(df, fid)
+            entry = self._entry(df, fid, df_path=state.get('df_path'))
             fd = response.get('file_descriptor')
             if isinstance(fd, dict):
                 entry.structure = fd.get('structure', entry.structure)
@@ -409,28 +435,31 @@ class FileTracker:
             # SFI-addressed command keeps its context (the response's
             # attribution resolves against the current selection, not the SFI).
             src, src_df = d, state.get('df') or '3f00'
+            src_path = state.get('df_path')
             if pending:
                 _fid, sfi = self._file_ref(pending['d'], pending['df'])
                 if sfi is not None:
                     src, src_df = pending['d'], pending['df']
-            self._apply_read(src, src_df, index, msg, _body_bytes(d))
+                    src_path = pending.get('df_path')
+            self._apply_read(src, src_df, index, msg, _body_bytes(d), src_path)
 
-    def _observe_read(self, d, df, channel, index, msg):
+    def _observe_read(self, d, df, channel, index, msg, df_path=None):
         if not _success(d):
             return
         if not _body_bytes(d):
             # Data pending (T=0): the GET RESPONSE will carry it.
-            self._pending_read[channel] = {'d': d, 'df': df}
+            self._pending_read[channel] = {'d': d, 'df': df,
+                                           'df_path': df_path}
             return
-        self._apply_read(d, df, index, msg, _body_bytes(d))
+        self._apply_read(d, df, index, msg, _body_bytes(d), df_path)
 
-    def _apply_read(self, d, df, index, msg, data):
+    def _apply_read(self, d, df, index, msg, data, df_path=None):
         if not data:
             return
         fid, sfi = self._file_ref(d, df)
         if fid is None:
             return
-        entry = self._entry(df, fid, _file_label(d))
+        entry = self._entry(df, fid, _file_label(d), df_path)
         if sfi is not None and entry.sfi is None:
             entry.sfi = sfi
         entry.counters['read'] += 1
@@ -449,14 +478,14 @@ class FileTracker:
             self._push('read', entry, index, msg, record=record)
         self._note_dir_content(d)
 
-    def _observe_write(self, d, df, index, msg):
+    def _observe_write(self, d, df, index, msg, df_path=None):
         data = _body_bytes(d)
         if not data or not _success(d):
             return
         fid, sfi = self._file_ref(d, df)
         if fid is None:
             return
-        entry = self._entry(df, fid, _file_label(d))
+        entry = self._entry(df, fid, _file_label(d), df_path)
         if sfi is not None and entry.sfi is None:
             entry.sfi = sfi
         entry.counters['update'] += 1
@@ -540,7 +569,7 @@ class FileTracker:
             'key': _key_str(entry.key),
             'name': entry.name,
             'path': _file_path(entry.df, entry.fid, entry.name,
-                               self.aid_labels),
+                               self.aid_labels, entry.df_path),
             'df': entry.df,
             'fid': entry.fid,
             'structure': entry.structure,
@@ -567,7 +596,7 @@ class FileTracker:
             files[_key_str(key)] = {
                 'name': entry.name,
                 'path': _file_path(entry.df, entry.fid, entry.name,
-                                   self.aid_labels),
+                                   self.aid_labels, entry.df_path),
                 'df': entry.df,
                 'fid': entry.fid,
                 'sfi': entry.sfi,

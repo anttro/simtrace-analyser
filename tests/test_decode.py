@@ -1814,6 +1814,33 @@ class TestSfiResolution(unittest.TestCase):
         self.assertEqual(r['file']['ef'], 'EF_LOCI')
         self.assertEqual(r['file']['tmsi'], '1E731E57')
 
+    def test_selected_df_state(self):
+        from simtrace_analyser.decode import selected_df_state
+
+        def sel(p1, body):
+            return {'ins_hex': 'a4', 'p1': {'raw': p1}, 'body': {'hex': body}}
+
+        # A path selection spells out the DF chain: 7F10/5F3A/4FA1.
+        self.assertEqual(selected_df_state(sel('08', '7f105f3a4fa1')),
+                         ('5f3a', ['7f10', '5f3a']))
+        # A child DF selected by FID appends to the current chain.
+        self.assertEqual(selected_df_state(sel('00', '5f3a'), '7f10', ['7f10']),
+                         ('5f3a', ['7f10', '5f3a']))
+        # MF and the ADF start a fresh chain; an AID is the root.
+        self.assertEqual(selected_df_state(sel('00', '3f00'), '7f10',
+                                           ['7f10', '5f3a']),
+                         ('3f00', ['3f00']))
+        self.assertEqual(selected_df_state(sel('08', '7fff6f07'), '3f00',
+                                           ['3f00']), ('7fff', ['7fff']))
+        aid = 'aid:a00000015141434c00'
+        self.assertEqual(selected_df_state(sel('04', 'A00000015141434C00'),
+                                           '3f00', ['3f00']), (aid, [aid]))
+        # An EF selection leaves the chain in place; non-SELECTs never move it.
+        self.assertEqual(selected_df_state(sel('09', '4fa1'), '5f3a',
+                                           ['7f10', '5f3a']),
+                         ('5f3a', ['7f10', '5f3a']))
+        self.assertEqual(selected_df_state({'ins_hex': 'b0'}), (None, None))
+
     def test_selected_df_fid(self):
         from simtrace_analyser.decode import selected_df_fid, sfi_table
         self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '08'},

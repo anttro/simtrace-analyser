@@ -216,8 +216,10 @@ new messages pin the view to the bottom only while the reader is already
 there, so a jump is never pulled away or un-highlighted by the live poll).  Rows that carry a recorded change (a
 card-side change, or an update that wrote or first observed bytes) also offer
 **Show diff**: a modal showing the full file path (`MF/EF_ICCID (2FE2)`,
-`ADF/EF_IMSI (6F07)`, `DF_GSM_ACCESS/EF_KcGPRS (4F52)`, `AID …/4F09` — the DF
-named from the EF.DIR labels when known) and the affected unit — the whole
+`ADF/EF_IMSI (6F07)`, `DF_TELECOM/DF_PHONEBOOK/4FA1`, `AID …/4F09` — the whole
+DF chain the trace's selection path spells out, each DF named from the
+specification dictionary and the AID from the EF.DIR labels when known) and
+the affected unit — the whole
 file, or the single record that changed — **before and after** the change, as
 hex views (up to 16 bytes per row — a shorter file/record ends its row there
 instead of padding with `--`, and the offset column only appears when a view

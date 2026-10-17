@@ -274,7 +274,8 @@ class Database:
 
     def _new_channel_state(self):
         from .decode import sfi_table
-        return {'prev': None, 'sel': None, 'df': '3f00', 'sfi_map': dict(sfi_table('3f00'))}
+        return {'prev': None, 'sel': None, 'df': '3f00', 'df_path': ['3f00'],
+                'sfi_map': dict(sfi_table('3f00'))}
 
     def _channel_state(self, states, channel):
         st = states.get(channel)
@@ -312,22 +313,26 @@ class Database:
             ctx = dict(st['prev']) if st['prev'] else {}
             ctx['sel'] = st['sel']
             ctx['df'] = st['df']
+            ctx['df_path'] = st['df_path']
             ctx['sfi_map'] = st['sfi_map']
             d = decode_sniff_msg(data, 'tpdu', 0, prev=ctx)
             if not d or not d.get('ins_hex'):
                 continue
-            st['sel'], st['df'], st['sfi_map'] = self._advance_state(d, st['sel'], st['df'], st['sfi_map'])
+            (st['sel'], st['df'], st['sfi_map'],
+             st['df_path']) = self._advance_state(d, st['sel'], st['df'],
+                                                  st['sfi_map'], st['df_path'])
             st['prev'] = self._context_from_decoded(d)
         return states, clk_hz
 
-    def _advance_state(self, d, sel, df, sfi_map):
-        """Update (sel, df, sfi_map) for one decoded TPDU."""
-        from .decode import selected_df_fid, sfi_table, KNOWN_FIDS
-        new_df = selected_df_fid(d, df)
+    def _advance_state(self, d, sel, df, sfi_map, df_path=None):
+        """Update (sel, df, sfi_map, df_path) for one decoded TPDU."""
+        from .decode import selected_df_state, sfi_table, KNOWN_FIDS
+        new_df, new_path = selected_df_state(d, df, df_path)
         if new_df is not None and new_df != df:
             # Only a successful SELECT changes the current DF.
             if (d.get('sw') or {}).get('sw1') in _SUCCESS_SW1:
                 df = new_df
+                df_path = new_path
                 sfi_map = dict(sfi_table(new_df))
         # Learn SFI from the FCP of the last SELECT (GET RESPONSE).
         if d.get('ins_hex') == 'c0' and d.get('response_for') == 'SELECT' and sel:
@@ -343,7 +348,7 @@ class Database:
             fid = sfi_map.get(sfi)
             if fid:
                 sel = {'fid': fid, 'name': KNOWN_FIDS.get(fid), 'structure': None}
-        return sel, df, sfi_map
+        return sel, df, sfi_map, (df_path or [df])
 
     def _context_from_decoded(self, d):
         ins_hex = d.get('ins_hex')
@@ -400,6 +405,7 @@ class Database:
             ctx = dict(st['prev']) if st['prev'] else {}
             ctx['sel'] = st['sel']
             ctx['df'] = st['df']
+            ctx['df_path'] = st['df_path']
             ctx['sfi_map'] = st['sfi_map']
             msg = self._row_to_message(row, prev=ctx, clk_hz=clk_hz)
             d = msg.get('decoded')
@@ -408,7 +414,9 @@ class Database:
                 # channel state as it was *before* this message.
                 on_message(msg, st, channel)
             if msg['type'] == 'tpdu' and d and d.get('ins_hex'):
-                st['sel'], st['df'], st['sfi_map'] = self._advance_state(d, st['sel'], st['df'], st['sfi_map'])
+                (st['sel'], st['df'], st['sfi_map'],
+                 st['df_path']) = self._advance_state(d, st['sel'], st['df'],
+                                                      st['sfi_map'], st['df_path'])
                 st['prev'] = self._context_from_decoded(d)
             elif msg['type'] == 'atr':
                 states = {}

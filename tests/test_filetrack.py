@@ -13,6 +13,11 @@ def sel_fid(fid, le='02'):
     return f'00a4000002{fid}61{le}'
 
 
+def sel_path(path_hex, le='02'):
+    """SELECT a path from the MF (P1=08)."""
+    return f'00a40804{len(path_hex) // 2:02x}{path_hex}61{le}'
+
+
 def gr(data_hex, total=None):
     """GET RESPONSE carrying *data_hex* (the FCP or the read data)."""
     n = len(data_hex) // 2 if total is None else total
@@ -541,6 +546,20 @@ class TestNaming(TrackerCase):
                          'DF_GSM/EF_SST (6F38)')
 
 
+class TestDfChain(TrackerCase):
+    def test_path_selection_keeps_the_full_df_chain(self):
+        # The trace's own path selection spells out DF_TELECOM/DF_PHONEBOOK;
+        # the Files view used to show only the parent DF.
+        data = self.track(
+            sel_path('7f105f3a4fa1'),
+            gr(fcp('4fa1', rec_len=44, n_rec=100)),
+        )
+        entry = data['files']['5f3a/4fa1']
+        self.assertEqual(entry['path'], 'DF_TELECOM/DF_PHONEBOOK/4FA1')
+        self.assertEqual(entry['record_len'], 44)
+        self.assertEqual(entry['n_records'], 100)
+
+
 class TestFilePath(unittest.TestCase):
     def test_paths(self):
         from simtrace_analyser.filetrack import _file_path
@@ -556,6 +575,13 @@ class TestFilePath(unittest.TestCase):
         # The DF_TELECOM files are named from TS 51.011 10.5 / TS 31.102 4.5.
         self.assertEqual(_file_path('7f10', '6f3a', '6F3A'),
                          'DF_TELECOM/EF_ADN (6F3A)')
+        # The full DF chain (learned from the selection path) is part of the
+        # path — the immediate DF alone hid DF_TELECOM for the phonebook.
+        self.assertEqual(_file_path('5f3a', '4fa1', '4FA1', None,
+                                    ['7f10', '5f3a']),
+                         'DF_TELECOM/DF_PHONEBOOK/4FA1')
+        self.assertEqual(_file_path('7fff', '6f07', 'EF_IMSI', None, ['7fff']),
+                         'ADF/EF_IMSI (6F07)')
         # An application selected by an unknown AID: the AID is the DF name,
         # with the EF.DIR label when the trace surfaced it.
         self.assertEqual(_file_path('aid:a00000015141434c00', '4f09', '4F09'),

@@ -298,6 +298,44 @@ def selected_df_fid(d, current_df=None):
     return None
 
 
+def selected_df_state(d, current_df=None, current_path=None):
+    """(current DF, DF path) after a SELECT, or ``(None, None)``.
+
+    The path is the chain of DFs from the root (MF) or from the running
+    application's ADF to the current DF: selecting ``7F10/5F3A/4FA1`` leaves
+    ``('5f3a', ['7f10', '5f3a'])``.  It lets the Files view show a file's full
+    path (``DF_TELECOM/DF_PHONEBOOK/4FA1``) instead of its parent alone.
+    """
+    df = selected_df_fid(d, current_df)
+    if df is None:
+        return None, None
+    p1 = (d.get('p1') or {}).get('raw')
+    h = (d.get('body') or {}).get('hex') or ''
+    base = list(current_path or ([current_df] if current_df else []))
+    if p1 in ('00', '01'):
+        # A child DF of the current one; MF and an ADF start a fresh path.
+        if df == '3f00' or df == '7fff' or df.startswith('aid:'):
+            return df, [df]
+        return df, base + [df] if base else ['3f00', df]
+    if p1 in ('08', '09'):
+        comps = [h[i:i + 4] for i in range(0, len(h) - 3, 4)]
+        chain = [] if p1 == '08' else list(base)
+        for comp in comps:
+            if comp == '7fff':
+                # The ADF: the path restarts there (an AID identity stays).
+                chain = [df] if df.startswith('aid:') else ['7fff']
+            elif _is_df_fid(comp):
+                chain.append(comp)
+        if not chain:
+            chain = ['3f00'] if p1 == '08' else (list(base) or ['3f00'])
+        if chain[-1] != df:
+            chain.append(df)
+        return df, chain
+    if p1 == '04':                      # by AID: the ADF is the path root
+        return df, [df]
+    return df, (base or [df])
+
+
 def sfi_table(df):
     """Return the SFI→FID table for a DF FID, or an empty dict."""
     return _SFI_BY_DF.get(df or '', {})
