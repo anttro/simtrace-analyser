@@ -313,8 +313,8 @@ test('Files view: the hex image rows mark changed, new and unknown bytes', () =>
 	assert.deepEqual(cells[2], {hex: '43', cls: 'hex-changed'});
 	assert.deepEqual(cells[4], {hex: '--', cls: 'hex-unknown'});   // the gap
 	assert.deepEqual(cells[8], {hex: '65', cls: 'hex-new'});
-	// ASCII column: printable bytes stay, gaps and the unobserved tail are blank.
-	assert.equal(view.rows[0].ascii, 'ABCD    ef      ');
+	// No ASCII column any more (it wasted the modal's width).
+	assert.equal(view.rows[0].ascii, undefined);
 });
 
 test('Files view: the hex image respects the row limit', () => {

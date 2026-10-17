@@ -196,9 +196,9 @@ a row jumps to the APDU in the trace.  Rows that carry a recorded change (a
 card-side change, or an update that wrote or first observed bytes) also offer
 **Details**: a modal showing the affected unit — the whole file, or the single
 record that changed — **before and after** the change, as hex views (16 bytes
-per row with an ASCII column, never-observed bytes drawn as `--`) with the
-bytes that changed highlighted in one colour and the bytes the operation first
-observed in another, plus the changed/new byte counts and the APDU reference.
+per row, never-observed bytes drawn as `--`) with the bytes that changed
+highlighted in one colour and the bytes the operation first observed in
+another, plus the changed/new byte counts and the APDU reference.
 
 The images come from `GET /api/sessions/<id>/files/image?key=…&change=…` and
 are reconstructed from the current image by undoing the later changes
