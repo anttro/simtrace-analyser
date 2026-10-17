@@ -505,6 +505,7 @@ const STATE = {
     sessionStarted: null,
     livePoller: null,
     messages: [],
+    selectedIdx: null,     // the focused APDU entry (persists across renders)
     typeCounts: [],
     traceMap: [],
     sideView: 'map',
@@ -1754,9 +1755,13 @@ function atrPpsRows(decoded) {
 }
 
 function showDetail(msg, entry) {
-    // Highlight clicked entry
+    // Highlight the focused entry; the state keeps it marked across renders.
     document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
-    if (entry) entry.classList.add('selected');
+    if (entry) {
+        entry.classList.add('selected');
+        const idx = Number(entry.dataset.idx);
+        if (!Number.isNaN(idx)) STATE.selectedIdx = idx;
+    }
 
     const d = el('apdu-detail');
     const decoded = msg.decoded;
@@ -2333,9 +2338,10 @@ function scrollToType(typeKey) {
         }
     }
     if (targetEl) {
+        STATE.selectedIdx = parseInt(targetEl.dataset.idx);
         targetEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        document.querySelectorAll('.apdu-entry.selected').forEach(e => e.classList.remove('selected'));
         targetEl.classList.add('selected');
-        setTimeout(() => targetEl.classList.remove('selected'), 1500);
     }
 }
 
@@ -2345,12 +2351,13 @@ function focusMessage(idx) {
     const needRender = filterEl.value !== '' || searchEl.value !== '';
     filterEl.value = '';
     searchEl.value = '';
+    // The focused entry stays selected until another one is focused; the
+    // state lets a re-render (the live poll included) keep it marked.
+    STATE.selectedIdx = idx;
     if (needRender) renderMessages(true);
     const entry = el('apdu-list').querySelector(`.apdu-entry[data-idx="${idx}"]`);
     if (!entry) return;
     entry.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    entry.classList.add('selected');
-    setTimeout(() => entry.classList.remove('selected'), 1500);
     showDetail(STATE.messages[idx], entry);
 }
 
@@ -2432,9 +2439,11 @@ function renderMessages(skipScroll, forceStick) {
         return;
     }
 
+    const selectedIdx = STATE.selectedIdx;
     list.innerHTML = filtered.map(({ m, idx }) => {
+        const selCls = idx === selectedIdx ? ' selected' : '';
         if (m.type === 'gap') {
-            return `<div class="apdu-entry apdu-gap" data-idx="${idx}">
+            return `<div class="apdu-entry apdu-gap${selCls}" data-idx="${idx}">
                 <span class="apdu-time">${fmt_elapsed(m.elapsed)}</span>
                 <span class="apdu-type">⚠ CAPTURE GAP</span>
                 <span class="apdu-data">${cmd_description(m)}</span>
@@ -2454,7 +2463,7 @@ function renderMessages(skipScroll, forceStick) {
             m.decoded.ins_name === 'GET RESPONSE' && m.decoded.response_for;
         const pairCls = (isGR || isOriginalCommand(idx)) ? ' apdu-pair' : '';
         const grLabel = isGR ? '↳ ' + label : label;
-        return `<div class="apdu-entry${pairCls}" data-idx="${idx}">
+        return `<div class="apdu-entry${pairCls}${selCls}" data-idx="${idx}">
             <span class="apdu-time">${fmt_elapsed(m.elapsed)}</span>
             <span class="apdu-type ${typeCls}">${grLabel}</span>
             <span class="apdu-sw ${sw_class(m)}">${sw_text(m)}</span>
@@ -2561,6 +2570,7 @@ async function startCapture() {
         STATE.currentSessionId = data.session_id;
         STATE.sessionStarted = data.started;
         STATE.messages = [];
+        STATE.selectedIdx = null;
         _lastAfter = 0;
         STATE.mapExpanded.clear();
         buildTypeCounts();
@@ -2943,6 +2953,7 @@ async function loadSession(id) {
         STATE.filesData = null;
         STATE.filesSessionId = null;
         STATE.filesImages = {};
+        STATE.selectedIdx = null;
         STATE.sessionStarted = data.session.started;
         STATE.captureActive = false;
         STATE.currentSessionName = data.session.name || t('Session #') + id;
@@ -3205,7 +3216,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.6.1';
+const PWA_VERSION = '2.6.2';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {

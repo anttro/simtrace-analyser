@@ -13,6 +13,8 @@ let STATE = {};
 let API = {};
 let renders = [];
 let focused = [];
+let el = () => ({});
+let showDetail = () => {};
 function renderMessages(skipScroll, forceStick) {
 	renders.push([skipScroll, forceStick]);
 }
@@ -21,8 +23,11 @@ function focusMessage(idx) {
 }
 eval(
 	extractFunc(src, 'jumpToMessage') + '\n' +
-	extractFunc(src, 'shouldStickToBottom')
+	extractFunc(src, 'shouldStickToBottom') + '\n'
 );
+// The real focusMessage, under an alias: the stub above stays in place for
+// the jumpToMessage tests.
+eval('var realFocusMessage = ' + extractFunc(src, 'focusMessage') + ';');
 
 test('jumpToMessage pages, renders without stick-to-bottom, then focuses', async () => {
 	renders = [];
@@ -80,4 +85,65 @@ test('jumpToMessage renders with skipScroll (source pin)', () => {
 test('a new session/capture lands at the bottom (source pins)', () => {
 	assert.match(extractFunc(src, 'loadSession'), /renderMessages\(false, true\);/);
 	assert.match(extractFunc(src, 'startCapture'), /renderMessages\(false, true\);/);
+});
+
+// ── the focused record stays selected ──────────────────────────────────
+
+test('focusMessage marks the record persistently and updates the detail', () => {
+	renders = [];
+	const classes = new Set();
+	const entry = {
+		dataset: { idx: '1' },
+		classList: { add: c => classes.add(c), remove: c => classes.delete(c) },
+		scrollIntoView: () => {},
+	};
+	STATE = { messages: [{ id: 'a' }, { id: 'b' }], selectedIdx: 0 };
+	el = () => ({ value: '', querySelector: () => entry });
+	let detailed = null;
+	showDetail = (msg, e) => { detailed = [msg, e]; };
+	realFocusMessage(1);
+	assert.equal(STATE.selectedIdx, 1);
+	assert.deepEqual(detailed, [{ id: 'b' }, entry]);
+	// No render is needed when no filter is active — and no flash timeout
+	// is scheduled: the highlight is owned by showDetail/the state.
+	assert.deepEqual(renders, []);
+});
+
+test('focusMessage clears a filter before focusing', () => {
+	renders = [];
+	const entry = {
+		dataset: { idx: '3' },
+		classList: { add: () => {}, remove: () => {} },
+		scrollIntoView: () => {},
+	};
+	STATE = { messages: {}, selectedIdx: null };
+	el = () => ({ value: 'x', querySelector: () => entry });
+	showDetail = () => {};
+	realFocusMessage(3);
+	assert.deepEqual(renders, [[true, undefined]]);
+	assert.equal(STATE.selectedIdx, 3);
+});
+
+test('the selection persists across renders (source pins)', () => {
+	const render = extractFunc(src, 'renderMessages');
+	assert.match(render, /const selectedIdx = STATE\.selectedIdx;/);
+	assert.match(render, /idx === selectedIdx \? ' selected' : ''/);
+	assert.match(render, /apdu-entry apdu-gap\$\{selCls\}/);
+	assert.match(render, /apdu-entry\$\{pairCls\}\$\{selCls\}/);
+
+	const focus = extractFunc(src, 'focusMessage');
+	assert.match(focus, /STATE\.selectedIdx = idx;/);
+	assert.doesNotMatch(focus, /setTimeout/);
+
+	const type = extractFunc(src, 'scrollToType');
+	assert.match(type, /STATE\.selectedIdx = parseInt\(targetEl\.dataset\.idx\);/);
+	assert.doesNotMatch(type, /setTimeout/);
+
+	const detail = extractFunc(src, 'showDetail');
+	assert.match(detail, /entry\.classList\.add\('selected'\)/);
+	assert.match(detail, /STATE\.selectedIdx = idx;/);
+
+	// A new session/capture must not keep a stale index selected.
+	assert.match(extractFunc(src, 'loadSession'), /STATE\.selectedIdx = null;/);
+	assert.match(extractFunc(src, 'startCapture'), /STATE\.selectedIdx = null;/);
 });

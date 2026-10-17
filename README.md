@@ -203,9 +203,10 @@ The Trace tab's side panel has a view selector (*Map* / *Stats* / **Files**;
 a drop-down, since three tab captions no longer fit).  The Files view is a
 trace-wide timeline of file operations — every **Read**, **Update** and
 **Changed on card** row shows the same file name as the Map view, and clicking
-a row jumps straight to the APDU in the trace (the APDU list keeps the
-reader's position: new messages pin the view to the bottom only while the
-reader is already there, so a jump is never pulled away by the live poll).  Rows that carry a recorded change (a
+a row jumps straight to the APDU in the trace and leaves it highlighted
+until another one is focused (the APDU list keeps the reader's position:
+new messages pin the view to the bottom only while the reader is already
+there, so a jump is never pulled away or un-highlighted by the live poll).  Rows that carry a recorded change (a
 card-side change, or an update that wrote or first observed bytes) also offer
 **Details**: a modal showing the full file path (`MF/EF_ICCID (2FE2)`,
 `ADF/EF_IMSI (6F07)`, `DF_GSM_ACCESS/EF_KcGPRS (4F52)`, `AID …/4F09` — the DF
