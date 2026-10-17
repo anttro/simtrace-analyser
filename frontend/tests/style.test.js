@@ -1,6 +1,6 @@
-// Scrollbar styling: the APDU list and the side panel share one rule, so
-// their widths cannot drift apart (the side panel used to fall back to the
-// global 6px bar while the list uses 12px).
+// Scrollbar styling: every pane shares one global rule (12px bars, 6px
+// rounded thumb) — the APDU list used to be 12px while the side panel,
+// detail pane, dialogs and session lists fell back to a 6px default.
 
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -8,15 +8,16 @@ const { loadSrc } = require('./helpers.js');
 
 const src = loadSrc();
 
-test('the APDU list and the side panel share the 12px scrollbar rule', () => {
-	const rule = /\.apdu-list::-webkit-scrollbar,\s*\n\.side-panel::-webkit-scrollbar \{ width: 12px; \}/;
-	assert.match(src, rule);
-	// the thumb radius pairs with the width (6px = half of 12px)
+test('every pane uses the global 12px scrollbar rule', () => {
+	assert.match(src, /::-webkit-scrollbar \{ width: 12px; height: 12px; \}/);
 	assert.match(
 		src,
-		/\.apdu-list::-webkit-scrollbar-thumb,\s*\n\.side-panel::-webkit-scrollbar-thumb \{ border-radius: 6px; \}/);
+		/::-webkit-scrollbar-thumb \{ background: var\(--scrollbar-thumb\); border-radius: 6px; \}/);
+	assert.match(src, /::-webkit-scrollbar-track \{ background: var\(--scrollbar-track\); \}/);
 });
 
-test('the global scrollbar default stays thin for the other panes', () => {
-	assert.match(src, /::-webkit-scrollbar \{ width: 6px; \}/);
+test('no per-element scrollbar overrides or thin default remain', () => {
+	assert.doesNotMatch(src, /\.apdu-list::-webkit-scrollbar/);
+	assert.doesNotMatch(src, /\.side-panel::-webkit-scrollbar/);
+	assert.doesNotMatch(src, /::-webkit-scrollbar \{ width: 6px/);
 });
