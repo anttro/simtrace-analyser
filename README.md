@@ -203,8 +203,9 @@ The Trace tab has a view selector (*Map* / *Stats* / **Files**) in its topbar,
 right-aligned over the side panel with the panel's width, so it stays visible
 while the panel scrolls (a drop-down, since three tab captions no longer
 fit).  The Files view is a
-trace-wide timeline of file operations — every **Read**, **Update** and
-**Changed on card** row shows the same file name as the Map view, and clicking
+trace-wide timeline of file operations — every **Read** and **Update** row
+shows the same file name as the Map view (a card-side change appears as a
+read with a **Changed on card!** link that opens its details), and clicking
 a row jumps straight to the APDU in the trace and leaves it highlighted
 until another one is focused (the APDU list keeps the reader's position:
 new messages pin the view to the bottom only while the reader is already

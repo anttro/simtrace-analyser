@@ -292,10 +292,12 @@ test('Files view: operation kinds map to classes and verbs', () => {
 	assert.equal(fileOpClass('card_change'), 'file-op-card');
 	assert.equal(fileOpVerb('read'), 'Read');
 	assert.equal(fileOpVerb('update'), 'Update');
-	assert.equal(fileOpVerb('card_change'), 'Changed on card');
+	// A card-side change is discovered by a read, so the row reads as a read
+	// operation ("Read EF_LOCI") with the change as a trailing link.
+	assert.equal(fileOpVerb('card_change'), 'Read');
 	assert.equal(fileOpLabel({kind: 'read', file: {name: 'EF_ICCID'}}), 'Read EF_ICCID');
 	assert.equal(fileOpLabel({kind: 'card_change', file: {name: 'EF_LOCI'}}),
-		'Changed on card EF_LOCI');
+		'Read EF_LOCI');
 	assert.equal(fileOpLabel({kind: 'read', file: null}), 'Read ?');
 });
 
@@ -340,7 +342,9 @@ test('Files view: the view selector (topbar) and the timeline are wired', () => 
 	assert.match(src, /\$on\('side-view-select', 'change'/);
 	assert.match(src, /\$on\('file-view', 'click'/);
 	assert.match(src, /API\.getSessionFiles\(sid\)/);
-	assert.match(src, />\$\{t\('Details'\)\}<\/button>/);
+	// The trailing link: "Changed on card!" for a card-side change (it opens
+	// the change modal), the generic "Details" for an update row.
+	assert.match(src, />\$\{op\.kind === 'card_change' \? t\('Changed on card!'\) : t\('Details'\)\}<\/button>/);
 	assert.match(src, /API\.getSessionFileImage\(STATE\.sessionViewId, fileKey, idx\)/);
 	assert.match(src, /getSessionFileImage\(id, key, change\)/);
 	assert.match(src, /files\/image\?key=/);
@@ -354,7 +358,7 @@ test('Files view: strings carry Russian translations', () => {
 	for (const m of lang.matchAll(/'((?:[^'\\]|\\.)*)'\s*:/g)) {
 		keys.add(m[1].replace(/\\(['\\])/g, '$1'));
 	}
-	for (const s of ['Files', 'Read', 'Update', 'Changed on card', 'Change details',
+	for (const s of ['Files', 'Read', 'Update', 'Changed on card!', 'Change details',
 		'Details', 'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
 		'changed', 'newly observed', 'never observed',
 		'{c} bytes changed, {n} bytes newly observed',

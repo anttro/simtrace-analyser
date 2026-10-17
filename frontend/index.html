@@ -2136,7 +2136,8 @@ function fileOpClass(kind) {
 
 function fileOpVerb(kind) {
     if (kind === 'update') return t('Update');
-    if (kind === 'card_change') return t('Changed on card');
+    // A card-side change is discovered by a read operation, so the row reads
+    // as one ("Read EF_IMSI") with the change offered as a trailing link.
     return t('Read');
 }
 
@@ -2233,7 +2234,7 @@ async function renderFileView() {
     }
     view.innerHTML = timeline.map(op => {
         const diff = op.change_ref
-            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">${t('Details')}</button>`
+            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">${op.kind === 'card_change' ? t('Changed on card!') : t('Details')}</button>`
             : '';
         return `<div class="file-op ${fileOpClass(op.kind)}" data-idx="${op.index}">
             <span>${escapeHtml(fileOpLabel(op))}</span>${diff}
@@ -3225,7 +3226,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.6.3';
+const PWA_VERSION = '2.6.4';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3271,7 +3272,7 @@ const LANG_RU = {
     'Files': 'Файлы',
     'Read': 'Чтение',
     'Update': 'Запись',
-    'Changed on card': 'Изменено картой',
+    'Changed on card!': 'Изменено на карте!',
     'Change details': 'Подробности изменения',
     'Details': 'Подробнее',
     'changed': 'изменено',

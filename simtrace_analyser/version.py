@@ -1,3 +1,3 @@
 """Single source of truth for the SIMtrace Analyser version."""
 
-__version__ = '2.6.3'
+__version__ = '2.6.4'
