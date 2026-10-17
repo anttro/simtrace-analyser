@@ -2183,6 +2183,12 @@ function hexImageRows(segments, ranges, observed, limit, size) {
         end = Math.max(end, seg.offset + Math.floor(hex.length / 2));
     }
     const covered = (list, pos) => (list || []).some(([p, n]) => pos >= p && pos < p + n);
+    // The filler stops at the known file/record length (a short file must not
+    // look like it has missing data) — and never hides observed bytes: when
+    // the FCP understates the layout (a 2-byte record_len for a 44-byte
+    // record read) the data's own end is the limit.  Without a known length
+    // the row also ends at the data instead of inventing bytes.
+    const stopAt = size && size >= end ? size : end;
     const rows = [];
     const used = {changed: false, fresh: false, unknown: false};
     let truncated = false;
@@ -2197,7 +2203,7 @@ function hexImageRows(segments, ranges, observed, limit, size) {
             // Never pad past the known file/record length: the filler would
             // read as missing data when the file is simply short.  '--'
             // still marks bytes inside the file that were never observed.
-            if (size && pos >= size) break;
+            if (stopAt && pos >= stopAt) break;
             const hex = bytes.get(pos);
             if (hex === undefined) {
                 cells.push({hex: '--', cls: 'hex-unknown'});
@@ -3380,7 +3386,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.4';
+const PWA_VERSION = '2.7.5';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {

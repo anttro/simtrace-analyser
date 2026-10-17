@@ -332,9 +332,18 @@ test('Files view: the hex rows stop at the known length (no filler)', () => {
 	assert.equal(rec.rows[0].cells.length, 9);
 	assert.equal(rec.rows[0].cells.filter(c => c.cls === 'hex-unknown').length, 5);
 	assert.deepEqual(rec.used, {changed: true, fresh: false, unknown: true});
-	// Without a known length the old row padding stays (nothing better to do).
+	// Without a known length the row ends at the data — no invented bytes.
 	const noSize = hexImageRows([{offset: 0, hex: 'aabb'}], [], [], undefined, null);
-	assert.equal(noSize.rows[0].cells.length, 16);
+	assert.equal(noSize.rows[0].cells.length, 2);
+	// A card whose FCP understates the layout (a 2-byte record_len for a
+	// 44-byte read) must still show every observed byte, not two per row.
+	const wide = hexImageRows(
+		[{offset: 0, hex: 'aa'.repeat(44)}], [[0, 2]], [[2, 42]], undefined, 2);
+	assert.deepEqual(wide.rows.map(r => r.cells.length), [16, 16, 12]);
+	assert.equal(wide.rows[0].cells[0].cls, 'hex-changed');
+	assert.equal(wide.rows[0].cells[2].cls, 'hex-new');
+	assert.equal(wide.used.changed, true);
+	assert.equal(wide.used.fresh, true);
 });
 
 test('Files view: the hex image respects the row limit', () => {
