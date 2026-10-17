@@ -320,7 +320,7 @@ test('Files view: side-panel dropdown and the timeline are wired', () => {
 	assert.match(src, /id="file-diff-body"/);
 	assert.match(src, /\$on\('side-view-select', 'change'/);
 	assert.match(src, /\$on\('file-view', 'click'/);
-	assert.match(src, /API\.getSessionFiles\(STATE\.sessionViewId\)/);
+	assert.match(src, /API\.getSessionFiles\(sid\)/);
 	assert.match(src, /if \(row\) jumpToMessage\(Number\(row\.dataset\.idx\)\);/);
 	assert.match(src, /getSessionFiles\(id\)\s*\{ return this\._fetch\('GET', `\/api\/sessions\/\$\{id\}\/files`\); \}/);
 });
@@ -336,4 +336,98 @@ test('Files view: strings carry Russian translations', () => {
 		'No file operations recorded', 'Failed to load files', 'Loading…']) {
 		assert.ok(keys.has(s), 'no LANG_RU entry for: ' + s);
 	}
+});
+
+// ── Files view against the real API layer (fetch stubbed) ──────────────
+// Reuses the t()/el() stubs from the dialog block above.
+eval(
+	'var localStorage = { getItem: () => "", setItem: () => {} };\n' +
+	extractConst(src, 'STATE').replace('const ', 'var ') + '\n' +
+	'function API_BASE() { return "http://test"; }\n' +
+	'function updateCaptureButton() {}\n' +
+	'var __fetchImpl = null;\n' +
+	'var fetch = (...a) => __fetchImpl(...a);\n' +
+	extractConst(src, 'API') + '\n' +
+	extractFunc(src, 'escapeHtml') + '\n' +
+	extractFunc(src, 'fileOpClass') + '\n' +
+	extractFunc(src, 'fileOpVerb') + '\n' +
+	extractFunc(src, 'fileOpLabel') + '\n' +
+	extractFunc(src, 'renderFileView') + '\n' +
+	'function __filesApi() { return API; }'
+);
+
+function fetchReply(status, body) {
+	return async () => ({
+		ok: status >= 200 && status < 300, status,
+		json: async () => body,
+	});
+}
+
+test('API._fetch: an HTTP error throws and does not look like data', async () => {
+	const api = __filesApi();
+	__fetchImpl = fetchReply(200, {a: 1});
+	assert.deepEqual(await api._fetch('GET', '/x'), {a: 1});
+	STATE.serverAvailable = true;
+	__fetchImpl = fetchReply(404, {error: 'Session not found'});
+	await assert.rejects(() => api._fetch('GET', '/y'), /Session not found/);
+	assert.equal(STATE.serverAvailable, true, 'HTTP errors are not disconnects');
+	__fetchImpl = async () => { throw new Error('network'); };
+	await assert.rejects(() => api._fetch('GET', '/z'), /network/);
+	assert.equal(STATE.serverAvailable, false, 'network errors do');
+});
+
+test('Files view: a valid payload renders the timeline', async () => {
+	__fetchImpl = fetchReply(200, {
+		timeline: [{kind: 'read', index: 3, file: {name: 'EF_ICCID'}}],
+		files: {}, timeline_total: 1,
+	});
+	STATE.sessionViewId = 7; STATE.filesData = null; STATE.filesSessionId = null;
+	await renderFileView();
+	assert.match(el('file-view').innerHTML, /Read EF_ICCID/);
+	assert.equal(STATE.filesSessionId, 7);
+});
+
+test('Files view: an empty payload is the empty state, not an error', async () => {
+	__fetchImpl = fetchReply(200, {timeline: [], files: {}, timeline_total: 0});
+	STATE.sessionViewId = 8; STATE.filesData = null; STATE.filesSessionId = null;
+	await renderFileView();
+	assert.match(el('file-view').innerHTML, /No file operations recorded/);
+	assert.doesNotMatch(el('file-view').innerHTML, /Failed to load files/);
+});
+
+test('Files view: an error is shown with its reason and never cached', async () => {
+	let calls = 0;
+	__fetchImpl = async () => {
+		calls++;
+		return {ok: false, status: 404, json: async () => ({error: 'Session not found'})};
+	};
+	STATE.sessionViewId = 9; STATE.filesData = null; STATE.filesSessionId = null;
+	await renderFileView();
+	assert.match(el('file-view').innerHTML, /Failed to load files/);
+	assert.match(el('file-view').innerHTML, /Session not found/);
+	assert.equal(STATE.filesData, null, 'a failure must not be cached');
+	assert.equal(STATE.filesSessionId, null);
+	// The next visit retries (and this time succeeds).
+	__fetchImpl = fetchReply(200, {
+		timeline: [{kind: 'update', index: 1, file: {name: 'EF_LOCI'}}],
+		files: {}, timeline_total: 1,
+	});
+	await renderFileView();
+	assert.match(el('file-view').innerHTML, /Update EF_LOCI/);
+	assert.equal(calls, 1);
+});
+
+test('Files view: a response for a session left meanwhile is ignored', async () => {
+	let resolveIt;
+	const pending = new Promise(r => { resolveIt = r; });
+	__fetchImpl = async () => ({ok: true, status: 200, json: () => pending});
+	STATE.sessionViewId = 10; STATE.filesData = null; STATE.filesSessionId = null;
+	const render = renderFileView();
+	STATE.sessionViewId = 11;   // the user opened another session meanwhile
+	resolveIt({timeline: [{kind: 'read', index: 0, file: {name: 'STALE'}}],
+		files: {}, timeline_total: 1});
+	await render;
+	assert.doesNotMatch(el('file-view').innerHTML, /STALE/);
+	assert.equal(STATE.filesData, null);
+	assert.equal(STATE.filesSessionId, null);
 });
