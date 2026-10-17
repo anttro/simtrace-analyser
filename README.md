@@ -211,7 +211,7 @@ until another one is focused (the APDU list keeps the reader's position:
 new messages pin the view to the bottom only while the reader is already
 there, so a jump is never pulled away or un-highlighted by the live poll).  Rows that carry a recorded change (a
 card-side change, or an update that wrote or first observed bytes) also offer
-**Details**: a modal showing the full file path (`MF/EF_ICCID (2FE2)`,
+**Show diff**: a modal showing the full file path (`MF/EF_ICCID (2FE2)`,
 `ADF/EF_IMSI (6F07)`, `DF_GSM_ACCESS/EF_KcGPRS (4F52)`, `AID …/4F09` — the DF
 named from the EF.DIR labels when known) and the affected unit — the whole
 file, or the single record that changed — **before and after** the change, as

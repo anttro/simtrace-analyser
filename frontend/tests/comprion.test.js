@@ -342,9 +342,9 @@ test('Files view: the view selector (topbar) and the timeline are wired', () => 
 	assert.match(src, /\$on\('side-view-select', 'change'/);
 	assert.match(src, /\$on\('file-view', 'click'/);
 	assert.match(src, /API\.getSessionFiles\(sid\)/);
-	// The trailing link: "Changed on card!" for a card-side change (it opens
-	// the change modal), the generic "Details" for an update row.
-	assert.match(src, />\$\{op\.kind === 'card_change' \? t\('Changed on card!'\) : t\('Details'\)\}<\/button>/);
+	// The trailing link: "Changed on card!" for a card-side change and
+	// "Show diff" for an update row — both open the change modal.
+	assert.match(src, />\$\{op\.kind === 'card_change' \? t\('Changed on card!'\) : t\('Show diff'\)\}<\/button>/);
 	assert.match(src, /API\.getSessionFileImage\(STATE\.sessionViewId, fileKey, idx\)/);
 	assert.match(src, /getSessionFileImage\(id, key, change\)/);
 	assert.match(src, /files\/image\?key=/);
@@ -359,7 +359,7 @@ test('Files view: strings carry Russian translations', () => {
 		keys.add(m[1].replace(/\\(['\\])/g, '$1'));
 	}
 	for (const s of ['Files', 'Read', 'Update', 'Changed on card!', 'Change details',
-		'Details', 'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
+		'Show diff', 'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
 		'changed', 'newly observed', 'never observed',
 		'{c} bytes changed, {n} bytes newly observed',
 		'Showing the first {n} bytes of the image',
