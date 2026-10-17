@@ -181,6 +181,20 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .side-tabs { display: flex; margin-bottom: 8px; border-bottom: 1px solid var(--bg-input); }
 .side-tab { flex: 1; padding: 6px 0; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid transparent; }
 .side-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.side-view-select { width: 100%; margin-bottom: 8px; padding: 6px 8px; background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+.file-op { display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; word-break: break-word; }
+.file-op:hover { background: var(--bg-input); }
+.file-op-read { color: var(--text-muted); }
+.file-op-update { color: var(--accent); }
+.file-op-card { color: var(--warn); }
+.file-op .file-op-diff { margin-left: auto; background: none; border: none; color: var(--warn); cursor: pointer; font-size: 12px; padding: 0 2px; flex: 0 0 auto; }
+.file-op .file-op-diff:hover { color: var(--accent); }
+.file-diff-modal { max-width: 640px; }
+.file-diff-body { max-height: 50vh; overflow-y: auto; margin-bottom: 16px; }
+.file-diff-body table { font-size: 12px; }
+.file-diff-body td { padding: 2px 8px 2px 0; vertical-align: top; }
+.file-diff-body .file-diff-hex { font-family: ui-monospace, monospace; word-break: break-all; }
 .map-item { padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; color: var(--text); word-break: break-word; }
 .map-item:hover { background: var(--bg-input); }
 .map-files-toggle { color: var(--accent); cursor: pointer; }
@@ -333,12 +347,14 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
             </div>
         </div>
         <div class="side-panel" id="side-panel">
-            <div class="side-tabs">
-                <button class="side-tab active" data-view="map" data-l10n="Map">Map</button>
-                <button class="side-tab" data-view="stats" data-l10n="Stats">Stats</button>
-            </div>
+            <select class="side-view-select" id="side-view-select" aria-label="Side panel view">
+                <option value="map" data-l10n="Map">Map</option>
+                <option value="stats" data-l10n="Stats">Stats</option>
+                <option value="files" data-l10n="Files">Files</option>
+            </select>
             <div id="type-counts">—</div>
             <div id="type-map" style="display:none">—</div>
+            <div id="file-view" style="display:none">—</div>
         </div>
     </div>
     <div class="status-bar">
@@ -419,8 +435,19 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
     </div>
 </div>
 
-<!-- COMPRION trace import dialog -->
-<div class="modal-overlay" id="comprion-modal">
+<!-- Card-side change detail (Files view) -->
+<div class="modal-overlay" id="file-diff-modal">
+    <div class="modal file-diff-modal">
+        <h3 data-l10n="Card-side change">Card-side change</h3>
+        <p id="file-diff-sub"></p>
+        <div class="file-diff-body" id="file-diff-body"></div>
+        <div class="modal-buttons">
+            <button class="cancel" id="file-diff-close" data-l10n="Close">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- COMPRION trace import dialog --><div class="modal-overlay" id="comprion-modal">
     <div class="modal comprion-modal">
         <h3 data-l10n="Import COMPRION trace">Import COMPRION trace</h3>
         <p data-l10n="Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.">Select the ISO Protocol Layer export and, if available, the matching ISO Application Layer export of the same session.</p>
@@ -470,6 +497,8 @@ const STATE = {
     typeCounts: [],
     traceMap: [],
     sideView: 'map',
+    filesData: null,
+    filesSessionId: null,
     pendingDeleteId: null,
     serverAvailable: false,
     serverName: '',
@@ -1149,6 +1178,7 @@ const API = {
     startCapture()          { return this._fetch('POST', '/api/capture/start'); },
     stopCapture()           { return this._fetch('POST', '/api/capture/stop'); },
     getLatest(after)        { return this._fetch('GET', `/api/capture/latest?after=${after}`); },
+    getSessionFiles(id)     { return this._fetch('GET', `/api/sessions/${id}/files`); },
     searchMessages(sessionId, query) { return this._fetch('GET', `/api/apdu/search?session_id=${sessionId}&q=${encodeURIComponent(query)}`); },
     filterMessages(sessionId, type) { return this._fetch('GET', `/api/apdu/filter?session_id=${sessionId}&type=${type}`); },
     async _importPost(params, body, contentType) {
@@ -2026,11 +2056,111 @@ function renderSidePanel() {
     }).join('') || t('No commands');
 
     const showMap = STATE.sideView === 'map';
-    el('type-counts').style.display = showMap ? 'none' : '';
+    el('type-counts').style.display = STATE.sideView === 'stats' ? '' : 'none';
     mapEl.style.display = showMap ? '' : 'none';
-    document.querySelectorAll('#side-panel .side-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.view === STATE.sideView);
-    });
+    el('file-view').style.display = STATE.sideView === 'files' ? '' : 'none';
+    el('side-view-select').value = STATE.sideView;
+    if (STATE.sideView === 'files') renderFileView();
+}
+
+// ──────────────────── Files view (per-file operation timeline) ────────────────────
+
+function fileOpClass(kind) {
+    if (kind === 'update') return 'file-op-update';
+    if (kind === 'card_change') return 'file-op-card';
+    return 'file-op-read';
+}
+
+function fileOpVerb(kind) {
+    if (kind === 'update') return t('Update');
+    if (kind === 'card_change') return t('Changed (card)');
+    return t('Read');
+}
+
+function fileOpLabel(op) {
+    const name = (op.file && op.file.name) || '?';
+    return `${fileOpVerb(op.kind)} ${name}`;
+}
+
+// Split a change's concatenated before/after hex into per-range rows.
+function fileDiffRows(change) {
+    const rows = [];
+    let at = 0;
+    for (const [pos, len] of (change.ranges || [])) {
+        const take = len * 2;
+        rows.push({
+            pos: pos,
+            len: len,
+            before: (change.before_hex || '').slice(at, at + take),
+            after: (change.after_hex || '').slice(at, at + take),
+        });
+        at += take;
+    }
+    return rows;
+}
+
+async function renderFileView() {
+    const view = el('file-view');
+    if (STATE.sessionViewId === null) {
+        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Open a saved session from the Sessions tab.')}</div>`;
+        return;
+    }
+    if (STATE.filesData === null || STATE.filesSessionId !== STATE.sessionViewId) {
+        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Loading…')}</div>`;
+        try {
+            STATE.filesData = await API.getSessionFiles(STATE.sessionViewId);
+            STATE.filesSessionId = STATE.sessionViewId;
+        } catch (e) {
+            STATE.filesData = null;
+            view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Failed to load files')}</div>`;
+            return;
+        }
+    }
+    const data = STATE.filesData;
+    const timeline = (data && data.timeline) || [];
+    if (!timeline.length) {
+        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('No file operations recorded')}</div>`;
+        return;
+    }
+    view.innerHTML = timeline.map(op => {
+        const diff = (op.kind === 'card_change' && op.change_ref)
+            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">Δ</button>`
+            : '';
+        return `<div class="file-op ${fileOpClass(op.kind)}" data-idx="${op.index}">
+            <span>${escapeHtml(fileOpLabel(op))}</span>${diff}
+        </div>`;
+    }).join('');
+}
+
+function showFileDiff(fileKey, idx) {
+    const data = STATE.filesData;
+    const entry = data && data.files ? data.files[fileKey] : null;
+    const change = entry && entry.changes ? entry.changes[idx] : null;
+    if (!change) return;
+    const rows = fileDiffRows(change);
+    el('file-diff-sub').textContent = `${entry.name} — ${change.op}`;
+    el('file-diff-body').innerHTML = rows.map(r => `<table>
+        <tr><td>${change.record != null ? t('Record') : t('Offset')}:</td><td>${escapeHtml(change.record != null ? String(r.pos) : '0x' + r.pos.toString(16).toUpperCase())} (${r.len} B)</td></tr>
+        <tr><td>${t('Before')}:</td><td class="file-diff-hex">${escapeHtml(r.before.toUpperCase())}</td></tr>
+        <tr><td>${t('After')}:</td><td class="file-diff-hex">${escapeHtml(r.after.toUpperCase())}</td></tr>
+        <tr><td colspan="2" style="height:6px"></td></tr>
+    </table>`).join('');
+    el('file-diff-modal').classList.add('show');
+}
+
+// Load the pages up to *idx* (the message list is fetched in pages) and focus
+// the message — used by the Files timeline rows.
+async function jumpToMessage(idx) {
+    if (STATE.sessionViewId === null || idx === null || idx === undefined) return;
+    try {
+        while (STATE.messages.length <= idx) {
+            const data = await API.getSession(STATE.sessionViewId, STATE.messages.length);
+            if (!data.messages || !data.messages.length) break;
+            STATE.messages.push(...data.messages);
+        }
+        renderMessages();
+        focusMessage(idx);
+    } catch (e) { /* keep the current view */ }
 }
 
 function mapFilesHtml(g) {
@@ -2652,6 +2782,8 @@ async function loadSession(id) {
 
         const data = await API.getSession(id, 0);
         STATE.sessionViewId = id;
+        STATE.filesData = null;
+        STATE.filesSessionId = null;
         STATE.sessionStarted = data.session.started;
         STATE.captureActive = false;
         STATE.currentSessionName = data.session.name || t('Session #') + id;
@@ -2914,8 +3046,8 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.2.0';
-const MIN_SERVER_VERSION = '2.2.0';
+const PWA_VERSION = '2.3.0';
+const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
     const parts = String(v || '').trim().split('.').map(n => parseInt(n, 10));
@@ -2957,6 +3089,20 @@ const LANG_RU = {
     'Command Stats': 'Статистика команд',
     'Stats': 'Статистика',
     'Map': 'Обзор',
+    'Files': 'Файлы',
+    'Read': 'Чтение',
+    'Update': 'Запись',
+    'Changed (card)': 'Изменено (картой)',
+    'Card-side change': 'Изменение на карте',
+    'Close': 'Закрыть',
+    'Offset': 'Смещение',
+    'Record': 'Запись №',
+    'Before': 'Было',
+    'After': 'Стало',
+    'Show the change': 'Показать изменение',
+    'No file operations recorded': 'Операции с файлами не зафиксированы',
+    'Failed to load files': 'Не удалось загрузить список файлов',
+    'Loading…': 'Загрузка…',
     'Reads:': 'Чтение:',
     'Writes:': 'Запись:',
     'Read/write:': 'Чтение/запись:',
@@ -3240,9 +3386,11 @@ function init() {
     $on('comprion-cancel', 'click', closeComprionDialog);
     $on('comprion-import', 'click', confirmComprionImport);
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape'
-            && el('comprion-modal').classList.contains('show')) {
+        if (e.key !== 'Escape') return;
+        if (el('comprion-modal').classList.contains('show')) {
             closeComprionDialog();
+        } else if (el('file-diff-modal').classList.contains('show')) {
+            el('file-diff-modal').classList.remove('show');
         }
     });
 
@@ -3285,6 +3433,22 @@ function init() {
 
     $on('install-btn', 'click', promptInstall);
 
+    $on('side-view-select', 'change', () => {
+        STATE.sideView = el('side-view-select').value;
+        renderSidePanel();
+    });
+    $on('file-view', 'click', e => {
+        const diff = e.target.closest('.file-op-diff');
+        if (diff) {
+            const parts = diff.dataset.diff.split('|');
+            showFileDiff(parts[0], Number(parts[1]));
+            return;
+        }
+        const row = e.target.closest('.file-op');
+        if (row) jumpToMessage(Number(row.dataset.idx));
+    });
+    $on('file-diff-close', 'click', () => el('file-diff-modal').classList.remove('show'));
+
     $on('delete-cancel', 'click', () => {
         el('delete-modal').classList.remove('show');
         STATE.pendingDeleteId = null;
@@ -3292,12 +3456,6 @@ function init() {
     $on('delete-confirm', 'click', confirmDelete);
 
     el('side-panel').addEventListener('click', e => {
-        const tab = e.target.closest('.side-tab');
-        if (tab) {
-            STATE.sideView = tab.dataset.view;
-            renderSidePanel();
-            return;
-        }
         const toggle = e.target.closest('.map-files-toggle');
         if (toggle) {
             e.stopPropagation();

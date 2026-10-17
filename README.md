@@ -186,6 +186,35 @@ one.
 Exchanges larger than 255 bytes (extended-length APDUs) cannot be represented
 in the stored wire shape and are skipped with a note in the import report.
 
+### Files view (per-file tracking)
+
+The Trace tab's side panel has a view selector (*Map* / *Stats* / **Files**;
+a drop-down, since three tab captions no longer fit).  The Files view is a
+trace-wide timeline of file operations — every **Read**, **Update** and
+**Changed (card)** row shows the same file name as the Map view, and clicking
+a row jumps to the APDU in the trace.  A *Changed (card)* row carries a Δ
+button that opens the changed ranges with the previous and the new bytes.
+
+The data comes from `simtrace_analyser/filetrack.py`
+(`GET /api/sessions/<id>/files`), a single-pass tracker over the decoded
+session that keeps, keyed by (DF, FID) and **across card resets**: access
+counters (`select`/`read`/`update`, successful operations only), a sparse image
+of the observed contents and the change log.  Device-initiated changes are the
+UPDATE operations seen in the trace; card-initiated ones are inferred when a
+read returns bytes differing from what the image already knew — bytes never
+seen before just fill the image (an observation, not a change).  Files reached
+by SFI share the entry of their path/FID accesses: the SFI ↔ FID relations come
+from the normative tables (TS 102 221 Annex H, TS 31.102 Annex H) and from every
+surfaced FCP carrying the `88` DO, including the spec's "SFI = the 5 LSBs of the
+FID" rule when the DO is absent; an SFI used before its relation is learned
+stays provisional and merges into the resolved entry.  A file's DF context
+follows TS 102 221 §8.4/Table 8.2 (selecting an EF leaves its parent DF current,
+a path selection included); applications selected by an unknown AID get the AID
+as their DF identity, named from EF.DIR when the trace surfaced it.  Bounds: the
+image freezes past 64 KB of observed bytes per file (`image_truncated`) and the
+change log keeps the last 1000 events per file (`changes_total` keeps counting).
+Counters are returned by the API but not shown in this view yet.
+
 Server options:
 
 ```

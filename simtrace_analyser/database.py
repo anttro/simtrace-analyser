@@ -192,6 +192,20 @@ class Database:
         initial_states, clk_hz = self._replay_context(session_id, after_id + 1)
         return self._decode_rows(rows, initial_states=initial_states, clk_hz=clk_hz)
 
+    def track_files(self, session_id):
+        """Track file state over the whole session (see filetrack.py).
+
+        Returns the tracker's result dict: the operation timeline, per-file
+        counters/images/changes, the SFI relations and the AID labels.
+        """
+        from .filetrack import FileTracker
+        rows = self._conn.execute(
+            'SELECT id, session_id, elapsed, type, data, flags FROM messages '
+            'WHERE session_id=? ORDER BY elapsed, id', (session_id,)).fetchall()
+        tracker = FileTracker()
+        self._decode_rows(rows, on_message=tracker.observe)
+        return tracker.result()
+
     def get_messages_raw(self, session_id):
         rows = self._conn.execute(
             'SELECT elapsed, type, data FROM messages WHERE session_id=? ORDER BY elapsed, id',
@@ -300,7 +314,7 @@ class Database:
     def _advance_state(self, d, sel, df, sfi_map):
         """Update (sel, df, sfi_map) for one decoded TPDU."""
         from .decode import selected_df_fid, sfi_table, KNOWN_FIDS
-        new_df = selected_df_fid(d)
+        new_df = selected_df_fid(d, df)
         if new_df is not None and new_df != df:
             # Only a successful SELECT changes the current DF.
             if (d.get('sw') or {}).get('sw1') in _SUCCESS_SW1:
@@ -363,7 +377,7 @@ class Database:
                 return new
         return sel
 
-    def _decode_rows(self, rows, initial_states=None, clk_hz=None):
+    def _decode_rows(self, rows, initial_states=None, clk_hz=None, on_message=None):
         from .decode import atr_rate_fields
         msgs = []
         states = dict(initial_states or {})
@@ -380,6 +394,10 @@ class Database:
             ctx['sfi_map'] = st['sfi_map']
             msg = self._row_to_message(row, prev=ctx, clk_hz=clk_hz)
             d = msg.get('decoded')
+            if on_message is not None:
+                # Observers (the per-file tracker) see the message with the
+                # channel state as it was *before* this message.
+                on_message(msg, st, channel)
             if msg['type'] == 'tpdu' and d and d.get('ins_hex'):
                 st['sel'], st['df'], st['sfi_map'] = self._advance_state(d, st['sel'], st['df'], st['sfi_map'])
                 st['prev'] = self._context_from_decoded(d)

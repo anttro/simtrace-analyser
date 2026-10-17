@@ -1690,11 +1690,37 @@ class TestSfiResolution(unittest.TestCase):
         self.assertIsNone(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '00'},
                                            'body': {'hex': '6f7e'}}))
         self.assertIsNone(selected_df_fid({'ins_hex': 'b0'}))
+        # SELECT by AID: the USIM maps to its virtual FID, any other
+        # application keeps its AID as the DF identity.
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '04'},
+                                          'body': {'hex': 'a0000000871002ff'}}), '7fff')
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '04'},
+                                          'body': {'hex': 'A00000015141434C00'}}),
+                         'aid:a00000015141434c00')
+        self.assertIsNone(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '04'},
+                                           'body': {'hex': ''}}))
+        # An AID DF has no normative SFI table.
+        self.assertEqual(sfi_table('aid:a00000015141434c00'), {})
         self.assertEqual(sfi_table('7fff')[0x1e], '6fe3')
         self.assertEqual(sfi_table('3f00')[0x1e], '2f00')
         self.assertEqual(sfi_table('7fff')[0x17], '6f06')
         self.assertEqual(sfi_table('7fff')[0x1a], '6fc6')
         self.assertEqual(sfi_table('6f7e'), {})
+        # TS 102 221 §8.4.1: selecting an EF leaves its parent DF current.
+        # 'path from MF', single component → directly under MF (Table 8.2).
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '08'},
+                                          'body': {'hex': '2fe2'}}, '7fff'), '3f00')
+        # 'path from MF' via the ADF: the EF's parent is 7FFF.
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '08'},
+                                          'body': {'hex': '7fff6f07'}}, '3f00'), '7fff')
+        # 'path from current DF': a single EF stays in the current DF.
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '09'},
+                                          'body': {'hex': '6f7e'}}, '7fff'), '7fff')
+        # …and an unknown application keeps its AID identity for '7fff'.
+        self.assertEqual(selected_df_fid({'ins_hex': 'a4', 'p1': {'raw': '08'},
+                                          'body': {'hex': '7fff4f09'}},
+                                         'aid:a00000015141434c00'),
+                         'aid:a00000015141434c00')
 
     def test_record_p2_sfi(self):
         # READ RECORD P2 = 0xBC → SFI = 0xBC>>3 = 23, mode = 0x04.

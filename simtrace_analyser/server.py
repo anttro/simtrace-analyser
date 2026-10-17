@@ -141,6 +141,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         elif path.startswith('/api/sessions/') and path.endswith('/pcap'):
             session_id = int(path.split('/')[-2])
             self._handle_get_session_pcap(session_id)
+        elif path.startswith('/api/sessions/') and path.endswith('/files'):
+            session_id = int(path.split('/')[-2])
+            self._handle_session_files(session_id)
         elif path.startswith('/api/sessions/'):
             session_id = int(path.split('/')[-1])
             self._handle_get_session(session_id, params)
@@ -460,6 +463,17 @@ class RequestHandler(BaseHTTPRequestHandler):
             'skipped': result['skipped'],
             'warnings': result['warnings'],
         })
+
+    def _handle_session_files(self, session_id):
+        """Per-file tracking for a session (counters, changes, timeline)."""
+        session = self.db.get_session(session_id)
+        if session is None:
+            self._send_error(404, 'Session not found')
+            return
+        data = self.db.track_files(session_id)
+        _log(f'Session files: session={session_id} '
+             f'files={len(data["files"])} operations={data["timeline_total"]}')
+        self._send_json(data)
 
     def _handle_rename_session(self, session_id, name):
         self.db.rename_session(session_id, name)

@@ -124,7 +124,7 @@ test('the COMPRION import is a two-slot dialog', () => {
 	assert.match(src, /time_base === 'application-layer'/);
 	assert.match(src, /\$on\('import-comprion-btn', 'click', openComprionDialog\)/);
 	assert.match(src, /\$on\('comprion-cancel', 'click', closeComprionDialog\)/);
-	assert.match(src, /e\.key === 'Escape'/);
+	assert.match(src, /e\.key !== 'Escape'/);
 });
 
 test('comprionSlotCheck: slot/kind outcomes', () => {
@@ -274,4 +274,66 @@ test('COMPRION dialog: success closes, server errors stay', async () => {
 	assert.equal(el('comprion-import').disabled, false, 'import can be retried');
 
 	closeComprionDialog();
+});
+
+// ── Files view (per-file operation timeline) ───────────────────────────
+eval(
+	'function t(x) { return x; }\n' +
+	extractFunc(src, 'fileOpClass') + '\n' +
+	extractFunc(src, 'fileOpVerb') + '\n' +
+	extractFunc(src, 'fileOpLabel') + '\n' +
+	extractFunc(src, 'fileDiffRows')
+);
+
+test('Files view: operation kinds map to classes and verbs', () => {
+	assert.equal(fileOpClass('read'), 'file-op-read');
+	assert.equal(fileOpClass('update'), 'file-op-update');
+	assert.equal(fileOpClass('card_change'), 'file-op-card');
+	assert.equal(fileOpVerb('read'), 'Read');
+	assert.equal(fileOpVerb('update'), 'Update');
+	assert.equal(fileOpVerb('card_change'), 'Changed (card)');
+	assert.equal(fileOpLabel({kind: 'read', file: {name: 'EF_ICCID'}}), 'Read EF_ICCID');
+	assert.equal(fileOpLabel({kind: 'card_change', file: {name: 'EF_LOCI'}}),
+		'Changed (card) EF_LOCI');
+	assert.equal(fileOpLabel({kind: 'read', file: null}), 'Read ?');
+});
+
+test('Files view: the diff rows slice the concatenated hex', () => {
+	const change = {
+		ranges: [[8, 2], [16, 1]],
+		before_hex: '95f9aa',
+		after_hex: '000001',
+	};
+	assert.deepEqual(fileDiffRows(change), [
+		{pos: 8, len: 2, before: '95f9', after: '0000'},
+		{pos: 16, len: 1, before: 'aa', after: '01'},
+	]);
+	assert.deepEqual(fileDiffRows({ranges: [], before_hex: '', after_hex: ''}), []);
+});
+
+test('Files view: side-panel dropdown and the timeline are wired', () => {
+	assert.match(src, /<select class="side-view-select" id="side-view-select"[^>]*>/);
+	assert.match(src, /<option value="files" data-l10n="Files">/);
+	assert.doesNotMatch(src, /class="side-tab/);
+	assert.match(src, /id="file-view"/);
+	assert.match(src, /id="file-diff-modal"/);
+	assert.match(src, /id="file-diff-body"/);
+	assert.match(src, /\$on\('side-view-select', 'change'/);
+	assert.match(src, /\$on\('file-view', 'click'/);
+	assert.match(src, /API\.getSessionFiles\(STATE\.sessionViewId\)/);
+	assert.match(src, /if \(row\) jumpToMessage\(Number\(row\.dataset\.idx\)\);/);
+	assert.match(src, /getSessionFiles\(id\)\s*\{ return this\._fetch\('GET', `\/api\/sessions\/\$\{id\}\/files`\); \}/);
+});
+
+test('Files view: strings carry Russian translations', () => {
+	const lang = extractConst(src, 'LANG_RU');
+	const keys = new Set();
+	for (const m of lang.matchAll(/'((?:[^'\\]|\\.)*)'\s*:/g)) {
+		keys.add(m[1].replace(/\\(['\\])/g, '$1'));
+	}
+	for (const s of ['Files', 'Read', 'Update', 'Changed (card)', 'Card-side change',
+		'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
+		'No file operations recorded', 'Failed to load files', 'Loading…']) {
+		assert.ok(keys.has(s), 'no LANG_RU entry for: ' + s);
+	}
 });

@@ -522,26 +522,53 @@ def _is_df_fid(fid):
     return fid == '3f00' or fid.startswith('7f') or fid.startswith('5f')
 
 
-def selected_df_fid(d):
-    """Return the current DF after a SELECT, or None if the SELECT does not
-    (re)enter a DF.  Handles SELECT by FID (P1 00/01), by path (P1 08/09),
-    and by DF name/AID (P1 04)."""
+def selected_df_fid(d, current_df=None):
+    """Return the current DF after a SELECT, or None if it is unchanged.
+
+    TS 102 221 §8.4.1: a DF/MF/ADF selection makes that file the current
+    directory; selecting an EF leaves the *parent of that EF* as the current
+    directory.  So a path selection that ends in an EF also (re)enters the
+    DF the EF lives in (Table 8.2: ``'EF1'`` from MF, ``'7FFF||DF3||EF4'``,
+    …).  ``current_df`` is used for "path from the current DF" paths.
+
+    Handles SELECT by FID (P1 00/01), by path (P1 08/09), and by DF name/AID
+    (P1 04; the special FID '7fff' always means the ADF of the current active
+    application, §8.3).
+    """
     if d.get('ins_hex') != 'a4':
         return None
     p1 = (d.get('p1') or {}).get('raw')
     h = (d.get('body') or {}).get('hex') or ''
+
+    def resolve(fid):
+        # '7FFF' is the running application's ADF: when that application was
+        # selected by an unknown AID, keep the AID as the DF identity.
+        if fid == '7fff' and (current_df or '').startswith('aid:'):
+            return current_df
+        return fid
+
     if p1 in ('00', '01'):
-        return h if len(h) == 4 and _is_df_fid(h) else None
+        return resolve(h) if len(h) == 4 and _is_df_fid(h) else None
     if p1 in ('08', '09'):
         comps = [h[i:i + 4] for i in range(0, len(h) - 3, 4)]
-        for comp in reversed(comps):
+        if not comps:
+            return None
+        target = comps[-1]
+        if _is_df_fid(target):
+            return resolve(target)
+        # The selected file is an EF: the current directory is its parent.
+        for comp in reversed(comps[:-1]):
             if _is_df_fid(comp):
-                return comp
-        return None
+                return resolve(comp)
+        if p1 == '08':
+            return '3f00'                # path from MF: directly under MF
+        return current_df or None        # path from the current DF
     if p1 == '04':  # select by DF name (AID) → map known application AIDs
         if h.startswith('a0000000871002'):   # USIM AID
             return '7fff'
-        return None
+        # Unknown application: keep the AID as the DF identity so files under
+        # it stay distinguishable from the previous DF's (TS 102 221 §11.1.1).
+        return f'aid:{h.lower()}' if h else None
     return None
 
 
