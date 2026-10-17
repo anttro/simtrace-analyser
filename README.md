@@ -219,10 +219,12 @@ card-side change, or an update that wrote or first observed bytes) also offer
 `ADF/EF_IMSI (6F07)`, `DF_GSM_ACCESS/EF_KcGPRS (4F52)`, `AID …/4F09` — the DF
 named from the EF.DIR labels when known) and the affected unit — the whole
 file, or the single record that changed — **before and after** the change, as
-hex views (16 bytes per row, never-observed bytes drawn as `--`) with the bytes
-that changed highlighted in one colour and the bytes the operation first
-observed in another, the changed/new byte counts, the APDU reference and the
-colour legend below the views.
+hex views (up to 16 bytes per row — a shorter file/record ends its row there
+instead of padding with `--`, and the offset column only appears when a view
+spans more than one row) with the bytes that changed highlighted in one colour
+and the bytes the operation first observed in another, the changed/new byte
+counts, the APDU reference and a colour legend below the views that lists only
+the marks actually shown.
 
 The images come from `GET /api/sessions/<id>/files/image?key=…&change=…` and
 are reconstructed from the current image by undoing the later changes

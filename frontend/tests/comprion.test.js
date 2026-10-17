@@ -319,6 +319,24 @@ test('Files view: the hex image rows mark changed, new and unknown bytes', () =>
 	assert.equal(view.rows[0].ascii, undefined);
 });
 
+test('Files view: the hex rows stop at the known length (no filler)', () => {
+	// A 2-byte file: two cells, no '--' filler that would look like data loss.
+	const short = hexImageRows([{offset: 0, hex: 'aabb'}], [], [], undefined, 2);
+	assert.equal(short.rows.length, 1);
+	assert.equal(short.rows[0].cells.length, 2);
+	assert.deepEqual(short.used, {changed: false, fresh: false, unknown: false});
+	// A 9-byte record with 4 bytes seen: the row ends at 9, and '--' marks the
+	// bytes inside the record that were never observed.
+	const rec = hexImageRows([{offset: 0, hex: '01020304'}], [[0, 2]], [],
+		undefined, 9);
+	assert.equal(rec.rows[0].cells.length, 9);
+	assert.equal(rec.rows[0].cells.filter(c => c.cls === 'hex-unknown').length, 5);
+	assert.deepEqual(rec.used, {changed: true, fresh: false, unknown: true});
+	// Without a known length the old row padding stays (nothing better to do).
+	const noSize = hexImageRows([{offset: 0, hex: 'aabb'}], [], [], undefined, null);
+	assert.equal(noSize.rows[0].cells.length, 16);
+});
+
 test('Files view: the hex image respects the row limit', () => {
 	const view = hexImageRows([{offset: 0, hex: 'aa'.repeat(64)}], [], [], 32);
 	assert.equal(view.truncated, true);
@@ -511,6 +529,48 @@ test('Change details modal: header, summary, legend and both views', () => {
 	});
 	assert.match(el('file-diff-sub').textContent, /Record 2 \/ 5/);
 	assert.match(el('file-diff-body').innerHTML, /image is frozen/);
+});
+
+test('Change details: a short file shows no filler, no offset, no stray legend', () => {
+	renderFileDiff({
+		name: 'EF_Kc', path: 'DF_GSM/EF_Kc (6F20)', op: 'UPDATE BINARY',
+		record: null, size: 2, record_len: null, n_records: null,
+		index: 3, elapsed: 1.25, ranges: [[1, 1]], observed_ranges: [],
+		before: [{offset: 0, hex: 'aabb'}], after: [{offset: 0, hex: 'aacc'}],
+		image_truncated: false,
+	});
+	const body = el('file-diff-body').innerHTML;
+	assert.doesNotMatch(body, /hex-unknown/);      // no '--' cells at all
+	assert.doesNotMatch(body, /hex-addr/);         // a single row: no offset column
+	assert.match(body, /hex-cell hex-changed/);
+	// The legend lists only what the views show: 'changed' (the summary line
+	// above still counts the zero "newly observed" bytes).
+	const legend = body.slice(body.indexOf('hex-legend'));
+	assert.equal((legend.match(/class="hex-legend-item"/g) || []).length, 1);
+	assert.match(legend, /changed</);
+	assert.doesNotMatch(legend, /newly observed|never observed/);
+});
+
+test('Change details: a short record keeps its never-observed tail', () => {
+	// A 9-byte record with 4 bytes observed: the row ends at 9 (no filler
+	// past it) and '--' marks the bytes that were never observed.
+	renderFileDiff({
+		name: 'EF_IMSI', path: 'ADF/EF_IMSI (6F07)', op: 'READ RECORD',
+		record: 1, record_len: 9, n_records: 2, size: 18,
+		index: 5, elapsed: 2, ranges: [[0, 2]], observed_ranges: [],
+		before: [{offset: 0, hex: 'ffffffff'}],
+		after: [{offset: 0, hex: 'ffffffff'}],
+		image_truncated: false,
+	});
+	const body = el('file-diff-body').innerHTML;
+	assert.match(body, /hex-cell hex-changed/);
+	assert.match(body, /hex-cell hex-unknown">--<\/span>\s*<\/div>\s*<\/div>/);
+	assert.doesNotMatch(body, /hex-addr/);         // one row: no offset column
+	const legend = body.slice(body.indexOf('hex-legend'));
+	assert.equal((legend.match(/class="hex-legend-item"/g) || []).length, 2);
+	assert.match(legend, /changed</);
+	assert.match(legend, /never observed/);
+	assert.doesNotMatch(legend, /newly observed/);
 });
 
 // ── Session loading must survive "no active capture" ───────────────────

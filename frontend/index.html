@@ -2171,7 +2171,7 @@ function fileOpLabel(op) {
 // Hex view of an image: 16 bytes per row across the observed segments, with
 // gaps drawn as unknown cells.  *ranges* (bytes that changed) and *observed*
 // (bytes first observed by this change) mark the cells.
-function hexImageRows(segments, ranges, observed, limit) {
+function hexImageRows(segments, ranges, observed, limit, size) {
     const maxBytes = limit || 2048;
     const bytes = new Map();
     let end = 0;
@@ -2184,6 +2184,7 @@ function hexImageRows(segments, ranges, observed, limit) {
     }
     const covered = (list, pos) => (list || []).some(([p, n]) => pos >= p && pos < p + n);
     const rows = [];
+    const used = {changed: false, fresh: false, unknown: false};
     let truncated = false;
     for (let off = 0; off < end; off += 16) {
         if (off >= maxBytes) {
@@ -2193,30 +2194,51 @@ function hexImageRows(segments, ranges, observed, limit) {
         const cells = [];
         for (let i = 0; i < 16; i++) {
             const pos = off + i;
+            // Never pad past the known file/record length: the filler would
+            // read as missing data when the file is simply short.  '--'
+            // still marks bytes inside the file that were never observed.
+            if (size && pos >= size) break;
             const hex = bytes.get(pos);
             if (hex === undefined) {
                 cells.push({hex: '--', cls: 'hex-unknown'});
+                used.unknown = true;
                 continue;
             }
             const cls = covered(ranges, pos) ? 'hex-changed'
                 : covered(observed, pos) ? 'hex-new' : '';
+            if (cls === 'hex-changed') used.changed = true;
+            else if (cls === 'hex-new') used.fresh = true;
             cells.push({hex: hex, cls: cls});
         }
         rows.push({offset: off, cells: cells});
     }
-    return {rows: rows, truncated: truncated, end: end};
+    return {rows: rows, truncated: truncated, end: end, used: used};
 }
 
+// One side of the change view: the hex rows plus the marks actually used, so
+// the caller can show only the legend entries that apply.
 function hexImageHtml(image, key) {
     const segments = image[key] || [];
-    const view = hexImageRows(segments, image.ranges, image.observed_ranges);
-    const body = view.rows.map(r =>
-        `<div class="hex-row"><span class="hex-addr">${r.offset.toString(16).toUpperCase().padStart(4, '0')}</span>` +
+    const asRecord = image.record !== null && image.record !== undefined;
+    const size = asRecord ? image.record_len : image.size;
+    const view = hexImageRows(segments, image.ranges, image.observed_ranges,
+                              undefined, size);
+    // The offset column only helps when the view spans more than one row.
+    const addr = view.rows.length > 1;
+    const used = view.used;
+    let body = view.rows.map(r =>
+        `<div class="hex-row">` +
+        (addr ? `<span class="hex-addr">${r.offset.toString(16).toUpperCase().padStart(4, '0')}</span>` : '') +
         r.cells.map(c => `<span class="hex-cell ${c.cls}">${c.hex}</span>`).join('') +
         '</div>'
-    ).join('') || `<div class="hex-row hex-unknown">${t('never observed')}</div>`;
-    return `<div class="hex-view">${body}</div>` +
+    ).join('');
+    if (!view.rows.length) {
+        body = `<div class="hex-row hex-unknown">${t('never observed')}</div>`;
+        used.unknown = true;
+    }
+    const html = `<div class="hex-view">${body}</div>` +
         (view.truncated ? `<div class="hex-note">${t('Showing the first {n} bytes of the image').replace('{n}', 2048)}</div>` : '');
+    return {html: html, used: used};
 }
 
 async function renderFileView() {
@@ -2301,18 +2323,28 @@ function renderFileDiff(image) {
     if (image.index !== null && image.index !== undefined) meta.push(`#${image.index}`);
     if (image.elapsed !== null && image.elapsed !== undefined) meta.push(fmt_elapsed(image.elapsed));
     el('file-diff-sub').textContent = `${image.path || image.name || ''} — ${meta.join(' · ')}`;
+    const before = hexImageHtml(image, 'before');
+    const after = hexImageHtml(image, 'after');
+    const used = {
+        changed: before.used.changed || after.used.changed,
+        fresh: before.used.fresh || after.used.fresh,
+        unknown: before.used.unknown || after.used.unknown,
+    };
+    // Only the marks the views actually show get a legend entry (a short
+    // file has no '--' filler, so 'never observed' would be misleading).
+    const legend = [
+        used.changed ? `<span class="hex-legend-item"><span class="hex-cell hex-changed">aa</span> ${t('changed')}</span>` : '',
+        used.fresh ? `<span class="hex-legend-item"><span class="hex-cell hex-new">aa</span> ${t('newly observed')}</span>` : '',
+        used.unknown ? `<span class="hex-legend-item"><span class="hex-cell hex-unknown">--</span> ${t('never observed')}</span>` : '',
+    ].join('');
     el('file-diff-body').innerHTML =
         `<div class="hex-summary">${t('{c} bytes changed, {n} bytes newly observed')
             .replace('{c}', changed).replace('{n}', fresh)}</div>
         <div class="hex-pair">
-            <div><h4>${t('Before')}</h4>${hexImageHtml(image, 'before')}</div>
-            <div><h4>${t('After')}</h4>${hexImageHtml(image, 'after')}</div>
-        </div>
-        <div class="hex-legend">
-            <span class="hex-legend-item"><span class="hex-cell hex-changed">aa</span> ${t('changed')}</span>
-            <span class="hex-legend-item"><span class="hex-cell hex-new">aa</span> ${t('newly observed')}</span>
-            <span class="hex-legend-item"><span class="hex-cell hex-unknown">--</span> ${t('never observed')}</span>
+            <div><h4>${t('Before')}</h4>${before.html}</div>
+            <div><h4>${t('After')}</h4>${after.html}</div>
         </div>` +
+        (legend ? `<div class="hex-legend">${legend}</div>` : '') +
         (image.image_truncated ? `<p class="hex-note">${t('The image is frozen (size cap reached) — later changes are not tracked.')}</p>` : '');
 }
 
@@ -3341,7 +3373,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.2';
+const PWA_VERSION = '2.7.3';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
