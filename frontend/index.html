@@ -2546,15 +2546,22 @@ async function startCapture() {
     }
 }
 
-async function stopCapture() {
+// Stopping when nothing is capturing answers 400 ('No active capture'), and
+// 403 when capture is disabled — both mean "there is no capture to stop",
+// not a failure.
+async function stopCaptureIfRunning() {
     try {
         await API.stopCapture();
-        STATE.captureActive = false;
-        STATE.currentSessionId = null;
-        STATE.sessionViewId = null;
-        updateCaptureButton();
-        updateStatus();
-    } catch (e) {}
+    } catch (e) { /* nothing to stop */ }
+}
+
+async function stopCapture() {
+    await stopCaptureIfRunning();
+    STATE.captureActive = false;
+    STATE.currentSessionId = null;
+    STATE.sessionViewId = null;
+    updateCaptureButton();
+    updateStatus();
 }
 
 function updateCaptureButton() {
@@ -2891,8 +2898,9 @@ async function confirmComprionImport() {
 async function loadSession(id) {
     if (STATE.captureActive && !confirm(t('Opening a session stops the active capture. Continue?'))) return;
     try {
-        // Stop any active capture so it can't write into the session being viewed.
-        await API.stopCapture();
+        // Stop any active capture so it can't write into the session being
+        // viewed (a 400/403 means there is none — not an error).
+        await stopCaptureIfRunning();
         STATE.captureActive = false;
         STATE.currentSessionId = null;
         stopPolling();
@@ -3164,7 +3172,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.4.0';
+const PWA_VERSION = '2.4.1';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {

@@ -498,3 +498,29 @@ test('Change details modal: header, summary, legend and both views', () => {
 	assert.match(el('file-diff-sub').textContent, /Record 2 \/ 5/);
 	assert.match(el('file-diff-body').innerHTML, /image is frozen/);
 });
+
+// ── Session loading must survive "no active capture" ───────────────────
+eval(extractFunc(src, 'stopCaptureIfRunning'));
+
+test('stopCaptureIfRunning tolerates "no active capture" (400)', async () => {
+	let calls = 0;
+	API.stopCapture = async () => {
+		calls++;
+		throw Object.assign(new Error('No active capture'), {status: 400});
+	};
+	await stopCaptureIfRunning();          // must resolve, not reject
+	assert.equal(calls, 1);
+	API.stopCapture = async () => { calls++; };
+	await stopCaptureIfRunning();
+	assert.equal(calls, 2);
+});
+
+test('loadSession stops a capture tolerantly', () => {
+	const body = extractFunc(src, 'loadSession');
+	assert.match(body, /await stopCaptureIfRunning\(\)/);
+	assert.doesNotMatch(body, /await API\.stopCapture\(\)/);
+	// The capture button also resets its state after a tolerated stop.
+	const stop = extractFunc(src, 'stopCapture');
+	assert.match(stop, /await stopCaptureIfRunning\(\)/);
+	assert.match(stop, /STATE\.captureActive = false;/);
+});
