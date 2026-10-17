@@ -188,13 +188,25 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .file-op-read { color: var(--text-muted); }
 .file-op-update { color: var(--accent); }
 .file-op-card { color: var(--warn); }
-.file-op .file-op-diff { margin-left: auto; background: none; border: none; color: var(--warn); cursor: pointer; font-size: 12px; padding: 0 2px; flex: 0 0 auto; }
-.file-op .file-op-diff:hover { color: var(--accent); }
-.file-diff-modal { max-width: 640px; }
-.file-diff-body { max-height: 50vh; overflow-y: auto; margin-bottom: 16px; }
-.file-diff-body table { font-size: 12px; }
-.file-diff-body td { padding: 2px 8px 2px 0; vertical-align: top; }
-.file-diff-body .file-diff-hex { font-family: ui-monospace, monospace; word-break: break-all; }
+.file-op .file-op-diff { margin-left: auto; background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0 2px; flex: 0 0 auto; text-decoration: underline; }
+.file-op .file-op-diff:hover { color: var(--warn); }
+.file-diff-modal { max-width: 760px; }
+.file-diff-body { max-height: 60vh; overflow-y: auto; margin-bottom: 16px; }
+.hex-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap; }
+.hex-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.hex-pair { display: flex; gap: 16px; flex-wrap: wrap; }
+.hex-pair > div { flex: 1 1 320px; min-width: 0; }
+.hex-pair h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 4px; }
+.hex-view { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre; overflow-x: auto; }
+.hex-row { display: flex; align-items: baseline; }
+.hex-addr { color: var(--text-muted); margin-right: 8px; }
+.hex-cell { padding: 0 1px; border-radius: 2px; }
+.hex-cell.hex-changed { background: var(--warn); color: #1a1a1a; font-weight: 600; }
+.hex-cell.hex-new { background: var(--accent); color: #fff; font-weight: 600; }
+.hex-cell.hex-unknown { color: var(--text-muted); }
+.hex-ascii { color: var(--text-muted); margin-left: 8px; }
+.hex-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+.hex-error { font-size: 12px; color: var(--error); }
 .map-item { padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; color: var(--text); word-break: break-word; }
 .map-item:hover { background: var(--bg-input); }
 .map-files-toggle { color: var(--accent); cursor: pointer; }
@@ -438,7 +450,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 <!-- Card-side change detail (Files view) -->
 <div class="modal-overlay" id="file-diff-modal">
     <div class="modal file-diff-modal">
-        <h3 data-l10n="Card-side change">Card-side change</h3>
+        <h3 data-l10n="Change details">Change details</h3>
         <p id="file-diff-sub"></p>
         <div class="file-diff-body" id="file-diff-body"></div>
         <div class="modal-buttons">
@@ -499,6 +511,7 @@ const STATE = {
     sideView: 'map',
     filesData: null,
     filesSessionId: null,
+    filesImages: {},
     pendingDeleteId: null,
     serverAvailable: false,
     serverName: '',
@@ -1193,6 +1206,10 @@ const API = {
     stopCapture()           { return this._fetch('POST', '/api/capture/stop'); },
     getLatest(after)        { return this._fetch('GET', `/api/capture/latest?after=${after}`); },
     getSessionFiles(id)     { return this._fetch('GET', `/api/sessions/${id}/files`); },
+    getSessionFileImage(id, key, change) {
+        return this._fetch('GET', `/api/sessions/${id}/files/image?key=` +
+            encodeURIComponent(key) + `&change=${change}`);
+    },
     searchMessages(sessionId, query) { return this._fetch('GET', `/api/apdu/search?session_id=${sessionId}&q=${encodeURIComponent(query)}`); },
     filterMessages(sessionId, type) { return this._fetch('GET', `/api/apdu/filter?session_id=${sessionId}&type=${type}`); },
     async _importPost(params, body, contentType) {
@@ -2087,7 +2104,7 @@ function fileOpClass(kind) {
 
 function fileOpVerb(kind) {
     if (kind === 'update') return t('Update');
-    if (kind === 'card_change') return t('Changed (card)');
+    if (kind === 'card_change') return t('Changed on card');
     return t('Read');
 }
 
@@ -2096,21 +2113,59 @@ function fileOpLabel(op) {
     return `${fileOpVerb(op.kind)} ${name}`;
 }
 
-// Split a change's concatenated before/after hex into per-range rows.
-function fileDiffRows(change) {
-    const rows = [];
-    let at = 0;
-    for (const [pos, len] of (change.ranges || [])) {
-        const take = len * 2;
-        rows.push({
-            pos: pos,
-            len: len,
-            before: (change.before_hex || '').slice(at, at + take),
-            after: (change.after_hex || '').slice(at, at + take),
-        });
-        at += take;
+// Hex view of an image: 16 bytes per row across the observed segments, with
+// gaps drawn as unknown cells.  *ranges* (bytes that changed) and *observed*
+// (bytes first observed by this change) mark the cells.
+function hexImageRows(segments, ranges, observed, limit) {
+    const maxBytes = limit || 2048;
+    const bytes = new Map();
+    let end = 0;
+    for (const seg of segments || []) {
+        const hex = (seg.hex || '').toLowerCase();
+        for (let i = 0; i < hex.length / 2; i++) {
+            bytes.set(seg.offset + i, hex.substr(i * 2, 2));
+        }
+        end = Math.max(end, seg.offset + Math.floor(hex.length / 2));
     }
-    return rows;
+    const covered = (list, pos) => (list || []).some(([p, n]) => pos >= p && pos < p + n);
+    const rows = [];
+    let truncated = false;
+    for (let off = 0; off < end; off += 16) {
+        if (off >= maxBytes) {
+            truncated = true;
+            break;
+        }
+        const cells = [];
+        let ascii = '';
+        for (let i = 0; i < 16; i++) {
+            const pos = off + i;
+            const hex = bytes.get(pos);
+            if (hex === undefined) {
+                cells.push({hex: '--', cls: 'hex-unknown'});
+                ascii += ' ';
+                continue;
+            }
+            const cls = covered(ranges, pos) ? 'hex-changed'
+                : covered(observed, pos) ? 'hex-new' : '';
+            const value = parseInt(hex, 16);
+            cells.push({hex: hex, cls: cls});
+            ascii += (value >= 0x20 && value < 0x7f) ? String.fromCharCode(value) : '.';
+        }
+        rows.push({offset: off, cells: cells, ascii: ascii});
+    }
+    return {rows: rows, truncated: truncated, end: end};
+}
+
+function hexImageHtml(image, key) {
+    const segments = image[key] || [];
+    const view = hexImageRows(segments, image.ranges, image.observed_ranges);
+    const body = view.rows.map(r =>
+        `<div class="hex-row"><span class="hex-addr">${r.offset.toString(16).toUpperCase().padStart(4, '0')}</span>` +
+        r.cells.map(c => `<span class="hex-cell ${c.cls}">${c.hex}</span>`).join('') +
+        `<span class="hex-ascii">${escapeHtml(r.ascii)}</span></div>`
+    ).join('') || `<div class="hex-row hex-unknown">${t('never observed')}</div>`;
+    return `<div class="hex-view">${body}</div>` +
+        (view.truncated ? `<div class="hex-note">${t('Showing the first {n} bytes of the image').replace('{n}', 2048)}</div>` : '');
 }
 
 async function renderFileView() {
@@ -2149,8 +2204,8 @@ async function renderFileView() {
         return;
     }
     view.innerHTML = timeline.map(op => {
-        const diff = (op.kind === 'card_change' && op.change_ref)
-            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">Δ</button>`
+        const diff = op.change_ref
+            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">${t('Details')}</button>`
             : '';
         return `<div class="file-op ${fileOpClass(op.kind)}" data-idx="${op.index}">
             <span>${escapeHtml(fileOpLabel(op))}</span>${diff}
@@ -2158,20 +2213,56 @@ async function renderFileView() {
     }).join('');
 }
 
-function showFileDiff(fileKey, idx) {
+async function showFileDiff(fileKey, idx) {
     const data = STATE.filesData;
     const entry = data && data.files ? data.files[fileKey] : null;
-    const change = entry && entry.changes ? entry.changes[idx] : null;
-    if (!change) return;
-    const rows = fileDiffRows(change);
-    el('file-diff-sub').textContent = `${entry.name} — ${change.op}`;
-    el('file-diff-body').innerHTML = rows.map(r => `<table>
-        <tr><td>${change.record != null ? t('Record') : t('Offset')}:</td><td>${escapeHtml(change.record != null ? String(r.pos) : '0x' + r.pos.toString(16).toUpperCase())} (${r.len} B)</td></tr>
-        <tr><td>${t('Before')}:</td><td class="file-diff-hex">${escapeHtml(r.before.toUpperCase())}</td></tr>
-        <tr><td>${t('After')}:</td><td class="file-diff-hex">${escapeHtml(r.after.toUpperCase())}</td></tr>
-        <tr><td colspan="2" style="height:6px"></td></tr>
-    </table>`).join('');
+    if (!entry) return;
+    el('file-diff-sub').textContent = entry.name;
+    el('file-diff-body').innerHTML = `<p class="hex-note">${t('Loading…')}</p>`;
     el('file-diff-modal').classList.add('show');
+    const cacheKey = `${STATE.sessionViewId}|${fileKey}|${idx}`;
+    let image = STATE.filesImages[cacheKey];
+    try {
+        if (!image) {
+            image = await API.getSessionFileImage(STATE.sessionViewId, fileKey, idx);
+            if (!image || !image.before) {
+                throw new Error((image && image.error) || t('Failed to load files'));
+            }
+            STATE.filesImages[cacheKey] = image;
+        }
+    } catch (e) {
+        el('file-diff-body').innerHTML =
+            `<p class="hex-error">${t('Failed to load files')}: ${escapeHtml((e && e.message) || '')}</p>`;
+        return;
+    }
+    renderFileDiff(image);
+}
+
+function renderFileDiff(image) {
+    const changed = (image.ranges || []).reduce((n, r) => n + r[1], 0);
+    const fresh = (image.observed_ranges || []).reduce((n, r) => n + r[1], 0);
+    const meta = [];
+    if (image.op) meta.push(image.op);
+    if (image.record !== null && image.record !== undefined) {
+        meta.push(`${t('Record')} ${image.record}` +
+            (image.n_records ? ` / ${image.n_records}` : ''));
+    }
+    if (image.index !== null && image.index !== undefined) meta.push(`#${image.index}`);
+    if (image.elapsed !== null && image.elapsed !== undefined) meta.push(fmt_elapsed(image.elapsed));
+    el('file-diff-sub').textContent = `${image.name || ''} — ${meta.join(' · ')}`;
+    el('file-diff-body').innerHTML =
+        `<div class="hex-legend">
+            <span class="hex-cell hex-changed">aa</span> ${t('changed')}
+            <span class="hex-cell hex-new">aa</span> ${t('newly observed')}
+            <span class="hex-cell hex-unknown">--</span> ${t('never observed')}
+        </div>
+        <div class="hex-summary">${t('{c} bytes changed, {n} bytes newly observed')
+            .replace('{c}', changed).replace('{n}', fresh)}</div>
+        <div class="hex-pair">
+            <div><h4>${t('Before')}</h4>${hexImageHtml(image, 'before')}</div>
+            <div><h4>${t('After')}</h4>${hexImageHtml(image, 'after')}</div>
+        </div>` +
+        (image.image_truncated ? `<p class="hex-note">${t('The image is frozen (size cap reached) — later changes are not tracked.')}</p>` : '');
 }
 
 // Load the pages up to *idx* (the message list is fetched in pages) and focus
@@ -2810,6 +2901,7 @@ async function loadSession(id) {
         STATE.sessionViewId = id;
         STATE.filesData = null;
         STATE.filesSessionId = null;
+        STATE.filesImages = {};
         STATE.sessionStarted = data.session.started;
         STATE.captureActive = false;
         STATE.currentSessionName = data.session.name || t('Session #') + id;
@@ -3072,7 +3164,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.3.1';
+const PWA_VERSION = '2.4.0';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3118,8 +3210,15 @@ const LANG_RU = {
     'Files': 'Файлы',
     'Read': 'Чтение',
     'Update': 'Запись',
-    'Changed (card)': 'Изменено (картой)',
-    'Card-side change': 'Изменение на карте',
+    'Changed on card': 'Изменено картой',
+    'Change details': 'Подробности изменения',
+    'Details': 'Подробнее',
+    'changed': 'изменено',
+    'newly observed': 'впервые наблюдается',
+    'never observed': 'не наблюдалось',
+    '{c} bytes changed, {n} bytes newly observed': 'Изменено байт: {c}; впервые наблюдается байт: {n}',
+    'Showing the first {n} bytes of the image': 'Показаны первые {n} байт образа',
+    'The image is frozen (size cap reached) — later changes are not tracked.': 'Образ заморожен (достигнут предел размера) — последующие изменения не отслеживаются.',
     'Close': 'Закрыть',
     'Offset': 'Смещение',
     'Record': 'Запись №',

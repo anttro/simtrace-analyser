@@ -282,7 +282,8 @@ eval(
 	extractFunc(src, 'fileOpClass') + '\n' +
 	extractFunc(src, 'fileOpVerb') + '\n' +
 	extractFunc(src, 'fileOpLabel') + '\n' +
-	extractFunc(src, 'fileDiffRows')
+	extractFunc(src, 'escapeHtml') + '\n' +
+	extractFunc(src, 'hexImageRows')
 );
 
 test('Files view: operation kinds map to classes and verbs', () => {
@@ -291,24 +292,36 @@ test('Files view: operation kinds map to classes and verbs', () => {
 	assert.equal(fileOpClass('card_change'), 'file-op-card');
 	assert.equal(fileOpVerb('read'), 'Read');
 	assert.equal(fileOpVerb('update'), 'Update');
-	assert.equal(fileOpVerb('card_change'), 'Changed (card)');
+	assert.equal(fileOpVerb('card_change'), 'Changed on card');
 	assert.equal(fileOpLabel({kind: 'read', file: {name: 'EF_ICCID'}}), 'Read EF_ICCID');
 	assert.equal(fileOpLabel({kind: 'card_change', file: {name: 'EF_LOCI'}}),
-		'Changed (card) EF_LOCI');
+		'Changed on card EF_LOCI');
 	assert.equal(fileOpLabel({kind: 'read', file: null}), 'Read ?');
 });
 
-test('Files view: the diff rows slice the concatenated hex', () => {
-	const change = {
-		ranges: [[8, 2], [16, 1]],
-		before_hex: '95f9aa',
-		after_hex: '000001',
-	};
-	assert.deepEqual(fileDiffRows(change), [
-		{pos: 8, len: 2, before: '95f9', after: '0000'},
-		{pos: 16, len: 1, before: 'aa', after: '01'},
-	]);
-	assert.deepEqual(fileDiffRows({ranges: [], before_hex: '', after_hex: ''}), []);
+test('Files view: the hex image rows mark changed, new and unknown bytes', () => {
+	// 'ABCD' then a gap, then 'ef' newly observed.
+	const view = hexImageRows(
+		[{offset: 0, hex: '41424344'}, {offset: 8, hex: '6566'}],
+		[[2, 1]],       // changed
+		[[8, 2]]);      // newly observed
+	assert.equal(view.truncated, false);
+	assert.equal(view.end, 10);
+	assert.equal(view.rows.length, 1);
+	const cells = view.rows[0].cells;
+	assert.deepEqual(cells[0], {hex: '41', cls: ''});
+	assert.deepEqual(cells[2], {hex: '43', cls: 'hex-changed'});
+	assert.deepEqual(cells[4], {hex: '--', cls: 'hex-unknown'});   // the gap
+	assert.deepEqual(cells[8], {hex: '65', cls: 'hex-new'});
+	// ASCII column: printable bytes stay, gaps and the unobserved tail are blank.
+	assert.equal(view.rows[0].ascii, 'ABCD    ef      ');
+});
+
+test('Files view: the hex image respects the row limit', () => {
+	const view = hexImageRows([{offset: 0, hex: 'aa'.repeat(64)}], [], [], 32);
+	assert.equal(view.truncated, true);
+	assert.equal(view.rows.length, 2);
+	assert.equal(view.end, 64);
 });
 
 test('Files view: side-panel dropdown and the timeline are wired', () => {
@@ -321,6 +334,10 @@ test('Files view: side-panel dropdown and the timeline are wired', () => {
 	assert.match(src, /\$on\('side-view-select', 'change'/);
 	assert.match(src, /\$on\('file-view', 'click'/);
 	assert.match(src, /API\.getSessionFiles\(sid\)/);
+	assert.match(src, />\$\{t\('Details'\)\}<\/button>/);
+	assert.match(src, /API\.getSessionFileImage\(STATE\.sessionViewId, fileKey, idx\)/);
+	assert.match(src, /getSessionFileImage\(id, key, change\)/);
+	assert.match(src, /files\/image\?key=/);
 	assert.match(src, /if \(row\) jumpToMessage\(Number\(row\.dataset\.idx\)\);/);
 	assert.match(src, /getSessionFiles\(id\)\s*\{ return this\._fetch\('GET', `\/api\/sessions\/\$\{id\}\/files`\); \}/);
 });
@@ -331,8 +348,12 @@ test('Files view: strings carry Russian translations', () => {
 	for (const m of lang.matchAll(/'((?:[^'\\]|\\.)*)'\s*:/g)) {
 		keys.add(m[1].replace(/\\(['\\])/g, '$1'));
 	}
-	for (const s of ['Files', 'Read', 'Update', 'Changed (card)', 'Card-side change',
-		'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
+	for (const s of ['Files', 'Read', 'Update', 'Changed on card', 'Change details',
+		'Details', 'Close', 'Offset', 'Record', 'Before', 'After', 'Show the change',
+		'changed', 'newly observed', 'never observed',
+		'{c} bytes changed, {n} bytes newly observed',
+		'Showing the first {n} bytes of the image',
+		'The image is frozen (size cap reached) — later changes are not tracked.',
 		'No file operations recorded', 'Failed to load files', 'Loading…']) {
 		assert.ok(keys.has(s), 'no LANG_RU entry for: ' + s);
 	}
@@ -430,4 +451,50 @@ test('Files view: a response for a session left meanwhile is ignored', async () 
 	assert.doesNotMatch(el('file-view').innerHTML, /STALE/);
 	assert.equal(STATE.filesData, null);
 	assert.equal(STATE.filesSessionId, null);
+});
+
+// ── Change-details modal rendering (stubbed DOM) ───────────────────────
+eval(
+	'function el(id) { return dlgEl(id); }\n' +
+	extractFunc(src, 'fmt_elapsed') + '\n' +
+	extractFunc(src, 'escapeHtml') + '\n' +
+	extractFunc(src, 'hexImageRows') + '\n' +
+	extractFunc(src, 'hexImageHtml') + '\n' +
+	extractFunc(src, 'renderFileDiff')
+);
+
+test('Change details modal: header, summary, legend and both views', () => {
+	renderFileDiff({
+		name: 'EF_ICCID',
+		op: 'READ BINARY',
+		record: null,
+		n_records: null,
+		index: 12,
+		elapsed: 3.25,
+		ranges: [[8, 2]],
+		observed_ranges: [[0, 4]],
+		before: [{offset: 0, hex: '41424344'}],
+		after: [{offset: 0, hex: '41424344'}, {offset: 8, hex: '9900'}],
+		image_truncated: false,
+	});
+	const sub = el('file-diff-sub').textContent;
+	assert.match(sub, /EF_ICCID — READ BINARY/);
+	assert.match(sub, /#12/);
+	const body = el('file-diff-body').innerHTML;
+	assert.match(body, /2 bytes changed, 4 bytes newly observed/);
+	assert.match(body, /hex-cell hex-changed/);     // legend + the changed byte
+	assert.match(body, /hex-cell hex-new/);
+	assert.match(body, /hex-cell hex-unknown/);
+	assert.match(body, /Before/);
+	assert.match(body, /After/);
+	assert.equal((body.match(/class="hex-view"/g) || []).length, 2);
+	// The record header variant and the frozen-image note.
+	renderFileDiff({
+		name: 'EF_IMSI', op: 'READ RECORD', record: 2, n_records: 5, index: 40,
+		elapsed: 9.5, ranges: [[0, 1]], observed_ranges: [],
+		before: [{offset: 0, hex: 'aa'}], after: [{offset: 0, hex: 'bb'}],
+		image_truncated: true,
+	});
+	assert.match(el('file-diff-sub').textContent, /Record 2 \/ 5/);
+	assert.match(el('file-diff-body').innerHTML, /image is frozen/);
 });

@@ -141,6 +141,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         elif path.startswith('/api/sessions/') and path.endswith('/pcap'):
             session_id = int(path.split('/')[-2])
             self._handle_get_session_pcap(session_id)
+        elif path.startswith('/api/sessions/') and path.endswith('/files/image'):
+            session_id = int(path.split('/')[-3])
+            self._handle_session_files_image(session_id, params)
         elif path.startswith('/api/sessions/') and path.endswith('/files'):
             session_id = int(path.split('/')[-2])
             self._handle_session_files(session_id)
@@ -473,6 +476,29 @@ class RequestHandler(BaseHTTPRequestHandler):
         data = self.db.track_files(session_id)
         _log(f'Session files: session={session_id} '
              f'files={len(data["files"])} operations={data["timeline_total"]}')
+        self._send_json(data)
+
+    def _handle_session_files_image(self, session_id, params):
+        """Before/after images of one change (the Files view's Details)."""
+        session = self.db.get_session(session_id)
+        if session is None:
+            self._send_error(404, 'Session not found')
+            return
+        key = (params.get('key', [''])[0]).strip()
+        try:
+            idx = int(params.get('change', ['0'])[0])
+        except ValueError:
+            self._send_error(400, 'change must be an index')
+            return
+        if not key or idx < 0:
+            self._send_error(400, 'key and change are required')
+            return
+        data = self.db.change_images(session_id, key, idx)
+        if data is None:
+            self._send_error(404, 'No such file or change')
+            return
+        _log(f'Session file change: session={session_id} key={key} '
+             f'change={idx} op={data["op"]} index={data["index"]}')
         self._send_json(data)
 
     def _handle_rename_session(self, session_id, name):

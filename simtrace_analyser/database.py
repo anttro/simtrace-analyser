@@ -198,13 +198,22 @@ class Database:
         Returns the tracker's result dict: the operation timeline, per-file
         counters/images/changes, the SFI relations and the AID labels.
         """
+        tracker = self._file_tracker(session_id)
+        return tracker.result()
+
+    def change_images(self, session_id, key, idx):
+        """Before/after images of the unit affected by change *idx* of *key*
+        (the Files view's Details modal), or None for an unknown file/index."""
+        return self._file_tracker(session_id).change_images(key, idx)
+
+    def _file_tracker(self, session_id):
         from .filetrack import FileTracker
         rows = self._conn.execute(
             'SELECT id, session_id, elapsed, type, data, flags FROM messages '
             'WHERE session_id=? ORDER BY elapsed, id', (session_id,)).fetchall()
         tracker = FileTracker()
         self._decode_rows(rows, on_message=tracker.observe)
-        return tracker.result()
+        return tracker
 
     def get_messages_raw(self, session_id):
         rows = self._conn.execute(

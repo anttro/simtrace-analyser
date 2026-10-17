@@ -191,9 +191,20 @@ in the stored wire shape and are skipped with a note in the import report.
 The Trace tab's side panel has a view selector (*Map* / *Stats* / **Files**;
 a drop-down, since three tab captions no longer fit).  The Files view is a
 trace-wide timeline of file operations — every **Read**, **Update** and
-**Changed (card)** row shows the same file name as the Map view, and clicking
-a row jumps to the APDU in the trace.  A *Changed (card)* row carries a Δ
-button that opens the changed ranges with the previous and the new bytes.
+**Changed on card** row shows the same file name as the Map view, and clicking
+a row jumps to the APDU in the trace.  Rows that carry a recorded change (a
+card-side change, or an update that wrote or first observed bytes) also offer
+**Details**: a modal showing the affected unit — the whole file, or the single
+record that changed — **before and after** the change, as hex views (16 bytes
+per row with an ASCII column, never-observed bytes drawn as `--`) with the
+bytes that changed highlighted in one colour and the bytes the operation first
+observed in another, plus the changed/new byte counts and the APDU reference.
+
+The images come from `GET /api/sessions/<id>/files/image?key=…&change=…` and
+are reconstructed from the current image by undoing the later changes
+(`filetrack.FileTracker.change_images`) — nothing is duplicated per event.
+Every value change is recorded, so the values are exact; a byte that was only
+*first observed* after the selected change can appear as known in both views.
 
 The data comes from `simtrace_analyser/filetrack.py`
 (`GET /api/sessions/<id>/files`), a single-pass tracker over the decoded

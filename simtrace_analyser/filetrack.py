@@ -77,6 +77,37 @@ def _key_str(key):
     return f'{df}/{fid}'
 
 
+def _parse_key(key):
+    df, _sep, fid = (key or '').rpartition('/')
+    return df, fid
+
+
+def _apply_hex(buf, ranges, hex_str):
+    """Write a concatenated hex string into *buf* at the given ranges."""
+    at = 0
+    for pos, length in ranges or []:
+        chunk = bytes.fromhex(hex_str[at:at + length * 2])
+        at += length * 2
+        if len(buf) < pos + length:
+            buf.extend(b'\x00' * (pos + length - len(buf)))
+        buf[pos:pos + length] = chunk
+
+
+def _segments(buf, mask):
+    """Observed runs of the image: ``[{'offset': n, 'hex': '…'}, …]``."""
+    out = []
+    i = 0
+    while i < len(mask):
+        if not mask[i]:
+            i += 1
+            continue
+        start = i
+        while i < len(mask) and mask[i]:
+            i += 1
+        out.append({'offset': start, 'hex': bytes(buf[start:i]).hex()})
+    return out
+
+
 class _FileEntry:
     """One tracked file: counters, sparse image, change log."""
 
@@ -111,14 +142,18 @@ class _FileEntry:
     def apply(self, record, offset, data):
         """Apply observed bytes.
 
-        Returns ``(diffs, compared_all)``: *diffs* is a list of
-        ``(position, before, after)`` for the positions whose known value
-        differed (position = byte offset for transparent files, record number
-        for record files); *compared_all* tells whether every written byte was
-        already known (so a zero diff proves a no-op).
+        Returns ``(diffs, observed, compared_all)``:
+
+        * *diffs* — ``[(pos, before, after)]`` for positions whose known value
+          differed (pos = the byte offset in the file, or *in the record* for
+          record files);
+        * *observed* — ``[(pos, len)]`` runs whose bytes were not known before
+          this operation (a first observation);
+        * *compared_all* — every written byte was already known (so an empty
+          diff proves a no-op).
         """
         if self.image_truncated:
-            return [], False
+            return [], [], False
         if record is None:
             buf, mask, base = self.buf, self.mask, offset
             needed = base + len(data)
@@ -130,20 +165,24 @@ class _FileEntry:
         if (needed > len(buf)
                 and self._tracked_bytes() + (needed - len(buf)) > self.image_cap):
             self.image_truncated = True
-            return [], False
+            return [], [], False
         if len(buf) < needed:
             buf.extend(b'\x00' * (needed - len(buf)))
             mask.extend(b'\x00' * (needed - len(mask)))
         diffs = []
+        observed = []
         compared_all = True
         i = 0
         while i < len(data):
             pos = base + i
             if not mask[pos]:
                 compared_all = False
-                buf[pos] = data[i]
-                mask[pos] = 1
-                i += 1
+                start = pos
+                while i < len(data) and not mask[base + i]:
+                    buf[base + i] = data[i]
+                    mask[base + i] = 1
+                    i += 1
+                observed.append((start, i - (start - base)))
                 continue
             if buf[pos] == data[i]:
                 i += 1
@@ -156,9 +195,8 @@ class _FileEntry:
                 after.append(data[i])
                 buf[base + i] = data[i]
                 i += 1
-            diffs.append((start if record is None else record,
-                          bytes(before), bytes(after)))
-        return diffs, compared_all
+            diffs.append((start, bytes(before), bytes(after)))
+        return diffs, observed, compared_all
 
     def coverage(self):
         known = sum(self.mask) + sum(sum(m) for m in self.rec_mask.values())
@@ -291,7 +329,8 @@ class FileTracker:
         self.timeline.append(item)
         return item
 
-    def _add_change(self, entry, kind, index, msg, op, diffs, record=None):
+    def _add_change(self, entry, kind, index, msg, op, diffs, observed=(),
+                    record=None):
         entry.changes_total += 1
         if len(entry.changes) >= self._events_cap:
             return None
@@ -299,6 +338,7 @@ class FileTracker:
             'kind': kind, 'op': op, 'index': index, 'msg_id': msg.get('id'),
             'elapsed': msg.get('elapsed'), 'record': record,
             'ranges': [[pos, len(before)] for pos, before, _after in diffs],
+            'observed_ranges': [[pos, length] for pos, length in observed],
             'before_hex': b''.join(b for _p, b, _a in diffs).hex(),
             'after_hex': b''.join(a for _p, _b, a in diffs).hex(),
         }
@@ -371,12 +411,13 @@ class FileTracker:
             entry.sfi = sfi
         entry.counters['read'] += 1
         record = self._record_number(d)
-        diffs, _compared = entry.apply(record, self._offset(d, record), data)
+        diffs, observed, _compared = entry.apply(record, self._offset(d, record), data)
         if entry.image_truncated:
             return
         if diffs:
             idx = self._add_change(entry, 'card', index, msg,
-                                   d.get('ins_name') or '', diffs, record=record)
+                                   d.get('ins_name') or '', diffs,
+                                   observed=observed, record=record)
             self._push('card_change', entry, index, msg, record=record,
                        change_ref={'file': _key_str(entry.key), 'idx': idx}
                        if idx is not None else None)
@@ -396,13 +437,17 @@ class FileTracker:
             entry.sfi = sfi
         entry.counters['update'] += 1
         record = self._record_number(d)
-        diffs, compared_all = entry.apply(record, self._offset(d, record), data)
+        diffs, observed, compared_all = entry.apply(record, self._offset(d, record), data)
         if entry.image_truncated:
             return
-        if diffs:
-            self._add_change(entry, 'device', index, msg,
-                             d.get('ins_name') or '', diffs, record=record)
-        self._push('update', entry, index, msg, record=record,
+        change_ref = None
+        if diffs or observed:
+            idx = self._add_change(entry, 'device', index, msg,
+                                   d.get('ins_name') or '', diffs,
+                                   observed=observed, record=record)
+            if idx is not None:
+                change_ref = {'file': _key_str(entry.key), 'idx': idx}
+        self._push('update', entry, index, msg, record=record, change_ref=change_ref,
                    no_change=(not diffs and compared_all))
 
     # -- helpers ---------------------------------------------------------
@@ -430,7 +475,67 @@ class FileTracker:
 
     # -- result ----------------------------------------------------------
 
-    def result(self):
+    def change_images(self, key, idx):
+        """Before/after images of the unit affected by change *idx* of *key*.
+
+        The unit is the whole file for transparent files, the changed record
+        for record files.  The images are reconstructed from the current image
+        by undoing the later events' changed bytes (every value change is an
+        event, so the values are exact; a byte that was only *first observed*
+        later can appear as known in both views).  The requested event's own
+        ``observed_ranges`` are shown as unknown in the *before* view — that is
+        what "newly observed" means.
+        """
+        entry = self.files.get(_parse_key(key))
+        if entry is None or not 0 <= idx < len(entry.changes):
+            return None
+        event = entry.changes[idx]
+        record = event.get('record')
+        if record is None:
+            buf = bytearray(entry.buf)
+            mask = bytearray(entry.mask)
+        else:
+            buf = bytearray(entry.records.get(record, b''))
+            mask = bytearray(entry.rec_mask.get(record, b''))
+        for later in reversed(entry.changes[idx:]):   # the event itself included
+            if later.get('record') != record:
+                continue
+            _apply_hex(buf, later['ranges'], later['before_hex'])
+        # The before view: this event's newly observed bytes were unknown then.
+        for pos, length in event.get('observed_ranges') or []:
+            for i in range(pos, min(pos + length, len(mask))):
+                mask[i] = 0
+        before = _segments(buf, mask)
+        # The after view: this event's changed bytes and its observations.
+        _apply_hex(buf, event['ranges'], event['after_hex'])
+        for pos, length in event.get('observed_ranges') or []:
+            for i in range(pos, min(pos + length, len(mask))):
+                mask[i] = 1
+        after = _segments(buf, mask)
+        return {
+            'key': _key_str(entry.key),
+            'name': entry.name,
+            'df': entry.df,
+            'fid': entry.fid,
+            'structure': entry.structure,
+            'size': entry.size,
+            'record_len': entry.record_len,
+            'n_records': entry.n_records,
+            'record': record,
+            'image_truncated': entry.image_truncated,
+            'coverage': entry.coverage(),
+            'kind': event['kind'],
+            'op': event['op'],
+            'index': event['index'],
+            'msg_id': event.get('msg_id'),
+            'elapsed': event.get('elapsed'),
+            'ranges': event['ranges'],
+            'observed_ranges': event.get('observed_ranges') or [],
+            'before': before,
+            'after': after,
+        }
+
+    def result(self, include_images=False):
         files = {}
         for key, entry in self.files.items():
             files[_key_str(key)] = {

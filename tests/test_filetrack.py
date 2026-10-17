@@ -39,16 +39,16 @@ def fcp(fid, sfi=None, structure=None, rec_len=None, n_rec=None, size=None):
     return '62' + f'{len(body) // 2:02x}' + body
 
 
-def read_binary(p1, p2, data_hex, sw='9000'):
-    return f'00b0{p1:02x}{p2:02x}{len(data_hex) // 2:02x}{data_hex}{sw}'
+def read_binary(offset, data_hex, sw='9000'):
+    return f'00b0{offset >> 8:02x}{offset & 0xff:02x}{len(data_hex) // 2:02x}{data_hex}{sw}'
 
 
 def read_binary_sfi(sfi, offset, data_hex, sw='9000'):
     return f'00b0{0x80 | sfi:02x}{offset:02x}{len(data_hex) // 2:02x}{data_hex}{sw}'
 
 
-def update_binary(p1, p2, data_hex, sw='9000'):
-    return f'00d6{p1:02x}{p2:02x}{len(data_hex) // 2:02x}{data_hex}{sw}'
+def update_binary(offset, data_hex, sw='9000'):
+    return f'00d6{offset >> 8:02x}{offset & 0xff:02x}{len(data_hex) // 2:02x}{data_hex}{sw}'
 
 
 def update_binary_sfi(sfi, offset, data_hex, sw='9000'):
@@ -89,8 +89,8 @@ class TestCountersAndRegistration(TrackerCase):
     def test_select_read_update_counters(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '9807110900106014000000'[:22]),
-            update_binary(0, 0, '980711090010601495F9'),
+            read_binary(0, '9807110900106014000000'[:22]),
+            update_binary(0, '980711090010601495F9'),
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
         )
         entry = data['files']['3f00/2fe2']
@@ -107,7 +107,7 @@ class TestCountersAndRegistration(TrackerCase):
         from simtrace2_pysniff.gsmtap import GSMTAP_SIM_ATR
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '98' + '07' * 5),
+            read_binary(0, '98' + '07' * 5),
         )
         gizmo = {'kind': 'read'}
         # An ATR (card reset) does not clear the per-file registry.
@@ -119,11 +119,11 @@ class TestCountersAndRegistration(TrackerCase):
         db.insert_messages(sid, [
             (0.0, 'tpdu', bytes.fromhex(sel_fid('2fe2')), 0),
             (0.5, 'tpdu', bytes.fromhex(gr(fcp('2fe2', sfi=2, size=10))), 0),
-            (1.0, 'tpdu', bytes.fromhex(read_binary(0, 0, '98' + '07' * 5)), 0),
+            (1.0, 'tpdu', bytes.fromhex(read_binary(0, '98' + '07' * 5)), 0),
             (2.0, 'atr', bytes.fromhex('3b9f96801fc78031e073fe2117574a3382033339001e'), 0),
             (3.0, 'tpdu', bytes.fromhex(sel_fid('2fe2')), 0),
             (3.5, 'tpdu', bytes.fromhex(gr(fcp('2fe2', sfi=2, size=10))), 0),
-            (4.0, 'tpdu', bytes.fromhex(read_binary(0, 0, '98' + '07' * 5)), 0),
+            (4.0, 'tpdu', bytes.fromhex(read_binary(0, '98' + '07' * 5)), 0),
         ])
         data = db.track_files(sid)
         self.assertEqual(data['files']['3f00/2fe2']['counters'],
@@ -134,10 +134,10 @@ class TestCountersAndRegistration(TrackerCase):
     def test_channels_merge_into_one_file(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '9807110900'),
+            read_binary(0, '9807110900'),
             '01' + sel_fid('2fe2')[2:],                   # same file on channel 1
             '01' + gr(fcp('2fe2', sfi=2, size=10))[2:],
-            '01' + read_binary(0, 0, '9807110900')[2:],
+            '01' + read_binary(0, '9807110900')[2:],
         )
         self.assertEqual(data['files']['3f00/2fe2']['counters']['read'], 2)
         self.assertEqual(len(data['files']), 1)
@@ -147,7 +147,7 @@ class TestImageAndChanges(TrackerCase):
     def test_read_fills_unknown_bytes_without_a_change(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '980711090010601495F9'),
+            read_binary(0, '980711090010601495F9'),
         )
         entry = data['files']['3f00/2fe2']
         self.assertEqual(entry['coverage']['known'], 10)
@@ -157,8 +157,8 @@ class TestImageAndChanges(TrackerCase):
     def test_card_change_surfaced_by_a_read(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '980711090010601495F9'),
-            read_binary(0, 0, '98071109001060140000'),
+            read_binary(0, '980711090010601495F9'),
+            read_binary(0, '98071109001060140000'),
         )
         entry = data['files']['3f00/2fe2']
         self.assertEqual(entry['changes_total'], 1)
@@ -178,8 +178,8 @@ class TestImageAndChanges(TrackerCase):
     def test_repeating_a_read_is_not_a_change(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '980711090010601495F9'),
-            read_binary(0, 0, '980711090010601495F9'),
+            read_binary(0, '980711090010601495F9'),
+            read_binary(0, '980711090010601495F9'),
         )
         self.assertEqual(data['files']['3f00/2fe2']['changes_total'], 0)
         self.assertEqual([i['kind'] for i in data['timeline']], ['read', 'read'])
@@ -187,8 +187,8 @@ class TestImageAndChanges(TrackerCase):
     def test_device_change_from_an_update(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '980711090010601495F9'),
-            update_binary(0, 0, '98071109001060140000'),
+            read_binary(0, '980711090010601495F9'),
+            update_binary(0, '98071109001060140000'),
         )
         entry = data['files']['3f00/2fe2']
         self.assertEqual(entry['changes_total'], 1)
@@ -201,24 +201,39 @@ class TestImageAndChanges(TrackerCase):
     def test_identical_update_is_flagged(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '980711090010601495F9'),
-            update_binary(0, 0, '980711090010601495F9'),
+            read_binary(0, '980711090010601495F9'),
+            update_binary(0, '980711090010601495F9'),
         )
         entry = data['files']['3f00/2fe2']
         self.assertEqual(entry['changes_total'], 0)
         update_row = [i for i in data['timeline'] if i['kind'] == 'update'][0]
         self.assertTrue(update_row['no_change'])
 
-    def test_update_of_unknown_bytes_learns_without_an_event(self):
+    def test_update_of_unknown_bytes_is_an_observation_not_a_change(self):
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            update_binary(0, 0, '9807110900'),
+            update_binary(0, '9807110900'),
         )
         entry = data['files']['3f00/2fe2']
         self.assertEqual(entry['coverage']['known'], 5)
-        self.assertEqual(entry['changes_total'], 0)
+        self.assertEqual(entry['changes_total'], 1)
+        change = entry['changes'][0]
+        self.assertEqual(change['kind'], 'device')
+        self.assertEqual(change['ranges'], [])              # nothing changed
+        self.assertEqual(change['observed_ranges'], [[0, 5]])  # but it was new
         update_row = [i for i in data['timeline'] if i['kind'] == 'update'][0]
         self.assertFalse(update_row['no_change'])   # cannot prove a no-op
+        self.assertEqual(update_row['change_ref'], {'file': '3f00/2fe2', 'idx': 0})
+
+    def test_read_records_the_newly_observed_bytes(self):
+        data = self.track(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
+            read_binary(0, '980711090010601495F9'),
+            read_binary(0, '98071109001060140000'),
+        )
+        change = data['files']['3f00/2fe2']['changes'][0]
+        self.assertEqual(change['ranges'], [[8, 2]])
+        self.assertEqual(change['observed_ranges'], [])     # nothing was new
 
 
 class TestRecordFiles(TrackerCase):
@@ -235,7 +250,8 @@ class TestRecordFiles(TrackerCase):
         self.assertEqual(entry['n_records'], 3)
         self.assertEqual(entry['coverage']['known'], 16)
         self.assertEqual(entry['changes_total'], 1)
-        self.assertEqual(entry['changes'][0]['ranges'], [[1, 1]])
+        self.assertEqual(entry['changes'][0]['record'], 1)
+        self.assertEqual(entry['changes'][0]['ranges'], [[7, 1]])
 
     def test_read_data_delivered_by_get_response(self):
         data = self.track(
@@ -258,7 +274,8 @@ class TestRecordFiles(TrackerCase):
         entry = data['files']['7fff/6f07']
         self.assertEqual(entry['counters'], {'select': 1, 'read': 1, 'update': 1})
         self.assertEqual(entry['changes'][0]['kind'], 'device')
-        self.assertEqual(entry['changes'][0]['ranges'], [[2, 1]])
+        self.assertEqual(entry['changes'][0]['record'], 2)
+        self.assertEqual(entry['changes'][0]['ranges'], [[7, 1]])
 
 
 class TestSfiResolution(TrackerCase):
@@ -335,8 +352,8 @@ class TestCapsAndLabels(TrackerCase):
         tracker = FileTracker(image_cap=8)
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
-            read_binary(0, 0, '9807110900'),
-            read_binary(5, 0, '10601495F9'),
+            read_binary(0, '9807110900'),
+            read_binary(5, '10601495F9'),
             tracker=tracker,
         )
         entry = data['files']['3f00/2fe2']
@@ -348,9 +365,9 @@ class TestCapsAndLabels(TrackerCase):
         tracker = FileTracker(events_cap=1)
         data = self.track(
             sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
-            read_binary(0, 0, 'AABBCCDD'),
-            read_binary(0, 0, 'AABBCC00'),
-            read_binary(0, 0, 'AABB0000'),
+            read_binary(0, 'AABBCCDD'),
+            read_binary(0, 'AABBCC00'),
+            read_binary(0, 'AABB0000'),
             tracker=tracker,
         )
         entry = data['files']['3f00/2fe2']
@@ -371,9 +388,113 @@ class TestCapsAndLabels(TrackerCase):
 
     def test_unattributed_operations_are_skipped(self):
         # A read with no selection and no SFI has no file to attribute.
-        data = self.track(read_binary(0, 0, 'AABBCCDD'))
+        data = self.track(read_binary(0, 'AABBCCDD'))
         self.assertEqual(data['files'], {})
         self.assertEqual(data['timeline'], [])
+
+
+class TestChangeImages(TrackerCase):
+    """The before/after views a change's Details modal shows."""
+
+    def _images(self, *tpdu, key='3f00/2fe2', idx=0):
+        from simtrace_analyser.filetrack import FileTracker
+        tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        tmp.close()
+        db = Database(tmp.name)
+        self.addCleanup(lambda: (db._conn.close(), os.remove(tmp.name)))
+        sid = db.create_session('test')
+        db.insert_messages(sid, [(float(i), 'tpdu', bytes.fromhex(h), 0)
+                                 for i, h in enumerate(tpdu)])
+        tracker = FileTracker()
+        db._decode_rows(db._conn.execute(
+            'SELECT id, session_id, elapsed, type, data, flags FROM messages '
+            'WHERE session_id=? ORDER BY elapsed, id', (sid,)).fetchall(),
+            on_message=tracker.observe)
+        return tracker.change_images(key, idx)
+
+    def test_device_change_before_and_after(self):
+        result = self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            read_binary(0, 'AABBCCDD'),
+            update_binary(0, 'AABB0000'),
+        )
+        self.assertEqual(result['kind'], 'device')
+        self.assertEqual(result['record'], None)
+        self.assertEqual(result['ranges'], [[2, 2]])
+        self.assertEqual(result['observed_ranges'], [])
+        # the whole file, not only the changed part
+        self.assertEqual(result['before'], [{'offset': 0, 'hex': 'aabbccdd'}])
+        self.assertEqual(result['after'], [{'offset': 0, 'hex': 'aabb0000'}])
+
+    def test_later_changes_are_undone_for_the_before_view(self):
+        # The first change's "after" must not include the second change,
+        # although the current image does.
+        first = self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            read_binary(0, 'AABBCCDD'),
+            update_binary(0, 'AABB0000'),
+            update_binary(2, 'CCDD'),
+        )
+        self.assertEqual(first['before'], [{'offset': 0, 'hex': 'aabbccdd'}])
+        self.assertEqual(first['after'], [{'offset': 0, 'hex': 'aabb0000'}])
+
+    def test_second_change_keeps_the_first_as_the_before_state(self):
+        result = self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            read_binary(0, 'AABBCCDD'),
+            update_binary(0, 'AABB0000'),
+            update_binary(2, 'CCDD'),
+            idx=1,
+        )
+        self.assertEqual(result['before'], [{'offset': 0, 'hex': 'aabb0000'}])
+        self.assertEqual(result['after'], [{'offset': 0, 'hex': 'aabbccdd'}])
+        self.assertEqual(result['ranges'], [[2, 2]])
+
+    def test_observation_only_event_shows_unknown_before(self):
+        result = self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            update_binary(0, 'AABBCCDD'),
+        )
+        self.assertEqual(result['ranges'], [])
+        self.assertEqual(result['observed_ranges'], [[0, 4]])
+        self.assertEqual(result['before'], [])     # unknown before the write
+        self.assertEqual(result['after'], [{'offset': 0, 'hex': 'aabbccdd'}])
+
+    def test_record_change_shows_only_that_record(self):
+        result = self._images(
+            sel_fid('7fff'), sel_fid('6f07'),
+            gr(fcp('6f07', rec_len=4, n_rec=3)),
+            read_record(1, '11111111'),
+            read_record(2, '22222222'),
+            read_record(1, '11110011'),
+            key='7fff/6f07', idx=0,
+        )
+        self.assertEqual(result['record'], 1)
+        self.assertEqual(result['ranges'], [[2, 1]])
+        self.assertEqual(result['before'], [{'offset': 0, 'hex': '11111111'}])
+        self.assertEqual(result['after'], [{'offset': 0, 'hex': '11110011'}])
+
+    def test_unknown_key_or_index_returns_none(self):
+        self.assertIsNone(self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            read_binary(0, 'AABBCCDD'), key='3f00/9999'))
+        self.assertIsNone(self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=4)),
+            read_binary(0, 'AABBCCDD'), idx=5))
+
+    def test_segments_keep_unknown_gaps(self):
+        result = self._images(
+            sel_fid('2fe2'), gr(fcp('2fe2', sfi=2, size=10)),
+            read_binary(0, 'AABB'),
+            read_binary(6, 'CCDD'),
+            update_binary(6, 'CC00'),
+        )
+        self.assertEqual(result['before'],
+                         [{'offset': 0, 'hex': 'aabb'},
+                          {'offset': 6, 'hex': 'ccdd'}])
+        self.assertEqual(result['after'],
+                         [{'offset': 0, 'hex': 'aabb'},
+                          {'offset': 6, 'hex': 'cc00'}])
 
 
 class TestEndpoint(unittest.TestCase):
@@ -402,7 +523,7 @@ class TestEndpoint(unittest.TestCase):
         db.insert_messages(sid, [
             (0.0, 'tpdu', bytes.fromhex(sel_fid('2fe2')), 0),
             (0.5, 'tpdu', bytes.fromhex(gr(fcp('2fe2', sfi=2, size=10))), 0),
-            (1.0, 'tpdu', bytes.fromhex(read_binary(0, 0, '980711090010601495F9')), 0),
+            (1.0, 'tpdu', bytes.fromhex(read_binary(0, '980711090010601495F9')), 0),
         ])
         h = Fake(db)
         h._handle_session_files(sid)
@@ -413,6 +534,53 @@ class TestEndpoint(unittest.TestCase):
         h2 = Fake(db)
         h2._handle_session_files(99999)
         self.assertEqual(h2._status, 404)
+
+    def test_session_files_image_endpoint(self):
+        from simtrace_analyser.server import RequestHandler
+
+        class Fake(RequestHandler):
+            def __init__(self, db):
+                self.db = db
+                self._status = None
+                self._json = None
+
+            def _send_json(self, data, status=200):
+                self._status = status
+                self._json = data
+
+            def _send_error(self, status, message, code=None):
+                self._status = status
+                self._json = {'error': message}
+
+        tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        tmp.close()
+        db = Database(tmp.name)
+        self.addCleanup(lambda: (db._conn.close(), os.remove(tmp.name)))
+        sid = db.create_session('test')
+        db.insert_messages(sid, [
+            (0.0, 'tpdu', bytes.fromhex(sel_fid('2fe2')), 0),
+            (0.5, 'tpdu', bytes.fromhex(gr(fcp('2fe2', sfi=2, size=4))), 0),
+            (1.0, 'tpdu', bytes.fromhex(read_binary(0, 'AABBCCDD')), 0),
+            (2.0, 'tpdu', bytes.fromhex(update_binary(0, 'AABB0000')), 0),
+        ])
+        h = Fake(db)
+        h._handle_session_files_image(sid, {'key': ['3f00/2fe2'], 'change': ['0']})
+        self.assertEqual(h._status, 200)
+        self.assertEqual(h._json['before'], [{'offset': 0, 'hex': 'aabbccdd'}])
+        self.assertEqual(h._json['after'], [{'offset': 0, 'hex': 'aabb0000'}])
+        self.assertEqual(h._json['ranges'], [[2, 2]])
+        self.assertEqual(h._json['op'], 'UPDATE BINARY')
+        # Unknown file / bad index → 404, bad parameters → 400.
+        for params in ({'key': ['3f00/9999'], 'change': ['0']},
+                       {'key': ['3f00/2fe2'], 'change': ['9']}):
+            h2 = Fake(db)
+            h2._handle_session_files_image(sid, params)
+            self.assertEqual(h2._status, 404)
+        for params in ({'key': [''], 'change': ['0']},
+                       {'key': ['3f00/2fe2'], 'change': ['x']}):
+            h3 = Fake(db)
+            h3._handle_session_files_image(sid, params)
+            self.assertEqual(h3._status, 400)
 
 
 if __name__ == '__main__':
