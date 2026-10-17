@@ -100,13 +100,6 @@ test('FETCH and TERMINAL RESPONSE are separate commands now', () => {
 	assert.equal(matchesFilter(gr, 1, set), true);
 });
 
-test('the proactive+events preset adds ENVELOPE', () => {
-	const set = new Set(['preset:proactive-events']);
-	assert.equal(matchesFilter(msg('ENVELOPE'), 0, set), true);
-	assert.equal(matchesFilter(msg('FETCH'), 0, set), true);
-	assert.equal(matchesFilter(msg('SELECT'), 0, set), false);
-});
-
 test('the file-operations preset covers the five commands and their replies', () => {
 	const set = new Set(['preset:files']);
 	for (const name of ['SELECT', 'READ BINARY', 'READ RECORD', 'UPDATE BINARY',
@@ -137,7 +130,7 @@ test('the summary follows the selection', () => {
 	STATE.filter.add('preset:files');
 	assert.equal(filterSummary(), 'File operations');
 	STATE.filter.add('cmd:FETCH');
-	assert.equal(filterSummary(), '2 commands');
+	assert.equal(filterSummary(), 'Selected: 2');
 });
 
 test('the menu lists the presets and the commands with their counts', () => {
@@ -150,8 +143,8 @@ test('the menu lists the presets and the commands with their counts', () => {
 	el = id => (id === 'filter-menu' ? menu : btn);
 	renderFilterMenu(true);
 	assert.match(menu.innerHTML, /data-filter="preset:proactive"/);
-	assert.match(menu.innerHTML, /data-filter="preset:proactive-events"/);
 	assert.match(menu.innerHTML, /data-filter="preset:files"/);
+	assert.doesNotMatch(menu.innerHTML, /preset:proactive-events/);
 	assert.match(menu.innerHTML, /data-filter="cmd:SELECT"/);
 	assert.match(menu.innerHTML, /<span class="filter-count">2<\/span>/);
 	assert.match(menu.innerHTML, /data-filter="all" checked>/);
@@ -171,7 +164,7 @@ test('the filter strings carry Russian translations', () => {
 		keys.add(m[1].replace(/\\(['\\])/g, '$1'));
 	}
 	for (const s of ['All commands', 'Presets', 'Commands', 'Proactive sessions',
-		'Proactive + events', 'File operations', '{n} commands']) {
+		'File operations', 'Selected: {n}']) {
 		assert.ok(keys.has(s), 'no LANG_RU entry for: ' + s);
 	}
 });

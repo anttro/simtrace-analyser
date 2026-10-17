@@ -2354,11 +2354,6 @@ const FILTER_PRESETS = [
         test: m => _sw1(m) === 0x91,
     },
     {
-        id: 'preset:proactive-events', name: 'Proactive + events',
-        labels: ['FETCH', 'TERMINAL PROFILE', 'ENVELOPE'],
-        test: m => _sw1(m) === 0x91,
-    },
-    {
         id: 'preset:files', name: 'File operations',
         labels: ['SELECT', 'READ BINARY', 'READ RECORD', 'UPDATE BINARY',
                  'UPDATE RECORD'],
@@ -2383,7 +2378,7 @@ function filterEntryName(entry) {
 function filterSummary() {
     if (!STATE.filter.size) return t('All commands');
     if (STATE.filter.size === 1) return filterEntryName([...STATE.filter][0]);
-    return t('{n} commands').replace('{n}', STATE.filter.size);
+    return t('Selected: {n}').replace('{n}', STATE.filter.size);
 }
 
 let _filterMenuSig = null;
@@ -3346,7 +3341,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.1';
+const PWA_VERSION = '2.7.2';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3384,9 +3379,8 @@ const LANG_RU = {
     'Presets': 'Пресеты',
     'Commands': 'Команды',
     'Proactive sessions': 'Проактивные сессии',
-    'Proactive + events': 'Проактивные + события',
     'File operations': 'Файловые операции',
-    '{n} commands': 'команд: {n}',
+    'Selected: {n}': 'Выбрано: {n}',
     'Filter': 'Фильтр',
     'Start Capture': 'Начать захват',
     'Stop Capture': 'Остановить захват',

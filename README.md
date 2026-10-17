@@ -73,10 +73,9 @@ GSMTAP into this analyser.
   COMPRION trace import (the Device Manager *ISO Protocol Layer* text export),
   search and a **multi-select command filter** — pick any number of commands
   and/or the conversation presets (*Proactive sessions*: FETCH, TERMINAL
-  PROFILE and every command answered with SW 91xx; *Proactive + events*: the
-  same plus ENVELOPE; *File operations*: SELECT, READ/UPDATE BINARY and
-  READ/UPDATE RECORD, with the GET RESPONSE carrying a selected command's
-  data)
+  PROFILE and every command answered with SW 91xx; *File operations*: SELECT,
+  READ/UPDATE BINARY and READ/UPDATE RECORD, with the GET RESPONSE carrying a
+  selected command's data)
 - Installable PWA, dark theme, English/Russian UI
 
 ## Prerequisites
