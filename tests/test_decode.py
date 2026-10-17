@@ -1967,6 +1967,42 @@ class TestP1P2(unittest.TestCase):
         r = decode_message(bytes.fromhex('0020008108' + '12' * 8))
         self.assertEqual(r['p2']['name'], 'Second PIN Appl 1')
 
+    def test_p3_kind_lc_le(self):
+        # P3 is the command-data length (Lc) when the command carries data and
+        # the expected response length (Le) for a case-2 command.
+        from simtrace_analyser.decode import decode_message
+        self.assertEqual(decode_message(bytes.fromhex('00b000000a'))['p3_kind'],
+                         'le')                       # READ BINARY: Le
+        self.assertEqual(decode_message(
+            bytes.fromhex('00a40000023f00'))['p3_kind'], 'lc')   # SELECT: Lc
+        self.assertEqual(decode_message(
+            bytes.fromhex('00a201040200006164'))['p3_kind'], 'lc')  # pattern
+        # A zero-length SELECT carries neither (no data, no Le).
+        self.assertNotIn('p3_kind',
+                         decode_message(bytes.fromhex('00a4000000')))
+
+    def test_search_record_target_file(self):
+        # A SEARCH RECORD without an SFI searches the current EF
+        # (TS 102 221 §11.1.7.1) — show the target like READ RECORD does.
+        from simtrace_analyser.decode import decode_message
+        prev = {'sel': {'fid': '4fa1', 'structure': 'linear fixed'},
+                'df': '5f3a'}
+        r = decode_message(bytes.fromhex('00a201040200006164'), prev=prev)
+        self.assertEqual(r['file'], {'fid': '4fa1', 'ef': '4FA1'})
+        # An SFI-addressed search resolves through the SFI map…
+        prev['sfi_map'] = {2: '4f3a'}
+        r = decode_message(bytes.fromhex('00a201142c' + 'ff' * 44), prev=prev)
+        self.assertEqual(r['file'], {'fid': '4f3a', 'ef': '4F3A'})
+        # …and an unknown SFI stays marked as such.
+        prev['sfi_map'] = {}
+        r = decode_message(bytes.fromhex('00a201142c' + 'ff' * 44), prev=prev)
+        self.assertTrue(r['file']['unknown'])
+        self.assertEqual(r['file']['sfi'], 2)
+        # A record search on a transparent selection is a stale-selection note.
+        prev2 = {'sel': {'fid': '2fe2', 'structure': 'transparent'}, 'df': '3f00'}
+        r = decode_message(bytes.fromhex('00a201040200006164'), prev=prev2)
+        self.assertTrue(r['file'].get('stale'))
+
     def test_manage_channel_p2(self):
         r = decode_message(bytes.fromhex('0070000300'))
         self.assertEqual(r['p1']['name'], 'Open channel')

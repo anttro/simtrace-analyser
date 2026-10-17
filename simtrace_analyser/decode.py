@@ -3942,6 +3942,14 @@ def decode_message(raw_data, prev=None):
     elif cmd_body_len < p3 and not (spec and spec.get('le')):
         result['length_mismatch'] = {'kind': 'truncated', 'expected': p3, 'actual': cmd_body_len}
 
+    # P3 is the length of the command data (Lc) when the command carries data
+    # and the expected response length (Le) for a case-2 command — the two are
+    # otherwise easy to confuse in the detailed view.
+    if spec and spec.get('le'):
+        result['p3_kind'] = 'le'
+    elif cmd_body_len > 0:
+        result['p3_kind'] = 'lc'
+
     if cmd_body_len > 0:
         body = remaining[:cmd_body_len]
         result['body'] = {'hex': body.hex(), 'size': cmd_body_len}
@@ -4020,14 +4028,23 @@ def decode_message(raw_data, prev=None):
                                       'raw': body.hex().upper()}
             else:
                 result['file'] = {'sfi': rec_sfi, 'unknown': True, 'ef': f'SFI {rec_sfi}'}
-        elif ins == 0xA2 and prev and rec_sfi:
-            # SEARCH RECORD with SFI → attach the target file name (the body
-            # is a search pattern, not file data).
-            fid = (prev.get('sfi_map') or {}).get(rec_sfi)
+        elif ins == 0xA2 and prev and (rec_sfi or prev.get('sel')):
+            # SEARCH RECORD: the body is a search pattern, not file data.  An
+            # SFI addresses the file it names; without one the search runs in
+            # the current EF (TS 102 221 §11.1.7.1) — show the target like
+            # READ/UPDATE do.
+            sel = prev.get('sel') or {}
+            fid = (prev.get('sfi_map') or {}).get(rec_sfi) if rec_sfi \
+                else sel.get('fid')
             if fid:
-                result['file'] = {'fid': fid, 'ef': _file_name(fid, prev.get('df'))}
-            else:
-                result['file'] = {'sfi': rec_sfi, 'unknown': True, 'ef': f'SFI {rec_sfi}'}
+                if not rec_sfi and not _is_record_file(sel):
+                    result['file'] = _stale_file_note(sel)
+                else:
+                    result['file'] = {'fid': fid,
+                                      'ef': _file_name(fid, prev.get('df'))}
+            elif rec_sfi:
+                result['file'] = {'sfi': rec_sfi, 'unknown': True,
+                                  'ef': f'SFI {rec_sfi}'}
         elif ins in (0xB0, 0xB2, 0xD6, 0xDC) and prev and prev.get('sel'):
             offset = p1p2.get('offset', 0)
             if ins in (0xB2, 0xDC) and not _is_record_file(prev['sel']):

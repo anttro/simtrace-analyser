@@ -22,6 +22,11 @@ test('no per-element scrollbar overrides or thin default remain', () => {
 	assert.doesNotMatch(src, /::-webkit-scrollbar \{ width: 6px/);
 });
 
+test('the P3 row labels Lc and Le', () => {
+	assert.match(src, /decoded\.p3_kind === 'le' \? ' · ' \+ t\('Le \(expected response length\)'\)/);
+	assert.match(src, /t\('Lc \(command data length\)'\)/);
+});
+
 // ── trace topbar layout ────────────────────────────────────────────────
 
 test('the view selector sits over the side panel at the panel width', () => {
