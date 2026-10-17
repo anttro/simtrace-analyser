@@ -39,7 +39,8 @@ keeps counting).
 """
 
 from .database import _SUCCESS_SW1
-from .decode import (_is_df_fid, select_target_fid, selected_df_fid, sfi_table)
+from .decode import (DF_CHILDREN, KNOWN_FIDS, _is_df_fid, select_target_fid,
+                     selected_df_fid, sfi_table)
 
 IMAGE_CAP = 64 * 1024      # observed bytes kept per file
 EVENTS_CAP = 1000          # change events kept per file
@@ -70,6 +71,25 @@ def _file_label(d):
     if f.get('sfi') is not None:
         return f'SFI {f["sfi"]}'
     return None
+
+
+def _file_path(df, fid, name, aid_labels=None):
+    """A human-readable path for a tracked file: the DF (named when known),
+    the EF and the FID — e.g. ``MF/EF_ICCID (2FE2)``,
+    ``ADF/EF_IMSI (6F07)``, ``DF_GSM_ACCESS/EF_KcGPRS (4F52)``,
+    ``AID A00000015141434C00/4F09``."""
+    ef = (DF_CHILDREN.get(df, {}) or {}).get(fid) or name or fid.upper()
+    if df.startswith('aid:'):
+        aid = df[4:].upper()
+        label = (aid_labels or {}).get(aid)
+        df_label = f'AID {aid}' + (f' ({label})' if label else '')
+    elif df == '7fff':
+        df_label = 'ADF'
+    else:
+        df_label = KNOWN_FIDS.get(df) or df.upper()
+    if ef.upper() == fid.upper():
+        return f'{df_label}/{ef.upper()}'
+    return f'{df_label}/{ef} ({fid.upper()})'
 
 
 def _key_str(key):
@@ -515,6 +535,8 @@ class FileTracker:
         return {
             'key': _key_str(entry.key),
             'name': entry.name,
+            'path': _file_path(entry.df, entry.fid, entry.name,
+                               self.aid_labels),
             'df': entry.df,
             'fid': entry.fid,
             'structure': entry.structure,
@@ -540,6 +562,8 @@ class FileTracker:
         for key, entry in self.files.items():
             files[_key_str(key)] = {
                 'name': entry.name,
+                'path': _file_path(entry.df, entry.fid, entry.name,
+                                   self.aid_labels),
                 'df': entry.df,
                 'fid': entry.fid,
                 'sfi': entry.sfi,

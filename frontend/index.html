@@ -192,7 +192,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .file-op .file-op-diff:hover { color: var(--warn); }
 .file-diff-modal { max-width: 760px; }
 .file-diff-body { max-height: 60vh; overflow-y: auto; margin-bottom: 16px; }
-.hex-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap; }
+.hex-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-top: 10px; flex-wrap: wrap; }
 .hex-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
 .hex-pair { display: flex; gap: 16px; flex-wrap: wrap; }
 .hex-pair > div { flex: 1 1 320px; min-width: 0; }
@@ -2244,18 +2244,18 @@ function renderFileDiff(image) {
     }
     if (image.index !== null && image.index !== undefined) meta.push(`#${image.index}`);
     if (image.elapsed !== null && image.elapsed !== undefined) meta.push(fmt_elapsed(image.elapsed));
-    el('file-diff-sub').textContent = `${image.name || ''} — ${meta.join(' · ')}`;
+    el('file-diff-sub').textContent = `${image.path || image.name || ''} — ${meta.join(' · ')}`;
     el('file-diff-body').innerHTML =
-        `<div class="hex-legend">
-            <span class="hex-cell hex-changed">aa</span> ${t('changed')}
-            <span class="hex-cell hex-new">aa</span> ${t('newly observed')}
-            <span class="hex-cell hex-unknown">--</span> ${t('never observed')}
-        </div>
-        <div class="hex-summary">${t('{c} bytes changed, {n} bytes newly observed')
+        `<div class="hex-summary">${t('{c} bytes changed, {n} bytes newly observed')
             .replace('{c}', changed).replace('{n}', fresh)}</div>
         <div class="hex-pair">
             <div><h4>${t('Before')}</h4>${hexImageHtml(image, 'before')}</div>
             <div><h4>${t('After')}</h4>${hexImageHtml(image, 'after')}</div>
+        </div>
+        <div class="hex-legend">
+            <span class="hex-cell hex-changed">aa</span> ${t('changed')}
+            <span class="hex-cell hex-new">aa</span> ${t('newly observed')}
+            <span class="hex-cell hex-unknown">--</span> ${t('never observed')}
         </div>` +
         (image.image_truncated ? `<p class="hex-note">${t('The image is frozen (size cap reached) — later changes are not tracked.')}</p>` : '');
 }
@@ -3167,7 +3167,7 @@ function onFilterChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.4.1';
+const PWA_VERSION = '2.4.2';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {

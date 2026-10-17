@@ -194,11 +194,14 @@ trace-wide timeline of file operations — every **Read**, **Update** and
 **Changed on card** row shows the same file name as the Map view, and clicking
 a row jumps to the APDU in the trace.  Rows that carry a recorded change (a
 card-side change, or an update that wrote or first observed bytes) also offer
-**Details**: a modal showing the affected unit — the whole file, or the single
-record that changed — **before and after** the change, as hex views (16 bytes
-per row, never-observed bytes drawn as `--`) with the bytes that changed
-highlighted in one colour and the bytes the operation first observed in
-another, plus the changed/new byte counts and the APDU reference.
+**Details**: a modal showing the full file path (`MF/EF_ICCID (2FE2)`,
+`ADF/EF_IMSI (6F07)`, `DF_GSM_ACCESS/EF_KcGPRS (4F52)`, `AID …/4F09` — the DF
+named from the EF.DIR labels when known) and the affected unit — the whole
+file, or the single record that changed — **before and after** the change, as
+hex views (16 bytes per row, never-observed bytes drawn as `--`) with the bytes
+that changed highlighted in one colour and the bytes the operation first
+observed in another, the changed/new byte counts, the APDU reference and the
+colour legend below the views.
 
 The images come from `GET /api/sessions/<id>/files/image?key=…&change=…` and
 are reconstructed from the current image by undoing the later changes
