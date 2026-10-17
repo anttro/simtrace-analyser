@@ -26,6 +26,8 @@ eval(
 );
 let el = () => ({});
 
+function filterLabelOf(m) { return filter_label(m); }
+
 const INS = {
 	SELECT: 'a4', 'READ BINARY': 'b0', 'READ RECORD': 'b2',
 	'UPDATE BINARY': 'd6', 'UPDATE RECORD': 'dc',
@@ -73,13 +75,29 @@ test('the GET RESPONSE linkage follows the selected commands', () => {
 test('the proactive preset: FETCH, TERMINAL PROFILE and SW 91xx initiators', () => {
 	const set = new Set(['preset:proactive']);
 	assert.equal(matchesFilter(msg('FETCH'), 0, set), true);
-	assert.equal(matchesFilter(msg('TERMINAL RESPONSE'), 0, set), true);
 	assert.equal(matchesFilter(msg('TERMINAL PROFILE'), 0, set), true);
+	// A TERMINAL RESPONSE comes along through its 91xx answer, not its name.
+	assert.equal(matchesFilter(msg('TERMINAL RESPONSE', { sw1: '91', sw2: '00' }), 0, set), true);
 	assert.equal(matchesFilter(msg('ENVELOPE', { sw1: '91', sw2: '30' }), 0, set), true);
 	assert.equal(matchesFilter(msg('UPDATE BINARY', { sw1: '91', sw2: '00' }), 0, set), true);
-	// Novelties: a plain ENVELOPE (90 00) and unrelated commands stay out.
+	// A plain ENVELOPE/TERMINAL RESPONSE (90 00) and unrelated commands stay out.
 	assert.equal(matchesFilter(msg('ENVELOPE'), 0, set), false);
+	assert.equal(matchesFilter(msg('TERMINAL RESPONSE'), 0, set), false);
 	assert.equal(matchesFilter(msg('SELECT'), 0, set), false);
+});
+
+test('FETCH and TERMINAL RESPONSE are separate commands now', () => {
+	// Every command keeps its own label; the multi-select filter (or the
+	// preset's SW 91xx rule) covers the combinations.
+	assert.equal(filterLabelOf(msg('FETCH')), 'FETCH');
+	assert.equal(filterLabelOf(msg('TERMINAL RESPONSE')), 'TERMINAL RESPONSE');
+	const set = new Set(['cmd:FETCH']);
+	assert.equal(matchesFilter(msg('FETCH'), 0, set), true);
+	assert.equal(matchesFilter(msg('TERMINAL RESPONSE'), 0, set), false);
+	// The FETCH's GET RESPONSE (the proactive command itself) follows it.
+	const gr = msg('GET RESPONSE', { response_for: 'FETCH' });
+	STATE = { messages: [msg('FETCH'), gr] };
+	assert.equal(matchesFilter(gr, 1, set), true);
 });
 
 test('the proactive+events preset adds ENVELOPE', () => {

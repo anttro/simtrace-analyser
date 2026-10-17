@@ -630,7 +630,9 @@ function filter_label(msg) {
     const d = msg.decoded;
     if (d) {
         if (d.ins_name === 'ENVELOPE') return 'ENVELOPE';
-        if (d.ins_name === 'FETCH' || d.ins_name === 'TERMINAL RESPONSE') return 'FETCH: ANY PROACTIVE';
+        // Every command keeps its own label (the filter is multi-select, so
+        // FETCH and TERMINAL RESPONSE are picked individually — or through
+        // the proactive preset's SW 91xx rule).
         if (d.ins_name) return d.ins_name;
     }
     return _fallback_label(msg);
@@ -2348,12 +2350,12 @@ const FILTER_PRESETS = [
         id: 'preset:proactive', name: 'Proactive sessions',
         // FETCH / TERMINAL PROFILE plus every proactive-session initiator:
         // a command the card answers with SW 91xx.
-        labels: ['FETCH: ANY PROACTIVE', 'TERMINAL PROFILE'],
+        labels: ['FETCH', 'TERMINAL PROFILE'],
         test: m => _sw1(m) === 0x91,
     },
     {
         id: 'preset:proactive-events', name: 'Proactive + events',
-        labels: ['FETCH: ANY PROACTIVE', 'TERMINAL PROFILE', 'ENVELOPE'],
+        labels: ['FETCH', 'TERMINAL PROFILE', 'ENVELOPE'],
         test: m => _sw1(m) === 0x91,
     },
     {
@@ -3344,7 +3346,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.0';
+const PWA_VERSION = '2.7.1';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
