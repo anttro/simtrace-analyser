@@ -37,6 +37,19 @@ test('the APDU selection is a blue tint in both themes', () => {
 	assert.doesNotMatch(src, /--selected-bg: var\(--bg-input\)/);
 });
 
+test('the APDU hover is a slight blue tint in both themes', () => {
+	assert.match(src, /\.apdu-entry:hover \{ background: var\(--hover-bg\); \}/);
+	assert.match(src, /--hover-bg: rgba\(59, 130, 246, 0\.16\);/);   // dark
+	assert.match(src, /--hover-bg: rgba\(59, 130, 246, 0\.10\);/);   // light
+	// The hover must not fall back to the pair rows' grey or the selection.
+	assert.doesNotMatch(src, /\.apdu-entry:hover \{ background: var\(--bg-panel\); \}/);
+});
+
+test('the detail header follows the list selection in both themes', () => {
+	assert.match(src, /\.detail-header \{[^}]*background: var\(--selected-bg\);/);
+	assert.doesNotMatch(src, /\[data-theme="light"\] \.detail-header/);
+});
+
 // ── trace topbar layout ────────────────────────────────────────────────
 
 test('the view selector sits over the side panel at the panel width', () => {

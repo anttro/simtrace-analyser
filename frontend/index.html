@@ -20,6 +20,7 @@
     --bg-input: #334155;
     --selected-bg: #1e3a8a;   /* a blue tint, so a selected row stands out
                                  from the GET RESPONSE pair rows */
+    --hover-bg: rgba(59, 130, 246, 0.16);   /* a slight blue on hover */
     --border: #475569;
     --text: #e2e8f0;
     --text-muted: #94a3b8;
@@ -54,6 +55,7 @@
     --bg-panel: #e5e7eb;
     --bg-input: #ffffff;
     --selected-bg: #dbeafe;
+    --hover-bg: rgba(59, 130, 246, 0.10);
     --border: #d1d5db;
     --text: #1f2937;
     --text-muted: #6b7280;
@@ -149,7 +151,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .apdu-list { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 8px; }
 .apdu-entry { display: flex; gap: 12px; padding: 3px 12px; border-bottom: 1px solid var(--bg-panel); cursor: pointer; align-items: baseline; }
 .apdu-entry.apdu-pair { background: var(--pair-row); }
-.apdu-entry:hover { background: var(--bg-panel); }
+.apdu-entry:hover { background: var(--hover-bg); }
 .apdu-entry.selected { background: var(--selected-bg); }
 .apdu-time { color: var(--text-muted); font-family: monospace; white-space: nowrap; min-width: 80px; }
 .apdu-type { color: var(--text); font-weight: 600; min-width: 150px; }
@@ -182,8 +184,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .splitter:hover::after, .splitter.active::after { background: radial-gradient(circle, var(--text) 1px, transparent 1px); background-size: 6px 6px; }
 .splitter:hover, .splitter.active { background: var(--accent); }
 .apdu-detail .detail-empty { padding: 24px; color: var(--text-muted); text-align: center; }
-.detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-input); border-bottom: 1px solid var(--border); }
-[data-theme="light"] .detail-header { background: #dbeafe; }
+.detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--selected-bg); border-bottom: 1px solid var(--border); }
 .detail-header strong { font-size: 13px; }
 .decrypt-strip { padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg-panel); font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .decrypt-strip input { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-family: monospace; width: 260px; }
