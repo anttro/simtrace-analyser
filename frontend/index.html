@@ -18,6 +18,8 @@
     --bg: #0f172a;
     --bg-panel: #1e293b;
     --bg-input: #334155;
+    --selected-bg: #1e3a8a;   /* a blue tint, so a selected row stands out
+                                 from the GET RESPONSE pair rows */
     --border: #475569;
     --text: #e2e8f0;
     --text-muted: #94a3b8;
@@ -51,6 +53,7 @@
     --bg: #fafafa;
     --bg-panel: #e5e7eb;
     --bg-input: #ffffff;
+    --selected-bg: #dbeafe;
     --border: #d1d5db;
     --text: #1f2937;
     --text-muted: #6b7280;
@@ -147,8 +150,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .apdu-entry { display: flex; gap: 12px; padding: 3px 12px; border-bottom: 1px solid var(--bg-panel); cursor: pointer; align-items: baseline; }
 .apdu-entry.apdu-pair { background: var(--pair-row); }
 .apdu-entry:hover { background: var(--bg-panel); }
-.apdu-entry.selected { background: var(--bg-input); }
-[data-theme="light"] .apdu-entry.selected { background: #dbeafe; }
+.apdu-entry.selected { background: var(--selected-bg); }
 .apdu-time { color: var(--text-muted); font-family: monospace; white-space: nowrap; min-width: 80px; }
 .apdu-type { color: var(--text); font-weight: 600; min-width: 150px; }
 .apdu-type.atr { color: var(--green); }

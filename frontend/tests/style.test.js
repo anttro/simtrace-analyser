@@ -27,6 +27,16 @@ test('the P3 row labels Lc and Le', () => {
 	assert.match(src, /t\('Lc \(command data length\)'\)/);
 });
 
+test('the APDU selection is a blue tint in both themes', () => {
+	assert.match(src, /\.apdu-entry\.selected \{ background: var\(--selected-bg\); \}/);
+	assert.doesNotMatch(src, /\[data-theme="light"\] \.apdu-entry\.selected/);
+	// Dark: a blue (not the neutral --bg-input grey that blended with the
+	// GET RESPONSE pair rows); light: the established blue-100.
+	assert.match(src, /--selected-bg: #1e3a8a;/);
+	assert.match(src, /--selected-bg: #dbeafe;/);
+	assert.doesNotMatch(src, /--selected-bg: var\(--bg-input\)/);
+});
+
 // ── trace topbar layout ────────────────────────────────────────────────
 
 test('the view selector sits over the side panel at the panel width', () => {
