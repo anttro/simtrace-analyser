@@ -18,3 +18,5 @@ is the runtime tree only (packages, PWA, launchers, docs — no tests, no git):
 extract it anywhere and run `start.bat` (Windows) or `./start.sh`
 (Linux/macOS).  Python 3 has to be on `PATH`; `pip install pyusb` is only
 needed for direct SIMtrace2 capture.
+
+The project is MIT-licensed (see `LICENSE`).

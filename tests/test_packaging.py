@@ -70,6 +70,15 @@ class TestDistributionMetadata(unittest.TestCase):
         # The sdist carries frontend/, so a wheel built from it has the PWA.
         self.assertIn('graft frontend', self._read('MANIFEST.in'))
 
+    def test_license_is_mit(self):
+        # The project is MIT; the metadata and the file must not drift apart.
+        pyproject = self._read('pyproject.toml')
+        self.assertIn('license = "MIT"', pyproject)
+        self.assertIn('license-files = ["LICENSE"]', pyproject)
+        license_text = self._read('LICENSE')
+        self.assertTrue(license_text.startswith('MIT License\n'))
+        self.assertIn('Permission is hereby granted, free of charge', license_text)
+
     def test_setup_py_bundles_the_pwa(self):
         setup_py = self._read('setup.py')
         self.assertIn('frontend', setup_py)

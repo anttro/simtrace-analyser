@@ -51,6 +51,7 @@ class TestReleaseZip(unittest.TestCase):
                 'sniff-start.sh',
                 'sniff-start.bat',
                 '70-simtrace2-pysniff.rules',
+                'LICENSE',
                 'README.md'):
             self.assertIn('%s/%s' % (top, rel), self.names)
 

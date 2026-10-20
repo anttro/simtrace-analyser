@@ -111,7 +111,7 @@ git) или склонировать репозиторий для разраб�
 **Wheel** (PWA внутри пакета):
 
 ```sh
-pip install ./simtrace_analyser-2.7.12-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.13-py3-none-any.whl
 
 # затем запуск (интерфейс отдаётся на http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
@@ -125,7 +125,7 @@ Fedora), сначала создайте виртуальное окружени
 указанную там):
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.12/simtrace_analyser-2.7.12-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.13/simtrace_analyser-2.7.13-py3-none-any.whl
 ```
 
 С GitHub CLI можно скачать wheel последнего релиза, не зная версии:
@@ -139,7 +139,7 @@ pip install ./simtrace_analyser-*.whl
 дерево без истории git: распакуйте, перейдите в каталог и используйте скрипты
 запуска ниже (`./start.sh` в Linux/macOS, `start.bat` в Windows).
 
-**Zip (для Windows, без установки)** — `simtrace-analyser-2.7.12.zip`
+**Zip (для Windows, без установки)** — `simtrace-analyser-2.7.13.zip`
 содержит только рабочее дерево (пакеты, PWA, скрипты запуска, документацию;
 без тестов и git): скачайте, распакуйте в любое место и запустите `start.bat`
 (Windows) или `./start.sh` (Linux/macOS). Python 3 должен быть в `PATH`;
@@ -530,3 +530,10 @@ for msg in session.iter_messages():
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
   пассивный ISO 7816 сниффер на базе FX2LP, выдающий такой же поток
   GSMTAP-SIM на UDP 4729 (принимается GSMTAP-листенером этого проекта).
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE). Декодеры и реализация DES/3DES в PWA написаны
+самостоятельно по спецификациям ISO 7816, ETSI и 3GPP; сторонний код в проект
+не включён. PyUSB (BSD-3-Clause) — зависимость для прямого захвата с
+оборудования.

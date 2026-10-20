@@ -105,7 +105,7 @@ Everything is on the
 **Wheel** (the PWA is inside the package):
 
 ```sh
-pip install ./simtrace_analyser-2.7.12-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.13-py3-none-any.whl
 
 # then run (the UI is served at http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
@@ -119,7 +119,7 @@ Fedora), install into a virtual environment first:
 shown there):
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.12/simtrace_analyser-2.7.12-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.13/simtrace_analyser-2.7.13-py3-none-any.whl
 ```
 
 With the GitHub CLI, download the latest wheel without knowing the version:
@@ -133,7 +133,7 @@ pip install ./simtrace_analyser-*.whl
 without the git history: unzip, `cd` into it and use the launchers below
 (`./start.sh` on Linux/macOS, `start.bat` on Windows).
 
-**Zip (Windows-friendly, no installer)** — `simtrace-analyser-2.7.12.zip` is
+**Zip (Windows-friendly, no installer)** — `simtrace-analyser-2.7.13.zip` is
 the runtime tree only (packages, PWA, launchers, docs; no tests, no git):
 download it, extract it anywhere and run `start.bat` (Windows) or
 `./start.sh` (Linux/macOS).  Python 3 has to be on `PATH`; `pip install pyusb`
@@ -510,3 +510,10 @@ Use `--inactivity-timeout` to also trigger reconnect on silent firmware hangs.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
   FX2LP-based passive ISO 7816 sniffer that emits the same GSMTAP-SIM stream
   on UDP 4729 (accepted by this project's GSMTAP listener).
+
+## License
+
+MIT — see [LICENSE](LICENSE).  The decoders and the PWA's DES/3DES
+implementation are original, written from the ISO 7816, ETSI and 3GPP
+specifications; no third-party code is bundled.  PyUSB (BSD-3-Clause) is a
+runtime dependency for direct hardware capture.
