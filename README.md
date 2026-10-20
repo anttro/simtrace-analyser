@@ -105,7 +105,7 @@ Everything is on the
 **Wheel** (the PWA is inside the package):
 
 ```sh
-pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.12-py3-none-any.whl
 
 # then run (the UI is served at http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
@@ -119,7 +119,7 @@ Fedora), install into a virtual environment first:
 shown there):
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.11/simtrace_analyser-2.7.11-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.12/simtrace_analyser-2.7.12-py3-none-any.whl
 ```
 
 With the GitHub CLI, download the latest wheel without knowing the version:
@@ -132,6 +132,12 @@ pip install ./simtrace_analyser-*.whl
 **Source archive** — the *Source code (zip / tar.gz)* assets are the full tree
 without the git history: unzip, `cd` into it and use the launchers below
 (`./start.sh` on Linux/macOS, `start.bat` on Windows).
+
+**Zip (Windows-friendly, no installer)** — `simtrace-analyser-2.7.12.zip` is
+the runtime tree only (packages, PWA, launchers, docs; no tests, no git):
+download it, extract it anywhere and run `start.bat` (Windows) or
+`./start.sh` (Linux/macOS).  Python 3 has to be on `PATH`; `pip install pyusb`
+is only needed for direct SIMtrace2 capture.
 
 ### From a git clone (development)
 

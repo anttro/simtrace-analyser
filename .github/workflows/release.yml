@@ -49,6 +49,22 @@ jobs:
       - name: Build the sdist and the wheel
         run: python -m build --sdist --wheel
 
+      - name: Build the runtime zip
+        run: python scripts/build_release_zip.py --output dist
+
+      - name: The runtime zip is complete
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+          archive = glob.glob('dist/*.zip')[0]
+          names = zipfile.ZipFile(archive).namelist()
+          for required in ('start.bat', 'frontend/index.html'):
+              assert any(n.endswith('/' + required) for n in names), \
+                  '%s is missing from %s' % (required, archive)
+          print('%s: %d entries, launchers and PWA bundled' % (archive, len(names)))
+          PY
+
       - name: The wheel bundles the PWA
         run: |
           python - <<'PY'
@@ -96,4 +112,4 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             --notes-file .github/release-notes.md \
-            dist/*.whl dist/*.tar.gz 70-simtrace2-pysniff.rules
+            dist/*.whl dist/*.tar.gz dist/*.zip 70-simtrace2-pysniff.rules

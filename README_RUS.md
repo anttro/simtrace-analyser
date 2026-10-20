@@ -111,7 +111,7 @@ git) или склонировать репозиторий для разраб�
 **Wheel** (PWA внутри пакета):
 
 ```sh
-pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.12-py3-none-any.whl
 
 # затем запуск (интерфейс отдаётся на http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
@@ -125,7 +125,7 @@ Fedora), сначала создайте виртуальное окружени
 указанную там):
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.11/simtrace_analyser-2.7.11-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.12/simtrace_analyser-2.7.12-py3-none-any.whl
 ```
 
 С GitHub CLI можно скачать wheel последнего релиза, не зная версии:
@@ -138,6 +138,12 @@ pip install ./simtrace_analyser-*.whl
 **Архив исходников** — ассеты *Source code (zip / tar.gz)* содержат полное
 дерево без истории git: распакуйте, перейдите в каталог и используйте скрипты
 запуска ниже (`./start.sh` в Linux/macOS, `start.bat` в Windows).
+
+**Zip (для Windows, без установки)** — `simtrace-analyser-2.7.12.zip`
+содержит только рабочее дерево (пакеты, PWA, скрипты запуска, документацию;
+без тестов и git): скачайте, распакуйте в любое место и запустите `start.bat`
+(Windows) или `./start.sh` (Linux/macOS). Python 3 должен быть в `PATH`;
+`pip install pyusb` нужен только для прямого захвата с SIMtrace2.
 
 ### Из клона репозитория (для разработки)
 
