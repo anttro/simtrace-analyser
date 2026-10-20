@@ -94,26 +94,15 @@ No other dependencies. PCAP, GSMTAP, and hex dump output use only Python stdlib.
 
 ## Install
 
-```sh
-git clone https://github.com/anttro/simtrace-analyser.git
-cd simtrace-analyser
-pip install pyusb
-```
+There are two ways to get the analyser: install a release artifact (no git
+history), or clone the repository for development.  Both bundle the same PWA.
 
-Or install the package into your environment:
+### From a release (no git history)
 
-```sh
-pip install -e .
-# then run: simtrace-analyser-server [opts]
-# or:       simtrace2-pysniff [opts]
-```
+Everything is on the
+[latest release](https://github.com/anttro/simtrace-analyser/releases/latest).
 
-### From a release (no git checkout)
-
-The release artifacts bundle the PWA, so an installed server serves the same UI
-as a clone.  Download the wheel from the
-[latest release](https://github.com/anttro/simtrace-analyser/releases/latest)
-and install it:
+**Wheel** (recommended — an isolated install, the PWA is inside the package):
 
 ```sh
 pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
@@ -123,11 +112,48 @@ pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
-`pip` can also fetch the wheel straight from the release page:
+`pip` can also fetch the wheel straight from the release page (use the version
+shown there):
 
 ```sh
 pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.10/simtrace_analyser-2.7.10-py3-none-any.whl
 ```
+
+With the GitHub CLI, download the latest wheel without knowing the version:
+
+```sh
+gh release download --pattern '*.whl'
+pipx install ./simtrace_analyser-*.whl
+```
+
+**Source archive** — the *Source code (zip / tar.gz)* assets are the full tree
+without the git history: unzip, `cd` into it and use the launchers below
+(`./start.sh` on Linux/macOS, `start.bat` on Windows).
+
+### From a git clone (development)
+
+```sh
+git clone https://github.com/anttro/simtrace-analyser.git
+cd simtrace-analyser
+./start.sh                  # Linux/macOS; on Windows: start.bat
+```
+
+The launchers add the checkout to `PYTHONPATH` and run
+`python -m simtrace_analyser`, so no install step is needed for browsing and
+GSMTAP capture; they accept the server's options (`./start.sh --capture direct
+--port 8080`).  Direct hardware capture needs **PyUSB** (`pip install pyusb`).
+
+To get the console scripts (`simtrace-analyser-server`, `simtrace2-pysniff`)
+install the package instead:
+
+```sh
+pip install -e .
+simtrace-analyser-server --capture gsmtap
+```
+
+On Windows the `.bat` launchers run the `python` command, so Python 3 has to be
+on `PATH` (check with `python --version`); direct USB capture additionally
+needs the driver swap described in [USB Device Access](#usb-device-access).
 
 ## Running
 
@@ -396,6 +422,12 @@ Windows does not ship a libusb-compatible driver for SIMtrace2. Use
 5. Click **Replace Driver** (one-time operation)
 
 After that, `python -m simtrace2_pysniff` works identically to Linux.
+
+The Windows launchers match their shell counterparts and pass every option
+through: `start.bat --capture direct` starts the analyser server and
+`sniff-start.bat` the capture utility.  Both call the `python` command, so
+Python 3 must be on `PATH` (verify with `python --version` in a new command
+prompt).
 
 ## Utility CLI Options
 

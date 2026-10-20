@@ -99,26 +99,16 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 
 ## Установка
 
-```sh
-git clone https://github.com/anttro/simtrace-analyser.git
-cd simtrace-analyser
-pip install pyusb
-```
+Есть два способа получить анализатор: установить артефакт релиза (без истории
+git) или склонировать репозиторий для разработки. В обоих случаях в комплекте
+одна и та же PWA.
 
-Или установите пакет в своё окружение:
+### Из релиза (без истории git)
 
-```sh
-pip install -e .
-# затем запуск: simtrace-analyser-server [opts]
-# или:          simtrace2-pysniff [opts]
-```
+Всё находится на странице
+[последнего релиза](https://github.com/anttro/simtrace-analyser/releases/latest).
 
-### Из релиза (без клонирования репозитория)
-
-Релизные артефакты содержат PWA внутри пакета, поэтому установленный сервер
-отдаёт тот же интерфейс, что и при запуске из клона. Скачайте wheel со
-страницы [последнего релиза](https://github.com/anttro/simtrace-analyser/releases/latest)
-и установите его:
+**Wheel** (рекомендуется — изолированная установка, PWA внутри пакета):
 
 ```sh
 pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
@@ -128,11 +118,50 @@ pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
-`pip` также может скачать wheel прямо со страницы релиза:
+`pip` также может скачать wheel прямо со страницы релиза (подставьте версию,
+указанную там):
 
 ```sh
 pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.10/simtrace_analyser-2.7.10-py3-none-any.whl
 ```
+
+С GitHub CLI можно скачать wheel последнего релиза, не зная версии:
+
+```sh
+gh release download --pattern '*.whl'
+pipx install ./simtrace_analyser-*.whl
+```
+
+**Архив исходников** — ассеты *Source code (zip / tar.gz)* содержат полное
+дерево без истории git: распакуйте, перейдите в каталог и используйте скрипты
+запуска ниже (`./start.sh` в Linux/macOS, `start.bat` в Windows).
+
+### Из клона репозитория (для разработки)
+
+```sh
+git clone https://github.com/anttro/simtrace-analyser.git
+cd simtrace-analyser
+./start.sh                  # Linux/macOS; в Windows: start.bat
+```
+
+Скрипты запуска добавляют каталог в `PYTHONPATH` и запускают
+`python -m simtrace_analyser`, поэтому для просмотра и захвата GSMTAP
+установка не нужна; они принимают параметры сервера
+(`./start.sh --capture direct --port 8080`). Для прямого захвата с
+оборудования нужен **PyUSB** (`pip install pyusb`).
+
+Чтобы получить консольные команды (`simtrace-analyser-server`,
+`simtrace2-pysniff`), установите пакет:
+
+```sh
+pip install -e .
+simtrace-analyser-server --capture gsmtap
+```
+
+В Windows скрипты `.bat` вызывают команду `python`, поэтому Python 3 должен
+быть в `PATH` (проверьте `python --version`); для прямого захвата по USB
+дополнительно нужна замена драйвера, описанная в разделе
+[Доступ к USB-устройству](#доступ-к-usb-устройству).
 
 ## Запуск
 
@@ -406,6 +435,12 @@ sudo udevadm trigger
 5. Нажмите **Replace Driver** (однократная операция)
 
 После этого `python -m simtrace2_pysniff` работает так же, как в Linux.
+
+Скрипты запуска для Windows соответствуют shell-версиям и передают все
+параметры: `start.bat --capture direct` запускает сервер анализатора, а
+`sniff-start.bat` — утилиту захвата. Оба вызывают команду `python`, поэтому
+Python 3 должен быть в `PATH` (проверьте `python --version` в новом окне
+команды).
 
 ## Параметры CLI утилиты
 

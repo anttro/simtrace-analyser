@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: simtrace-analyser-server startup script for Windows
 ::
-:: Usage: start.bat [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
+:: Usage: start.bat [--capture gsmtap|direct|disabled] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 ::
 :: Options set via environment variables act as defaults; CLI flags override them.
 
@@ -42,7 +42,7 @@ if "%~1"=="--gsmtap-port" (
     shift
     goto :parse_args
 )
-set "EXTRA_ARGS=!EXTRA_ARGS! %~1"
+set "EXTRA_ARGS=!EXTRA_ARGS! %1"
 shift
 goto :parse_args
 
@@ -50,5 +50,10 @@ goto :parse_args
 echo Starting simtrace-analyser-server...
 echo PWA (simtrace-analyser) will be served at http://127.0.0.1:%PORT%/
 
+set "ARGS=--capture "%CAPTURE%" --port "%PORT%""
+if not "%DB%"=="" set "ARGS=!ARGS! --db "%DB%""
+if /i "%CAPTURE%"=="gsmtap" set "ARGS=!ARGS! --gsmtap-port "%GSMTAP_PORT%""
+set "ARGS=!ARGS! !EXTRA_ARGS!"
+
 set "PYTHONPATH=%~dp0"
-python -m simtrace_analyser --capture %CAPTURE% --port %PORT% --gsmtap-port %GSMTAP_PORT% %EXTRA_ARGS%
+python -m simtrace_analyser !ARGS!

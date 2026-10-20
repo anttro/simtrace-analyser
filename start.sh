@@ -1,7 +1,7 @@
 #!/bin/bash
 # simtrace-analyser-server startup script
 #
-# Usage: ./start.sh [--capture gsmtap|direct] [--port PORT] [--db PATH] [--gsmtap-port PORT]
+# Usage: ./start.sh [--capture gsmtap|direct|disabled] [--port PORT] [--db PATH] [--gsmtap-port PORT]
 #
 # Options set via environment variables act as defaults; CLI flags override them.
 

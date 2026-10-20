@@ -59,7 +59,7 @@ if "%~1"=="--inactivity-timeout" (
     shift
     goto :parse_args
 )
-set "EXTRA_ARGS=!EXTRA_ARGS! %~1"
+set "EXTRA_ARGS=!EXTRA_ARGS! %1"
 shift
 goto :parse_args
 
@@ -67,11 +67,11 @@ goto :parse_args
 echo Starting simtrace2-pysniff...
 
 set "ARGS="
-if not "%GSMTAP%"=="" set "ARGS=!ARGS! --gsmtap %GSMTAP%"
-if not "%PCAP%"=="" set "ARGS=!ARGS! --pcap %PCAP%"
-if not "%OUTPUT%"=="" set "ARGS=!ARGS! --output %OUTPUT%"
-if not "%FORMAT%"=="" set "ARGS=!ARGS! --format %FORMAT%"
-if not "%INACTIVITY_TIMEOUT%"=="0" set "ARGS=!ARGS! --inactivity-timeout %INACTIVITY_TIMEOUT%"
+if not "%GSMTAP%"=="" set "ARGS=!ARGS! --gsmtap "%GSMTAP%""
+if not "%PCAP%"=="" set "ARGS=!ARGS! --pcap "%PCAP%""
+if not "%OUTPUT%"=="" set "ARGS=!ARGS! --output "%OUTPUT%""
+if not "%FORMAT%"=="" set "ARGS=!ARGS! --format "%FORMAT%""
+if not "%INACTIVITY_TIMEOUT%"=="0" set "ARGS=!ARGS! --inactivity-timeout "%INACTIVITY_TIMEOUT%""
 
 set "PYTHONPATH=%~dp0"
-python -m simtrace2_pysniff %ARGS% %EXTRA_ARGS%
+python -m simtrace2_pysniff !ARGS! !EXTRA_ARGS!
