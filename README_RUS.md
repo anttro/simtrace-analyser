@@ -111,8 +111,8 @@ git) или склонировать репозиторий для разраб�
 **Wheel** (рекомендуется — изолированная установка, PWA внутри пакета):
 
 ```sh
-pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
-# или: pip install ./simtrace_analyser-2.7.10-py3-none-any.whl
+pipx install ./simtrace_analyser-2.7.11-py3-none-any.whl
+# или: pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
 
 # затем запуск (интерфейс отдаётся на http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
@@ -122,7 +122,7 @@ simtrace-analyser-server --capture gsmtap
 указанную там):
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.10/simtrace_analyser-2.7.10-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.11/simtrace_analyser-2.7.11-py3-none-any.whl
 ```
 
 С GitHub CLI можно скачать wheel последнего релиза, не зная версии:
