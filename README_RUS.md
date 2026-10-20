@@ -108,15 +108,18 @@ git) или склонировать репозиторий для разраб�
 Всё находится на странице
 [последнего релиза](https://github.com/anttro/simtrace-analyser/releases/latest).
 
-**Wheel** (рекомендуется — изолированная установка, PWA внутри пакета):
+**Wheel** (PWA внутри пакета):
 
 ```sh
-pipx install ./simtrace_analyser-2.7.11-py3-none-any.whl
-# или: pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
 
 # затем запуск (интерфейс отдаётся на http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
 ```
+
+Если системный Python управляется извне (PEP 668 — обычное дело в Arch и
+Fedora), сначала создайте виртуальное окружение:
+`python3 -m venv .venv && . .venv/bin/activate`.
 
 `pip` также может скачать wheel прямо со страницы релиза (подставьте версию,
 указанную там):
@@ -129,7 +132,7 @@ pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.1
 
 ```sh
 gh release download --pattern '*.whl'
-pipx install ./simtrace_analyser-*.whl
+pip install ./simtrace_analyser-*.whl
 ```
 
 **Архив исходников** — ассеты *Source code (zip / tar.gz)* содержат полное

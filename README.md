@@ -102,15 +102,18 @@ history), or clone the repository for development.  Both bundle the same PWA.
 Everything is on the
 [latest release](https://github.com/anttro/simtrace-analyser/releases/latest).
 
-**Wheel** (recommended — an isolated install, the PWA is inside the package):
+**Wheel** (the PWA is inside the package):
 
 ```sh
-pipx install ./simtrace_analyser-2.7.11-py3-none-any.whl
-# or: pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.11-py3-none-any.whl
 
 # then run (the UI is served at http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
 ```
+
+If your system Python is externally managed (PEP 668 — common on Arch and
+Fedora), install into a virtual environment first:
+`python3 -m venv .venv && . .venv/bin/activate`.
 
 `pip` can also fetch the wheel straight from the release page (use the version
 shown there):
@@ -123,7 +126,7 @@ With the GitHub CLI, download the latest wheel without knowing the version:
 
 ```sh
 gh release download --pattern '*.whl'
-pipx install ./simtrace_analyser-*.whl
+pip install ./simtrace_analyser-*.whl
 ```
 
 **Source archive** — the *Source code (zip / tar.gz)* assets are the full tree
