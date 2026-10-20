@@ -108,12 +108,34 @@ pip install -e .
 # or:       simtrace2-pysniff [opts]
 ```
 
+### From a release (no git checkout)
+
+The release artifacts bundle the PWA, so an installed server serves the same UI
+as a clone.  Download the wheel from the
+[latest release](https://github.com/anttro/simtrace-analyser/releases/latest)
+and install it:
+
+```sh
+pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
+# or: pip install ./simtrace_analyser-2.7.10-py3-none-any.whl
+
+# then run (the UI is served at http://127.0.0.1:8081/):
+simtrace-analyser-server --capture gsmtap
+```
+
+`pip` can also fetch the wheel straight from the release page:
+
+```sh
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.10/simtrace_analyser-2.7.10-py3-none-any.whl
+```
+
 ## Running
 
 ### Analysis server + PWA (`simtrace-analyser-server`)
 
 Stores captured APDU traffic in SQLite and serves it over HTTP, together with
-the bundled **SIMtrace Analyser** PWA (`frontend/`) on the same origin.  Three
+the bundled **SIMtrace Analyser** PWA (`frontend/` in a source checkout,
+bundled into the package on install) on the same origin.  Three
 capture modes:
 
 ```sh
@@ -283,13 +305,14 @@ Server options:
 --db FILE            SQLite database path (default: ~/.simtrace-analyser/sessions.db)
 --capture MODE       gsmtap | direct | disabled  (default: gsmtap)
 --gsmtap-port PORT   UDP port for the GSMTAP listener (default: 4729)
---web-dir PATH       PWA static files directory (default: <repo>/frontend)
+--web-dir PATH       PWA static files directory (default: the PWA bundled in
+                     the installed package, or <repo>/frontend from source)
 ```
 
 Then open **http://127.0.0.1:8081/** in a browser — the PWA is served by the
 server, so the UI and the API share an origin and no CORS/Private-Network-Access
 setup is involved.  Use `--web-dir PATH` to serve a different PWA directory
-(default: `<repo>/frontend`).
+(default: the bundled PWA, or `<repo>/frontend` in a source checkout).
 
 ### Hosted PWA (landing page)
 

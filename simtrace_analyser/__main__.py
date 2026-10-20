@@ -16,10 +16,20 @@ from .capture import CaptureManager, GsmtapListener, DirectSniffer
 from .version import __version__
 
 
+def _pick_web_dir(package_dir, repo_root):
+    """The installed package's bundled PWA first, then the source checkout."""
+    packaged = os.path.join(package_dir, 'web')
+    if os.path.isfile(os.path.join(packaged, 'index.html')):
+        return packaged
+    return os.path.join(repo_root, 'frontend')
+
+
 def _default_web_dir():
-    # <repo>/frontend, whether run from source or an editable install.
-    # __file__ is <repo>/simtrace_analyser/__main__.py → up two levels.
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend')
+    # A wheel/sdist install carries simtrace_analyser/web (copied there by
+    # setup.py); an editable install and a plain source run fall through to
+    # <repo>/frontend.  __file__ is <repo>/simtrace_analyser/__main__.py.
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    return _pick_web_dir(pkg_dir, os.path.dirname(pkg_dir))
 
 
 def main():
@@ -42,7 +52,9 @@ def main():
     p.add_argument('--log-requests', action='store_true', default=False,
                    help='Log every HTTP request (off by default)')
     p.add_argument('--web-dir', default=_default_web_dir(), metavar='PATH',
-                   help='Directory with the simtrace-analyser PWA static files to serve (default: <repo>/frontend)')
+                   help='Directory with the simtrace-analyser PWA static files to serve '
+                        '(default: the PWA bundled in the installed package, '
+                        'or <repo>/frontend in a source checkout)')
     args = p.parse_args()
 
     db = Database(args.db)

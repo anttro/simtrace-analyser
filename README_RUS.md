@@ -113,12 +113,34 @@ pip install -e .
 # или:          simtrace2-pysniff [opts]
 ```
 
+### Из релиза (без клонирования репозитория)
+
+Релизные артефакты содержат PWA внутри пакета, поэтому установленный сервер
+отдаёт тот же интерфейс, что и при запуске из клона. Скачайте wheel со
+страницы [последнего релиза](https://github.com/anttro/simtrace-analyser/releases/latest)
+и установите его:
+
+```sh
+pipx install ./simtrace_analyser-2.7.10-py3-none-any.whl
+# или: pip install ./simtrace_analyser-2.7.10-py3-none-any.whl
+
+# затем запуск (интерфейс отдаётся на http://127.0.0.1:8081/):
+simtrace-analyser-server --capture gsmtap
+```
+
+`pip` также может скачать wheel прямо со страницы релиза:
+
+```sh
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.10/simtrace_analyser-2.7.10-py3-none-any.whl
+```
+
 ## Запуск
 
 ### Анализирующий сервер + PWA (`simtrace-analyser-server`)
 
 Сохраняет захваченный APDU-трафик в SQLite и отдаёт его по HTTP вместе
-со встроенной PWA **SIMtrace Analyser** (`frontend/`) на том же origin.
+со встроенной PWA **SIMtrace Analyser** (`frontend/` в исходном клоне, при
+установке — внутри пакета) на том же origin.
 Три режима захвата:
 
 ```sh
@@ -289,13 +311,15 @@ TS 51.011), поэтому FID, повторно используемый в р�
 --db FILE            путь к базе SQLite (по умолчанию: ~/.simtrace-analyser/sessions.db)
 --capture MODE       gsmtap | direct | disabled  (по умолчанию: gsmtap)
 --gsmtap-port PORT   UDP-порт листенера GSMTAP (по умолчанию: 4729)
---web-dir PATH       каталог статических файлов PWA (по умолчанию: <repo>/frontend)
+--web-dir PATH       каталог статических файлов PWA (по умолчанию: PWA внутри
+                     установленного пакета или <repo>/frontend при запуске из исходников)
 ```
 
 Затем откройте **http://127.0.0.1:8081/** в браузере — PWA отдаётся
 сервером, поэтому UI и API используют один origin, и настройка
 CORS/Private-Network-Access не требуется. Используйте `--web-dir PATH`,
-чтобы отдавать другой каталог PWA (по умолчанию: `<repo>/frontend`).
+чтобы отдавать другой каталог PWA (по умолчанию: PWA внутри пакета или
+`<repo>/frontend` при запуске из исходников).
 
 ### Размещённая PWA (лендинг)
 
