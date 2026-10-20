@@ -1,0 +1,99 @@
+name: Release
+
+# A pushed v* tag publishes a GitHub release with the wheel, the sdist and the
+# udev rule.  A manual run (workflow_dispatch) does everything except publish,
+# so the pipeline can be exercised without minting a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: The tag matches the version strings
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(python -c "from simtrace_analyser.version import __version__; print(__version__)")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match version.py ($version)" >&2
+            exit 1
+          fi
+          grep -q "PWA_VERSION = '$version'" frontend/index.html
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: Python tests
+        run: python -m unittest discover -s tests
+
+      - name: PWA tests
+        working-directory: frontend
+        run: node --test
+
+      - name: Build the sdist and the wheel
+        run: python -m build --sdist --wheel
+
+      - name: The wheel bundles the PWA
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+          wheel = glob.glob('dist/*.whl')[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          for required in ('simtrace_analyser/web/index.html',
+                           'simtrace_analyser/web/sw.js'):
+              assert required in names, '%s is missing from %s' % (required, wheel)
+          print('%s: %d entries, PWA bundled' % (wheel, len(names)))
+          PY
+
+      - name: The installed wheel serves the PWA
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --no-deps dist/*.whl
+          cd /tmp
+          /tmp/smoke/bin/simtrace-analyser-server --capture disabled \
+            --db /tmp/smoke.db --port 8099 &
+          server=$!
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8099/ -o /tmp/served-index.html; then
+              break
+            fi
+            sleep 0.5
+          done
+          kill "$server"
+          cmp /tmp/served-index.html "$GITHUB_WORKSPACE/frontend/index.html"
+          /tmp/smoke/bin/python -c \
+            "import simtrace_analyser.__main__ as m; p = m._default_web_dir(); assert p.endswith('/simtrace_analyser/web'), p"
+
+      - name: Keep the artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file .github/release-notes.md \
+            dist/*.whl dist/*.tar.gz 70-simtrace2-pysniff.rules
