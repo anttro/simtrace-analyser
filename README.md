@@ -9,6 +9,8 @@ also bundles **simtrace2-pysniff**, a Python replacement for
 `simtrace2-sniff` that captures from Osmocom SIMtrace2 hardware and can feed
 GSMTAP into this analyser.
 
+📢 Project news and updates: [Telegram channel](https://t.me/youeyeseesee)
+
 ![SIMtrace Analyser PWA](frontend.png)
 
 ## Components
