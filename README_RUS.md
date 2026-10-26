@@ -9,7 +9,7 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 на Python, которая захватывает трафик с оборудования Osmocom SIMtrace2
 и может передавать GSMTAP этому анализатору.
 
-📢 Новости и обновления проекта: [Telegram-канал](https://t.me/youeyeseesee)
+📢 Новости и обновления проекта: [atroshin.ru](https://atroshin.ru) | [Telegram-канал](https://t.me/youeyeseesee)
 
 ![PWA SIMtrace Analyser](frontend.png)
 
