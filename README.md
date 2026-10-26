@@ -342,6 +342,8 @@ Server options:
 --db FILE            SQLite database path (default: ~/.simtrace-analyser/sessions.db)
 --capture MODE       gsmtap | direct | disabled  (default: gsmtap)
 --gsmtap-port PORT   UDP port for the GSMTAP listener (default: 4729)
+--gsmtap-bind ADDR   UDP bind address for the GSMTAP listener (default: 127.0.0.1;
+                     use 0.0.0.0 to receive from a Docker bridge or another host)
 --web-dir PATH       PWA static files directory (default: the PWA bundled in
                      the installed package, or <repo>/frontend from source)
 ```

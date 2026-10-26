@@ -1,7 +1,8 @@
 """simtrace-analyser-server — CLI entry point.
 
 Usage:
-    simtrace-analyser-server --capture gsmtap [--gsmtap-port 4729] [--port 8081]
+    simtrace-analyser-server --capture gsmtap [--gsmtap-bind 0.0.0.0]
+        [--gsmtap-port 4729] [--port 8081]
     simtrace-analyser-server --capture direct [--port 8081]
 """
 
@@ -46,6 +47,9 @@ def main():
                    help='Capture mode: gsmtap (listen UDP 4729), direct (SIMtrace2 USB), or disabled (no capture)')
     p.add_argument('--gsmtap-port', type=int, default=4729,
                     help='UDP port for GSMTAP listener (default: 4729)')
+    p.add_argument('--gsmtap-bind', default='127.0.0.1', metavar='ADDR',
+                   help='UDP bind address for the GSMTAP listener '
+                        '(default: 127.0.0.1; use 0.0.0.0 in a container)')
     p.add_argument('--log-interval', type=float, default=60.0,
                     help='Seconds between capture liveness heartbeat logs '
                          '(default: 60.0)')
@@ -61,7 +65,7 @@ def main():
 
     capture = None
     if args.capture == 'gsmtap':
-        backend = GsmtapListener(bind_port=args.gsmtap_port)
+        backend = GsmtapListener(bind_ip=args.gsmtap_bind, bind_port=args.gsmtap_port)
         capture = CaptureManager(backend, db, log_interval=args.log_interval)
     elif args.capture == 'direct':
         backend = DirectSniffer()
@@ -78,6 +82,7 @@ def main():
     print(f'simtrace-analyser-server v{__version__} — http://{args.host}:{args.port}', file=sys.stderr)
     print(f'  capture mode: {args.capture}', file=sys.stderr)
     if args.capture == 'gsmtap':
+        print(f'  GSMTAP bind:  {args.gsmtap_bind}', file=sys.stderr)
         print(f'  GSMTAP port:  {args.gsmtap_port}', file=sys.stderr)
     print(f'  database:     {args.db}', file=sys.stderr)
     print(f'  PWA served at http://{args.host}:{args.port}/', file=sys.stderr)

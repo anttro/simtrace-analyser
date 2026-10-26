@@ -351,6 +351,8 @@ TS 51.011), поэтому FID, повторно используемый в р�
 --db FILE            путь к базе SQLite (по умолчанию: ~/.simtrace-analyser/sessions.db)
 --capture MODE       gsmtap | direct | disabled  (по умолчанию: gsmtap)
 --gsmtap-port PORT   UDP-порт листенера GSMTAP (по умолчанию: 4729)
+--gsmtap-bind ADDR   UDP-адрес привязки листенера GSMTAP (по умолчанию: 127.0.0.1;
+                     используйте 0.0.0.0, чтобы принимать из Docker-сети или с другого хоста)
 --web-dir PATH       каталог статических файлов PWA (по умолчанию: PWA внутри
                      установленного пакета или <repo>/frontend при запуске из исходников)
 ```

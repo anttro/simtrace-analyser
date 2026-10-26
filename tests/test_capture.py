@@ -206,6 +206,41 @@ class TestGsmtapListenerRobustness(unittest.TestCase):
         self.assertEqual(listener.dropped, 1)
 
 
+class TestGsmtapListenerBind(unittest.TestCase):
+    def test_bind_ip_reaches_the_receiver(self):
+        from simtrace_analyser import capture
+        calls = []
+
+        class _FakeReceiver:
+            def __init__(self, bind_ip='127.0.0.1', bind_port=4729):
+                calls.append((bind_ip, bind_port))
+
+            def close(self):
+                pass
+
+        real = capture.GsmtapReceiver
+        capture.GsmtapReceiver = _FakeReceiver
+        try:
+            listener = capture.GsmtapListener(bind_ip='0.0.0.0', bind_port=4729)
+            listener._receiver._closed = True  # force start() to re-create it
+            listener.start()
+        finally:
+            capture.GsmtapReceiver = real
+        self.assertEqual(calls, [('0.0.0.0', 4729), ('0.0.0.0', 4729)])
+
+    def test_all_interfaces_bind(self):
+        from simtrace_analyser.capture import GsmtapListener
+        listener = GsmtapListener(bind_ip='0.0.0.0', bind_port=0)
+        self.addCleanup(listener.stop)
+        self.assertEqual(listener._receiver._sock.getsockname()[0], '0.0.0.0')
+
+    def test_default_bind_is_loopback(self):
+        from simtrace_analyser.capture import GsmtapListener
+        listener = GsmtapListener(bind_port=0)
+        self.addCleanup(listener.stop)
+        self.assertEqual(listener._receiver._sock.getsockname()[0], '127.0.0.1')
+
+
 class TestCaptureLoopRobustness(unittest.TestCase):
     def test_capture_loop_survives_insert_error(self):
         mgr = CaptureManager(_OneShotBackend(), _NullDb())
