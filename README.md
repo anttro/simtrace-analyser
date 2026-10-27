@@ -110,9 +110,7 @@ simtrace-analyser-server --capture gsmtap
 
 ### First run
 
-Open **http://127.0.0.1:8081/** — the PWA is served by the server, so the UI
-and the API share an origin (no CORS/Private-Network-Access setup).  `Ctrl+C`
-stops the server.
+Open **http://127.0.0.1:8081/** in a browser.  `Ctrl+C` stops the server.
 
 - `--capture gsmtap` (default) — listen for GSMTAP-SIM on UDP 4729, e.g. from
   `simtrace2-pysniff` or `sigrok_iso7816_stream`;
@@ -307,10 +305,9 @@ Server options:
                      the installed package, or <repo>/frontend from source)
 ```
 
-Then open **http://127.0.0.1:8081/** in a browser — the PWA is served by the
-server, so the UI and the API share an origin and no CORS/Private-Network-Access
-setup is involved.  Use `--web-dir PATH` to serve a different PWA directory
-(default: the bundled PWA, or `<repo>/frontend` in a source checkout).
+Then open **http://127.0.0.1:8081/** in a browser.  Use `--web-dir PATH` to
+serve a different PWA directory (default: the bundled PWA, or
+`<repo>/frontend` in a source checkout).
 
 ### Hosted PWA (landing page)
 
@@ -318,13 +315,15 @@ A standalone copy of the PWA is hosted at **https://simtrace.atroshin.ru**.
 It is a pure frontend: point it (Settings → Server URL) at a locally running
 `simtrace-analyser-server`.
 
-> **Browser restriction:** when the PWA is served from a public HTTPS host,
-> reaching a local server (`http://127.0.0.1:8081`) requires two things: the
-> server must send `Access-Control-Allow-Private-Network: true` (this server
-> does), and the browser must be allowed to access the local network — in
-> Chrome/Edge/Vivaldi: Site settings → Local network access → allow the site
-> (or accept the permission prompt).  Without the browser permission, the
-> request to `127.0.0.1` is blocked before any preflight is sent.
+> **Browser restriction:** this is the one setup where the PWA and the API have
+> different origins, so the browser applies CORS and Private Network Access
+> rules.  Reaching a local server (`http://127.0.0.1:8081`) requires two
+> things: the server must send `Access-Control-Allow-Private-Network: true`
+> (this server does), and the browser must be allowed to access the local
+> network — in Chrome/Edge/Vivaldi: Site settings → Local network access →
+> allow the site (or accept the permission prompt).  Without the browser
+> permission, the request to `127.0.0.1` is blocked before any preflight is
+> sent.
 
 ### Capture utility (`simtrace2-pysniff`)
 
