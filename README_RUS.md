@@ -15,19 +15,25 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 
 ## Требования
 
-- **Python 3.9+**
-- **PyUSB** — `pip install pyusb` (нужен только для захвата с оборудования
-  SIMtrace2; захват GSMTAP/UDP и импорт PCAP работают без него)
+**Обязательно**
+
+- **Python 3.9+** — для захвата GSMTAP, импорта PCAP и просмотра достаточно
+  стандартной библиотеки.
+
+**Только для захвата с оборудования Osmocom SIMtrace2** (`--capture direct` и
+встроенная утилита `simtrace2-pysniff`):
+
+- **PyUSB** — `pip install pyusb`
 - **libusb** — системная библиотека, обычно уже есть в Linux; в Windows
   нужно заменить драйвер SIMtrace2
   (см. [Доступ к USB-устройству](#доступ-к-usb-устройству))
-- **Оборудование SIMtrace2** с прошивкой в режиме *trace* (только для
-  прямого захвата; VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`).
-  О сборке и прошивке trace-прошивки см.
-  [проект SIMtrace2](https://gitea.osmocom.org/sim-card/simtrace2).
+- **Оборудование SIMtrace2** с прошивкой в режиме *trace* (VID `1d50`, PID
+  `60e3`, USB class `ff`, subclass `01`); сборка и прошивка trace-прошивки
+  описаны в
+  [проекте SIMtrace2](https://gitea.osmocom.org/sim-card/simtrace2).
 
-Других зависимостей нет. Вывод PCAP, GSMTAP и hex dump использует только
-стандартную библиотеку Python.
+Для `--capture gsmtap` (источник GSMTAP может быть даже на другой машине),
+`--capture disabled` и импорта PCAP анализатору ничего из этого не нужно.
 
 ## Быстрый старт
 

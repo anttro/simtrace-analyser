@@ -15,17 +15,24 @@ GSMTAP into this analyser.
 
 ## Prerequisites
 
-- **Python 3.9+**
-- **PyUSB** — `pip install pyusb` (needed only for capture from SIMtrace2
-  hardware; GSMTAP/UDP capture and PCAP import work without it)
+**Required**
+
+- **Python 3.9+** — GSMTAP capture, PCAP import and browsing use only the
+  standard library.
+
+**Only for capturing from Osmocom SIMtrace2 hardware** (`--capture direct`, and
+the bundled `simtrace2-pysniff` capture utility):
+
+- **PyUSB** — `pip install pyusb`
 - **libusb** — system library, present by default on Linux; on Windows the
   SIMtrace2 driver must be swapped (see [USB Device Access](#usb-device-access))
-- **SIMtrace2 hardware** running firmware in *trace* mode (only for direct
-  capture; VID `1d50`, PID `60e3`, USB class `ff`, subclass `01`). For
-  building and flashing trace firmware, see the
+- **SIMtrace2 hardware** running firmware in *trace* mode (VID `1d50`, PID
+  `60e3`, USB class `ff`, subclass `01`); building and flashing trace firmware
+  is described in the
   [upstream SIMtrace2 project](https://gitea.osmocom.org/sim-card/simtrace2).
 
-No other dependencies. PCAP, GSMTAP, and hex dump output use only Python stdlib.
+The analyser needs none of this for `--capture gsmtap` (the GSMTAP source may
+even run on another machine), `--capture disabled`, or PCAP imports.
 
 ## Quick start
 
