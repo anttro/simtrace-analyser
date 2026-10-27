@@ -11,7 +11,7 @@ GSMTAP into this analyser.
 
 📢 Project news and updates: [atroshin.ru](https://atroshin.ru) | [Telegram channel](https://t.me/youeyeseesee)
 
-![SIMtrace Analyser PWA](frontend.png)
+![SIMtrace Analyser UI](frontend.png)
 
 ## Prerequisites
 
@@ -36,12 +36,12 @@ even run on another machine), `--capture disabled`, or PCAP imports.
 
 ## Quick start
 
-Three ways to get it running; all of them serve the same PWA at
+Three ways to get it running; all of them serve the same web UI at
 http://127.0.0.1:8081/.
 
 ### 1. Wheel (pip)
 
-The wheel bundles the PWA, so the server serves the UI by itself:
+The wheel includes the UI, so the server serves it by itself:
 
 ```sh
 pip install ./simtrace_analyser-2.7.13-py3-none-any.whl
@@ -67,7 +67,7 @@ pip install ./simtrace_analyser-*.whl
 ### 2. Zip (Windows-friendly, no installer)
 
 Download `simtrace-analyser-2.7.13.zip` from the release page and extract it
-anywhere: it is the runtime tree (the Python packages, the PWA, the launchers
+anywhere: it is the runtime tree (the Python packages, the web UI, the launchers
 and the docs — no tests, no git).  Then run:
 
 Windows:
@@ -123,10 +123,10 @@ in [Usage](#usage) below.
 
 ## Usage
 
-### Analysis server + PWA (`simtrace-analyser-server`)
+### Analysis server + UI (`simtrace-analyser-server`)
 
 Stores captured APDU traffic in SQLite and serves it over HTTP, together with
-the bundled **SIMtrace Analyser** PWA (`frontend/` in a source checkout,
+the bundled **SIMtrace Analyser** frontend (`frontend/` in a source checkout,
 bundled into the package on install) on the same origin.  The commands below
 use the console script; from a source checkout the launchers take the same
 options (`./start.sh --capture gsmtap`, `start.bat --capture gsmtap`).  Three
@@ -180,7 +180,7 @@ The **Import COMPRION trace** button accepts the tab-separated **ISO Protocol
 Layer** export of COMPRION's Device Manager — the byte-accurate protocol view
 (ATR, PPS, APDUs with their return codes). The *ISO Application Layer* export
 carries no raw response bytes and is not needed; selecting it answers with a
-pointer to the Protocol Layer file (the same check runs in the PWA before the
+pointer to the Protocol Layer file (the same check runs in the UI before the
 upload and on the server for API callers).
 
 Exchanges are re-encoded into the same wire-shaped TPDUs a GSMTAP capture
@@ -301,21 +301,22 @@ Server options:
 --gsmtap-port PORT   UDP port for the GSMTAP listener (default: 4729)
 --gsmtap-bind ADDR   UDP bind address for the GSMTAP listener (default: 127.0.0.1;
                      use 0.0.0.0 to receive from a Docker bridge or another host)
---web-dir PATH       PWA static files directory (default: the PWA bundled in
-                     the installed package, or <repo>/frontend from source)
+--web-dir PATH       static files directory for the web UI (default: the
+                     frontend bundled in the installed package, or
+                     <repo>/frontend from source)
 ```
 
 Then open **http://127.0.0.1:8081/** in a browser.  Use `--web-dir PATH` to
-serve a different PWA directory (default: the bundled PWA, or
+serve a different UI directory (default: the bundled frontend, or
 `<repo>/frontend` in a source checkout).
 
-### Hosted PWA (landing page)
+### Hosted UI (landing page)
 
-A standalone copy of the PWA is hosted at **https://simtrace.atroshin.ru**.
+A standalone copy of the UI is hosted at **https://simtrace.atroshin.ru**.
 It is a pure frontend: point it (Settings → Server URL) at a locally running
 `simtrace-analyser-server`.
 
-> **Browser restriction:** this is the one setup where the PWA and the API have
+> **Browser restriction:** this is the one setup where the UI and the API have
 > different origins, so the browser applies CORS and Private Network Access
 > rules.  Reaching a local server (`http://127.0.0.1:8081`) requires two
 > things: the server must send `Access-Control-Allow-Private-Network: true`
@@ -467,8 +468,8 @@ prompt).
 
 ## Components
 
-- **Analysis server + PWA** (`simtrace-analyser-server`) — stores captured
-  traffic in SQLite, decodes it, and serves the PWA ([`frontend/`](frontend/))
+- **Analysis server + UI** (`simtrace-analyser-server`) — stores captured
+  traffic in SQLite, decodes it, and serves the UI ([`frontend/`](frontend/))
   plus the HTTP API on a single origin.  Three capture modes: a GSMTAP
   listener, direct SIMtrace2 hardware capture, or disabled (browse existing
   captures only).
@@ -476,13 +477,13 @@ prompt).
   traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.  It is
   one GSMTAP source of several that the analyser accepts (see also
   [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
-- **PWA** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
+- **UI** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
   SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP and COMPRION trace
   import, EN/RU UI.
 
 ## Features
 
-**APDU decoder** (server-side, rendered by the PWA):
+**APDU decoder** (server-side, rendered by the UI):
 
 - Full APDU decode — CLA per ISO 7816-4 / ETSI coding with the **logical
   channel 0-19** (standard channels from b2-b1, the extended channels 4-19
@@ -519,7 +520,7 @@ prompt).
   and the announced maximum number of logical channels, `8 or more` for the
   extended-capable cards) and the trailing status indicator (LCS/SW)
 
-**SIMtrace Analyser PWA** ([`frontend/`](frontend/)):
+**SIMtrace Analyser UI** ([`frontend/`](frontend/)):
 
 - Trace view with Map/List modes — proactive, TERMINAL RESPONSE, ENVELOPE
   and AUTH commands get distinctive styling in map view
@@ -530,7 +531,8 @@ prompt).
   PROFILE and every command answered with SW 91xx; *File operations*: SELECT,
   READ/UPDATE BINARY and READ/UPDATE RECORD, with the GET RESPONSE carrying a
   selected command's data)
-- Installable PWA, dark theme, English/Russian UI
+- Installable **PWA** (progressive web app: installs to the desktop or home
+  screen and works offline), dark theme, English/Russian UI
 
 ## Related
 
@@ -542,7 +544,7 @@ prompt).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).  The decoders and the PWA's DES/3DES
+MIT — see [LICENSE](LICENSE).  The decoders and the UI's DES/3DES
 implementation are original, written from the ISO 7816, ETSI and 3GPP
 specifications; no third-party code is bundled.  PyUSB (BSD-3-Clause) is a
 runtime dependency for direct hardware capture.
