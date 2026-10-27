@@ -64,11 +64,11 @@ gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
 ```
 
-### 2. Zip (Windows-friendly, no installer)
+### 2. Zip (no installer)
 
 Download `simtrace-analyser-2.7.13.zip` from the release page and extract it
 anywhere: it is the runtime tree (the Python packages, the web UI, the launchers
-and the docs — no tests, no git).  Then run:
+and the docs — no tests, no git).  The archive works on any OS; then run:
 
 Windows:
 
@@ -85,8 +85,8 @@ Linux/macOS:
 Python 3 has to be on `PATH`; `pip install pyusb` is only needed for direct
 SIMtrace2 capture.  The launchers accept the server's options
 (`start.bat --capture direct`, `./start.sh --capture direct --port 8080`).
-(The release's *Source code* archive is the full tree including tests; it
-works like a clone below.)
+(The release's *Source code (zip / tar.gz)* archives are the full tree
+including tests; they work like a clone below.)
 
 ### 3. Git clone (development)
 

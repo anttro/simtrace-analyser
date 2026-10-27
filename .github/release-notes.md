@@ -13,7 +13,7 @@ The source archive is the same tree a clone would have: unzip it and run
 `./start.sh` (Linux/macOS) or `start.bat` (Windows).  Direct SIMtrace2 capture
 on Linux additionally needs the attached `70-simtrace2-pysniff.rules` udev rule.
 
-**Runtime zip (Windows-friendly, no installer)** — `simtrace-analyser-*.zip`
+**Runtime zip (no installer)** — `simtrace-analyser-*.zip`
 is the runtime tree only (packages, PWA, launchers, docs — no tests, no git):
 extract it anywhere and run `start.bat` (Windows) or `./start.sh`
 (Linux/macOS).  Python 3 has to be on `PATH`; `pip install pyusb` is only
