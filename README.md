@@ -13,73 +13,6 @@ GSMTAP into this analyser.
 
 ![SIMtrace Analyser PWA](frontend.png)
 
-## Components
-
-- **Analysis server + PWA** (`simtrace-analyser-server`) — stores captured
-  traffic in SQLite, decodes it, and serves the PWA ([`frontend/`](frontend/))
-  plus the HTTP API on a single origin.  Three capture modes: a GSMTAP
-  listener, direct SIMtrace2 hardware capture, or disabled (browse existing
-  captures only).
-- **Capture utility** (`simtrace2-pysniff`) — captures SIMtrace2 hardware
-  traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.  It is
-  one GSMTAP source of several that the analyser accepts (see also
-  [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
-- **PWA** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
-  SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP and COMPRION trace
-  import, EN/RU UI.
-
-## Features
-
-**APDU decoder** (server-side, rendered by the PWA):
-
-- Full APDU decode — CLA per ISO 7816-4 / ETSI coding with the **logical
-  channel 0-19** (standard channels from b2-b1, the extended channels 4-19
-  from b4-b1 per TS 102 221 §10.3), secure messaging and command chaining,
-  INS names from a spec table, SFI-aware P1/P2 for READ/UPDATE BINARY and
-  record commands; MANAGE CHANNEL replies show the channel the card
-  assigned
-- Status words — full ISO 7816-4 set plus UICC-specific values:
-  `91XX` (proactive command pending), `62F1/F2/F3`, `63F1/F2` (more data),
-  `9300` (SAT busy), `9850`, `9862–64`
-- SIM Toolkit — SAT (GSM 11.14), CAT (TS 102 223) and USAT (TS 31.111)
-  proactive commands with decoded qualifiers, TERMINAL RESPONSE, ENVELOPE
-  (Menu Selection, Call Control, SMS-PP download…); tolerates known
-  non-compliant legacy-card quirks and preserves unrecognized TLVs
-- TERMINAL CAPABILITY (TS 102 221 §11.1.19) — terminal power supply
-  (voltage class, maximum current, clock), extended logical channels,
-  additional interfaces (UICC-CLF) and eUICC device capabilities
-  (SGP.22/SGP.32)
-- SMS TPDU — SMS-DELIVER/SUBMIT, SCTS timestamps, UDH information elements
-- SCP80 OTA secured packets — SPI bits (ciphering, PoR requirement/mode,
-  RC/CC/DS, counter), KIc/KID algorithm + key set, TAR, CNTR/PCNTR;
-  Response Packet (PoR) decode on GET RESPONSE; **optional client-side
-  decryption** of ciphered packets — paste the card's 3DES/AES key in the
-  detail view to reveal the real CNTR and secured application data (the
-  key stays in the browser, in-memory only; ciphered on-wire CNTR/PCNTR/RC
-  are ciphertext and labeled as such); the secured application message is
-  decoded as a stream of **C-APDUs** (SELECT, UPDATE BINARY, …) with
-  full CLA/INS/P1/P2/Lc/Le breakdown — plaintext immediately, or after
-  decryption for ciphered packets
-- ATR parse (clock-rate conversion, Fi/Di, T-bitmask, truncated-ATR safe)
-  and FCP/FCI TLV; the historical bytes are decoded as the UICC's
-  COMPACT-TLV objects (TS 102 221 §6.3.1) — card service data, the **card
-  capabilities** (ISO 7816-4 §8.1.1.2.7 Table 88: the assignment methods
-  and the announced maximum number of logical channels, `8 or more` for the
-  extended-capable cards) and the trailing status indicator (LCS/SW)
-
-**SIMtrace Analyser PWA** ([`frontend/`](frontend/)):
-
-- Trace view with Map/List modes — proactive, TERMINAL RESPONSE, ENVELOPE
-  and AUTH commands get distinctive styling in map view
-- Sessions with deep links (`#session=N`), PCAP import (`.pcap/.pcapng/.cap`),
-  COMPRION trace import (the Device Manager *ISO Protocol Layer* text export),
-  search and a **multi-select command filter** — pick any number of commands
-  and/or the conversation presets (*Proactive sessions*: FETCH, TERMINAL
-  PROFILE and every command answered with SW 91xx; *File operations*: SELECT,
-  READ/UPDATE BINARY and READ/UPDATE RECORD, with the GET RESPONSE carrying a
-  selected command's data)
-- Installable PWA, dark theme, English/Russian UI
-
 ## Prerequisites
 
 - **Python 3.9+**
@@ -94,22 +27,17 @@ GSMTAP into this analyser.
 
 No other dependencies. PCAP, GSMTAP, and hex dump output use only Python stdlib.
 
-## Install
+## Quick start
 
-There are two ways to get the analyser: install a release artifact (no git
-history), or clone the repository for development.  Both bundle the same PWA.
+Three ways to get it running; all of them serve the same PWA at
+http://127.0.0.1:8081/.
 
-### From a release (no git history)
+### 1. Wheel (pip)
 
-Everything is on the
-[latest release](https://github.com/anttro/simtrace-analyser/releases/latest).
-
-**Wheel** (the PWA is inside the package):
+The wheel bundles the PWA, so the server serves the UI by itself:
 
 ```sh
 pip install ./simtrace_analyser-2.7.13-py3-none-any.whl
-
-# then run (the UI is served at http://127.0.0.1:8081/):
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -117,31 +45,43 @@ If your system Python is externally managed (PEP 668 — common on Arch and
 Fedora), install into a virtual environment first:
 `python3 -m venv .venv && . .venv/bin/activate`.
 
-`pip` can also fetch the wheel straight from the release page (use the version
-shown there):
+Every artifact is on the
+[latest release](https://github.com/anttro/simtrace-analyser/releases/latest).
+`pip` can fetch the wheel directly (use the version shown there), or the GitHub
+CLI can pick the latest one:
 
 ```sh
 pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.13/simtrace_analyser-2.7.13-py3-none-any.whl
-```
-
-With the GitHub CLI, download the latest wheel without knowing the version:
-
-```sh
+# or:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
 ```
 
-**Source archive** — the *Source code (zip / tar.gz)* assets are the full tree
-without the git history: unzip, `cd` into it and use the launchers below
-(`./start.sh` on Linux/macOS, `start.bat` on Windows).
+### 2. Zip (Windows-friendly, no installer)
 
-**Zip (Windows-friendly, no installer)** — `simtrace-analyser-2.7.13.zip` is
-the runtime tree only (packages, PWA, launchers, docs; no tests, no git):
-download it, extract it anywhere and run `start.bat` (Windows) or
-`./start.sh` (Linux/macOS).  Python 3 has to be on `PATH`; `pip install pyusb`
-is only needed for direct SIMtrace2 capture.
+Download `simtrace-analyser-2.7.13.zip` from the release page and extract it
+anywhere: it is the runtime tree (the Python packages, the PWA, the launchers
+and the docs — no tests, no git).  Then run:
 
-### From a git clone (development)
+Windows:
+
+```bat
+start.bat
+```
+
+Linux/macOS:
+
+```sh
+./start.sh
+```
+
+Python 3 has to be on `PATH`; `pip install pyusb` is only needed for direct
+SIMtrace2 capture.  The launchers accept the server's options
+(`start.bat --capture direct`, `./start.sh --capture direct --port 8080`).
+(The release's *Source code* archive is the full tree including tests; it
+works like a clone below.)
+
+### 3. Git clone (development)
 
 ```sh
 git clone https://github.com/anttro/simtrace-analyser.git
@@ -149,30 +89,42 @@ cd simtrace-analyser
 ./start.sh                  # Linux/macOS; on Windows: start.bat
 ```
 
-The launchers add the checkout to `PYTHONPATH` and run
-`python -m simtrace_analyser`, so no install step is needed for browsing and
-GSMTAP capture; they accept the server's options (`./start.sh --capture direct
---port 8080`).  Direct hardware capture needs **PyUSB** (`pip install pyusb`).
-
-To get the console scripts (`simtrace-analyser-server`, `simtrace2-pysniff`)
-install the package instead:
+The launchers put the checkout on `PYTHONPATH` and run
+`python -m simtrace_analyser`, so nothing has to be installed for browsing and
+GSMTAP capture; their options are the server's
+(`./start.sh --capture direct --port 8080`).  Direct hardware capture needs
+**PyUSB** (`pip install pyusb`).  To get the console scripts
+(`simtrace-analyser-server`, `simtrace2-pysniff`) install the package:
 
 ```sh
 pip install -e .
 simtrace-analyser-server --capture gsmtap
 ```
 
-On Windows the `.bat` launchers run the `python` command, so Python 3 has to be
-on `PATH` (check with `python --version`); direct USB capture additionally
-needs the driver swap described in [USB Device Access](#usb-device-access).
+### First run
 
-## Running
+Open **http://127.0.0.1:8081/** — the PWA is served by the server, so the UI
+and the API share an origin (no CORS/Private-Network-Access setup).  `Ctrl+C`
+stops the server.
+
+- `--capture gsmtap` (default) — listen for GSMTAP-SIM on UDP 4729, e.g. from
+  `simtrace2-pysniff` or `sigrok_iso7816_stream`;
+- `--capture direct` — read SIMtrace2 hardware directly (needs PyUSB; Windows
+  also needs the driver swap, see [USB Device Access](#usb-device-access));
+- `--capture disabled` — only browse stored captures.
+
+The full runtime guide (server options, the UI views, the capture utility) is
+in [Usage](#usage) below.
+
+## Usage
 
 ### Analysis server + PWA (`simtrace-analyser-server`)
 
 Stores captured APDU traffic in SQLite and serves it over HTTP, together with
 the bundled **SIMtrace Analyser** PWA (`frontend/` in a source checkout,
-bundled into the package on install) on the same origin.  Three
+bundled into the package on install) on the same origin.  The commands below
+use the console script; from a source checkout the launchers take the same
+options (`./start.sh --capture gsmtap`, `start.bat --capture gsmtap`).  Three
 capture modes:
 
 ```sh
@@ -405,6 +357,71 @@ If installed via `pip install -e .`, use the console script directly:
 simtrace2-pysniff --format atr-time
 ```
 
+### Utility CLI Options
+
+```
+python -m simtrace2_pysniff [OPTIONS]
+
+  --format, -f FORMAT       Output format (default: hex)
+                            hex       — plain hex dump
+                            timestamp — TPDU lines prefixed with [HH:MM:SS.mmm]
+                            atr-time  — TPDU lines prefixed with [SSSS.mmm] from last ATR
+  --gsmtap HOST[:PORT]      Send ATR/TPDU as GSMTAP over UDP (default port 4729)
+  --pcap FILE               Write sniffed data to PCAP file for Wireshark
+  --output, -o FILE         Write hex dump to file
+  --no-stdout               Suppress hex dump to stdout
+  --vendor HEX              USB vendor ID (default: 0x1d50)
+  --product HEX             USB product ID (default: auto-detect)
+
+Recovery options:
+  --no-reconnect            Exit on USB disconnect instead of reconnecting
+  --reconnect-delay-min SEC Minimum reconnect delay (default: 1.0)
+  --reconnect-delay-max SEC Maximum reconnect delay cap (default: 30.0)
+  --backoff-factor N        Exponential backoff multiplier (default: 1.5)
+  --inactivity-timeout SEC  Reconnect after N seconds of silence (default: disabled)
+```
+
+### Output Formats
+
+- **`hex`** (default): plain hex dump — `ATR: 3b 9e ...`, `TPDU: a0 a4 00 00 02 3f 00`
+- **`timestamp`**: TPDU lines prefixed with local time — `[14:32:05.123] TPDU: a0 a4 00 00 02 3f 00`
+- **`atr-time`**: TPDU lines prefixed with seconds since last ATR — `[0001.234] TPDU: a0 a4 00 00 02 3f 00`
+
+Non-TPDU messages (ATR, PPS, card state changes, Fi/Di) print identically in all formats.
+
+- **GSMTAP**: ATR and APDU messages over UDP (port 4729) to Wireshark
+- **PCAP**: ATR/TPDU messages as Ethernet/IP/UDP/GSMTAP packets, openable in Wireshark
+
+### Background / Daemon
+
+SIGHUP is automatically ignored when stdin is not a terminal (i.e. run in
+background or via a pipe). Foreground terminal sessions still respond to
+SIGHUP normally.
+
+To run persistently in the background with output to files:
+
+```sh
+nohup ./sniff-start.sh --output /tmp/sniff.log &> /tmp/sniff-err.log &
+# or
+FORMAT=timestamp nohup python -m simtrace2_pysniff --output /tmp/sniff.log &> /tmp/sniff-err.log &
+```
+
+### Library Usage
+
+```python
+from simtrace2_pysniff import SniffSession
+
+session = SniffSession(inactivity_timeout=30.0)
+for msg in session.iter_messages():
+    print(f"{msg.type}: {msg.data.hex()}")
+```
+
+### Recovery
+
+The utility survives hardware resets, cable disconnects, and firmware hangs
+by default — it reconnects with exponential backoff (1s → 30s cap).
+Use `--inactivity-timeout` to also trigger reconnect on silent firmware hangs.
+
 ## USB Device Access
 
 Required for capture from SIMtrace2 hardware (the utility and the server's
@@ -442,70 +459,72 @@ through: `start.bat --capture direct` starts the analyser server and
 Python 3 must be on `PATH` (verify with `python --version` in a new command
 prompt).
 
-## Utility CLI Options
+## Components
 
-```
-python -m simtrace2_pysniff [OPTIONS]
+- **Analysis server + PWA** (`simtrace-analyser-server`) — stores captured
+  traffic in SQLite, decodes it, and serves the PWA ([`frontend/`](frontend/))
+  plus the HTTP API on a single origin.  Three capture modes: a GSMTAP
+  listener, direct SIMtrace2 hardware capture, or disabled (browse existing
+  captures only).
+- **Capture utility** (`simtrace2-pysniff`) — captures SIMtrace2 hardware
+  traffic and writes it to stdout, GSMTAP (Wireshark), or PCAP files.  It is
+  one GSMTAP source of several that the analyser accepts (see also
+  [sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)).
+- **PWA** ([`frontend/`](frontend/)) — trace browser with decoded APDU,
+  SIM Toolkit, SMS and SCP80 OTA detail; sessions, PCAP and COMPRION trace
+  import, EN/RU UI.
 
-  --format, -f FORMAT       Output format (default: hex)
-                            hex       — plain hex dump
-                            timestamp — TPDU lines prefixed with [HH:MM:SS.mmm]
-                            atr-time  — TPDU lines prefixed with [SSSS.mmm] from last ATR
-  --gsmtap HOST[:PORT]      Send ATR/TPDU as GSMTAP over UDP (default port 4729)
-  --pcap FILE               Write sniffed data to PCAP file for Wireshark
-  --output, -o FILE         Write hex dump to file
-  --no-stdout               Suppress hex dump to stdout
-  --vendor HEX              USB vendor ID (default: 0x1d50)
-  --product HEX             USB product ID (default: auto-detect)
+## Features
 
-Recovery options:
-  --no-reconnect            Exit on USB disconnect instead of reconnecting
-  --reconnect-delay-min SEC Minimum reconnect delay (default: 1.0)
-  --reconnect-delay-max SEC Maximum reconnect delay cap (default: 30.0)
-  --backoff-factor N        Exponential backoff multiplier (default: 1.5)
-  --inactivity-timeout SEC  Reconnect after N seconds of silence (default: disabled)
-```
+**APDU decoder** (server-side, rendered by the PWA):
 
-## Output Formats
+- Full APDU decode — CLA per ISO 7816-4 / ETSI coding with the **logical
+  channel 0-19** (standard channels from b2-b1, the extended channels 4-19
+  from b4-b1 per TS 102 221 §10.3), secure messaging and command chaining,
+  INS names from a spec table, SFI-aware P1/P2 for READ/UPDATE BINARY and
+  record commands; MANAGE CHANNEL replies show the channel the card
+  assigned
+- Status words — full ISO 7816-4 set plus UICC-specific values:
+  `91XX` (proactive command pending), `62F1/F2/F3`, `63F1/F2` (more data),
+  `9300` (SAT busy), `9850`, `9862–64`
+- SIM Toolkit — SAT (GSM 11.14), CAT (TS 102 223) and USAT (TS 31.111)
+  proactive commands with decoded qualifiers, TERMINAL RESPONSE, ENVELOPE
+  (Menu Selection, Call Control, SMS-PP download…); tolerates known
+  non-compliant legacy-card quirks and preserves unrecognized TLVs
+- TERMINAL CAPABILITY (TS 102 221 §11.1.19) — terminal power supply
+  (voltage class, maximum current, clock), extended logical channels,
+  additional interfaces (UICC-CLF) and eUICC device capabilities
+  (SGP.22/SGP.32)
+- SMS TPDU — SMS-DELIVER/SUBMIT, SCTS timestamps, UDH information elements
+- SCP80 OTA secured packets — SPI bits (ciphering, PoR requirement/mode,
+  RC/CC/DS, counter), KIc/KID algorithm + key set, TAR, CNTR/PCNTR;
+  Response Packet (PoR) decode on GET RESPONSE; **optional client-side
+  decryption** of ciphered packets — paste the card's 3DES/AES key in the
+  detail view to reveal the real CNTR and secured application data (the
+  key stays in the browser, in-memory only; ciphered on-wire CNTR/PCNTR/RC
+  are ciphertext and labeled as such); the secured application message is
+  decoded as a stream of **C-APDUs** (SELECT, UPDATE BINARY, …) with
+  full CLA/INS/P1/P2/Lc/Le breakdown — plaintext immediately, or after
+  decryption for ciphered packets
+- ATR parse (clock-rate conversion, Fi/Di, T-bitmask, truncated-ATR safe)
+  and FCP/FCI TLV; the historical bytes are decoded as the UICC's
+  COMPACT-TLV objects (TS 102 221 §6.3.1) — card service data, the **card
+  capabilities** (ISO 7816-4 §8.1.1.2.7 Table 88: the assignment methods
+  and the announced maximum number of logical channels, `8 or more` for the
+  extended-capable cards) and the trailing status indicator (LCS/SW)
 
-- **`hex`** (default): plain hex dump — `ATR: 3b 9e ...`, `TPDU: a0 a4 00 00 02 3f 00`
-- **`timestamp`**: TPDU lines prefixed with local time — `[14:32:05.123] TPDU: a0 a4 00 00 02 3f 00`
-- **`atr-time`**: TPDU lines prefixed with seconds since last ATR — `[0001.234] TPDU: a0 a4 00 00 02 3f 00`
+**SIMtrace Analyser PWA** ([`frontend/`](frontend/)):
 
-Non-TPDU messages (ATR, PPS, card state changes, Fi/Di) print identically in all formats.
-
-- **GSMTAP**: ATR and APDU messages over UDP (port 4729) to Wireshark
-- **PCAP**: ATR/TPDU messages as Ethernet/IP/UDP/GSMTAP packets, openable in Wireshark
-
-## Background / Daemon
-
-SIGHUP is automatically ignored when stdin is not a terminal (i.e. run in
-background or via a pipe). Foreground terminal sessions still respond to
-SIGHUP normally.
-
-To run persistently in the background with output to files:
-
-```sh
-nohup ./sniff-start.sh --output /tmp/sniff.log &> /tmp/sniff-err.log &
-# or
-FORMAT=timestamp nohup python -m simtrace2_pysniff --output /tmp/sniff.log &> /tmp/sniff-err.log &
-```
-
-## Library Usage
-
-```python
-from simtrace2_pysniff import SniffSession
-
-session = SniffSession(inactivity_timeout=30.0)
-for msg in session.iter_messages():
-    print(f"{msg.type}: {msg.data.hex()}")
-```
-
-## Recovery
-
-The utility survives hardware resets, cable disconnects, and firmware hangs
-by default — it reconnects with exponential backoff (1s → 30s cap).
-Use `--inactivity-timeout` to also trigger reconnect on silent firmware hangs.
+- Trace view with Map/List modes — proactive, TERMINAL RESPONSE, ENVELOPE
+  and AUTH commands get distinctive styling in map view
+- Sessions with deep links (`#session=N`), PCAP import (`.pcap/.pcapng/.cap`),
+  COMPRION trace import (the Device Manager *ISO Protocol Layer* text export),
+  search and a **multi-select command filter** — pick any number of commands
+  and/or the conversation presets (*Proactive sessions*: FETCH, TERMINAL
+  PROFILE and every command answered with SW 91xx; *File operations*: SELECT,
+  READ/UPDATE BINARY and READ/UPDATE RECORD, with the GET RESPONSE carrying a
+  selected command's data)
+- Installable PWA, dark theme, English/Russian UI
 
 ## Related
 
