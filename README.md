@@ -1,6 +1,8 @@
-# SIMtrace Analyser
+# SIMtrace Analyser — an APDU trace analyser for GSMTAP-SIM captures
 
 English | [Русский](README_RUS.md)
+
+📢 Project news and updates: [website](https://atroshin.ru) · [Telegram channel](https://t.me/youeyeseesee)
 
 APDU trace analyser for the GSMTAP-SIM format — captures SIM/UICC
 communication from a UDP GSMTAP stream (or imports PCAP/PCAPNG files),
@@ -8,8 +10,6 @@ decodes it, and serves an installable web app for browsing.  The repository
 also bundles **simtrace2-pysniff**, a Python replacement for
 `simtrace2-sniff` that captures from Osmocom SIMtrace2 hardware and can feed
 GSMTAP into this analyser.
-
-📢 Project news and updates: [atroshin.ru](https://atroshin.ru) | [Telegram channel](https://t.me/youeyeseesee)
 
 ![SIMtrace Analyser UI](frontend.png)
 
@@ -171,7 +171,7 @@ datagram is dropped and counted (`dropped`) rather than silently
 killing the capture; a `tpdu` packet that is not APDU-shaped at all
 (shorter than the header, the invalid CLA `FF` or an ISO-reserved class)
 is skipped and counted (`skipped`) — a character-level or mis-sampled
-stream no longer pollutes the decode. The heartbeat interval defaults to 60 s and is
+stream does not pollute the decode. The heartbeat interval defaults to 60 s and is
 tunable via `--log-interval SECONDS`.
 
 The GSMTAP listener also accepts the **sigrok-iso7816-stream** decoder
@@ -553,13 +553,23 @@ prompt).
 - Installable **PWA** (progressive web app: installs to the desktop or home
   screen and works offline), dark theme, English/Russian UI
 
-## Related
+## Related tools
 
-- **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — the upstream
-  SIMtrace2 hardware/firmware project that the capture utility sniffs from.
+SIMple, SIMtrace Analyser and sigrok_iso7816_stream are three standalone
+tools for working with SIM/UICC cards, published together on the same
+[website](https://atroshin.ru) and [news channel](https://t.me/youeyeseesee).
+Each one is fully independent — install only the tools you need:
+
+- **[SIMple](https://github.com/anttro/simple)** — a UICC workbench: APDU
+  construction, SCP80/SCP81 OTA, SIM Toolkit simulation and card profiling.
+- **[SIMtrace Analyser](https://github.com/anttro/simtrace-analyser)** — an
+  APDU trace analyser for GSMTAP-SIM captures.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
-  FX2LP-based passive ISO 7816 sniffer that emits the same GSMTAP-SIM stream
-  on UDP 4729 (accepted by this project's GSMTAP listener).
+  a passive ISO 7816 sniffer built on a cheap FX2 logic analyser.
+
+The bundled capture utility also sniffs from the upstream
+[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2) hardware/firmware
+project.
 
 ## License
 

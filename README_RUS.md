@@ -1,6 +1,8 @@
-# SIMtrace Analyser
+# SIMtrace Analyser — анализатор APDU-трассировок GSMTAP-SIM
 
 [English](README.md) | Русский
+
+📢 Новости и обновления проекта: [сайт](https://atroshin.ru) · [Telegram-канал](https://t.me/youeyeseesee)
 
 Анализатор APDU-трассировок в формате GSMTAP-SIM — захватывает обмен с
 SIM/UICC из UDP-потока GSMTAP (или импортирует файлы PCAP/PCAPNG),
@@ -8,8 +10,6 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 В репозиторий также включён **simtrace2-pysniff** — замена `simtrace2-sniff`
 на Python, которая захватывает трафик с оборудования Osmocom SIMtrace2
 и может передавать GSMTAP этому анализатору.
-
-📢 Новости и обновления проекта: [atroshin.ru](https://atroshin.ru) | [Telegram-канал](https://t.me/youeyeseesee)
 
 ![Интерфейс SIMtrace Analyser](frontend.png)
 
@@ -174,7 +174,7 @@ heartbeat `Capture alive: session=N messages=M bytes=B dropped=D skipped=S`
 убивают захват; `tpdu`-пакет, вовсе не похожий на APDU (короче заголовка,
 недопустимый CLA `FF` или зарезервированный ISO класс `001x`),
 пропускается и считается (`skipped`) — посимвольный или миссемплированный
-поток больше не засоряет декодирование. Интервал heartbeat по умолчанию
+поток не засоряет декодирование. Интервал heartbeat по умолчанию
 60 с, настраивается через `--log-interval SECONDS`.
 
 GSMTAP-листенер также принимает декодер **sigrok-iso7816-stream**
@@ -568,14 +568,23 @@ Python 3 должен быть в `PATH` (проверьте `python --version` 
 - **PWA** (progressive web app): устанавливается на рабочий стол или домашний
   экран и работает офлайн; тёмная тема, интерфейс на английском/русском
 
-## Связанные проекты
+## Связанные инструменты
 
-- **[simtrace2](https://gitea.osmocom.org/sim-card/simtrace2)** — вышестоящий
-  проект оборудования/прошивки SIMtrace2, с которого утилита захвата
-  снимает трафик.
+SIMple, SIMtrace Analyser и sigrok_iso7816_stream — три автономных
+инструмента для работы с SIM/UICC-картами, представленные на одном
+[сайте](https://atroshin.ru) и в одном [Telegram-канале](https://t.me/youeyeseesee).
+Каждый полностью независим — устанавливайте только нужные вам:
+
+- **[SIMple](https://github.com/anttro/simple)** — мастерская для UICC/SIM:
+  конструкторы APDU, OTA SCP80/SCP81, симуляция SIM Toolkit и профилирование
+  карт.
+- **[SIMtrace Analyser](https://github.com/anttro/simtrace-analyser)** —
+  анализатор APDU-трассировок GSMTAP-SIM.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
-  пассивный ISO 7816 сниффер на базе FX2LP, выдающий такой же поток
-  GSMTAP-SIM на UDP 4729 (принимается GSMTAP-листенером этого проекта).
+  пассивный ISO 7816-сниффер на дешёвом логическом анализаторе FX2.
+
+Встроенная утилита захвата также снимает трафик с вышестоящего проекта
+оборудования/прошивки [simtrace2](https://gitea.osmocom.org/sim-card/simtrace2).
 
 ## Лицензия
 
