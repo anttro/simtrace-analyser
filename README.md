@@ -127,10 +127,8 @@ in [Usage](#usage) below.
 
 Stores captured APDU traffic in SQLite and serves it over HTTP, together with
 the bundled **SIMtrace Analyser** frontend (`frontend/` in a source checkout,
-bundled into the package on install) on the same origin.  The commands below
-use the console script; from a source checkout the launchers take the same
-options (`./start.sh --capture gsmtap`, `start.bat --capture gsmtap`).  Three
-capture modes:
+bundled into the package on install) on the same origin.  Three capture
+modes:
 
 ```sh
 # Listen for GSMTAP from simtrace2-pysniff (or original simtrace2-sniff):
@@ -142,6 +140,27 @@ simtrace-analyser-server --capture direct
 # Browse/analyse existing captures without a capture backend:
 simtrace-analyser-server --capture disabled
 ```
+
+From a source checkout or the runtime zip, the launchers run the same server
+with the same options.
+
+Linux/macOS:
+
+```sh
+./start.sh --capture gsmtap
+./start.sh --capture direct
+./start.sh --capture disabled
+```
+
+Windows:
+
+```bat
+start.bat --capture gsmtap
+start.bat --capture direct
+start.bat --capture disabled
+```
+
+Options pass through unchanged (`./start.sh --capture direct --port 8080`).
 
 The server logs its capture liveness to stderr (each line timestamped
 with the local time): `Capture started` on begin, a periodic

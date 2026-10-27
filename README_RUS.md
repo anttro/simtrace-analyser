@@ -131,8 +131,6 @@ simtrace-analyser-server --capture gsmtap
 Сохраняет захваченный APDU-трафик в SQLite и отдаёт его по HTTP вместе
 со встроенным фронтендом **SIMtrace Analyser** (`frontend/` в исходном клоне, при
 установке — внутри пакета) на том же origin.
-Команды ниже — консольная команда; при запуске из клона скрипты принимают те
-же параметры (`./start.sh --capture gsmtap`, `start.bat --capture gsmtap`).
 Три режима захвата:
 
 ```sh
@@ -145,6 +143,27 @@ simtrace-analyser-server --capture direct
 # Просмотр/анализ существующих записей без бэкенда захвата:
 simtrace-analyser-server --capture disabled
 ```
+
+При запуске из клона или рабочего zip те же режимы доступны через скрипты
+запуска.
+
+Linux/macOS:
+
+```sh
+./start.sh --capture gsmtap
+./start.sh --capture direct
+./start.sh --capture disabled
+```
+
+Windows:
+
+```bat
+start.bat --capture gsmtap
+start.bat --capture direct
+start.bat --capture disabled
+```
+
+Параметры передаются как есть (`./start.sh --capture direct --port 8080`).
 
 Сервер пишет в stderr информацию о жизненном цикле захвата (каждая строка
 с локальным временем): `Capture started` при старте, периодический
