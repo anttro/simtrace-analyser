@@ -81,6 +81,21 @@ class TestReleaseZip(unittest.TestCase):
             self.assertIn('%s/frontend/%s' % (top, asset), self.names,
                           'precached %s is missing from the zip' % asset)
 
+    def test_readme_images_are_in_the_zip(self):
+        # Drift guard: the runtime tree's READMEs embed the screenshot and the
+        # architecture diagrams by relative path, so every referenced image
+        # must travel with the archive.
+        top = 'simtrace-analyser-%s' % __version__
+        for readme in ('README.md', 'README_RUS.md'):
+            text = (REPO / readme).read_text()
+            images = re.findall(r'!\[[^\]]*\]\(([^)\s]+)\)', text)
+            self.assertTrue(images, 'no images referenced by %s' % readme)
+            for image in images:
+                self.assertNotIn('://', image, image)
+                self.assertIn('%s/%s' % (top, image), self.names,
+                              '%s references %s, which is missing from the zip'
+                              % (readme, image))
+
     def test_batch_files_use_crlf(self):
         with zipfile.ZipFile(self.archive) as zf:
             bats = [n for n in self.names if n.endswith('.bat')]

@@ -40,6 +40,8 @@ ROOT_FILES = (
     'README.md',
     'README_RUS.md',
     'frontend.png',
+    'architecture_en.svg',
+    'architecture_ru.svg',
     'LICENSE',
 )
 

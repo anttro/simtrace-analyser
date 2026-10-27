@@ -13,6 +13,8 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 
 ![Интерфейс SIMtrace Analyser](frontend.png)
 
+![Захват и анализ: simtrace2-pysniff (оборудование SIMtrace2) и sigrok_iso7816_stream (FX2) передают GSMTAP-SIM слушателю UDP :4729; альтернативно сервер читает оборудование SIMtrace2 напрямую по USB, а PCAP/трассы COMPRION импортируются из файлов; simtrace-analyser-server декодирует и сохраняет трафик в SQLite и раздаёт веб-интерфейс](architecture_ru.svg)
+
 ## Требования
 
 **Обязательно**

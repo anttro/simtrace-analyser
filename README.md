@@ -13,6 +13,8 @@ GSMTAP into this analyser.
 
 ![SIMtrace Analyser UI](frontend.png)
 
+![Capture and analysis: simtrace2-pysniff (SIMtrace2 hardware) and sigrok_iso7816_stream (FX2) stream GSMTAP-SIM to the UDP :4729 listener; alternatively the server reads SIMtrace2 hardware directly over USB, and PCAP/COMPRION traces are imported from files; simtrace-analyser-server decodes and stores the traffic in SQLite and serves the web UI](architecture_en.svg)
+
 ## Prerequisites
 
 **Required**
