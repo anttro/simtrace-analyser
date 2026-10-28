@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="diagram-title diagram-desc" font-family="'Segoe UI', 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif">
   <title id="diagram-title">SIMtrace Analyser: capture and analysis</title>
-  <desc id="diagram-desc">SIMtrace2 hardware is read by simtrace2-pysniff (bundled) or the original simtrace2-sniff, and FX2 hardware by the sigrok_iso7816_stream decoder; the sniffers and the decoder stream GSMTAP-SIM to the listener on UDP :4729. The server can also read SIMtrace2 hardware directly over USB with the bundled sniffer code, and imports PCAP/COMPRION traces from files. simtrace-analyser-server decodes and stores the traffic in SQLite and serves the web UI.</desc>
+  <desc id="diagram-desc">SIMtrace2 hardware is read by simtrace2-pysniff (bundled) or the original simtrace2-sniff, and FX2 hardware by the sigrok_iso7816_stream decoder; the sniffers, the decoder and SIMple stream GSMTAP-SIM to the listener on UDP :4729. The server can also read SIMtrace2 hardware directly over USB with the bundled sniffer code, and imports PCAP/COMPRION traces from files. simtrace-analyser-server decodes and stores the traffic in SQLite and serves the web UI.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 Z" fill="#64748b"/>
@@ -32,7 +32,13 @@
   <text x="735" y="190" text-anchor="middle" font-size="14" font-weight="600" fill="#0f172a" font-family="'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace">sigrok_iso7816_stream</text>
   <text x="735" y="212" text-anchor="middle" font-size="13" fill="#475569">decoder</text>
 
+  <!-- a secondary GSMTAP-SIM source: SIMple can stream its APDUs -->
+  <rect x="395" y="166" width="170" height="64" rx="12" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1.5"/>
+  <text x="480" y="192" text-anchor="middle" font-size="16" font-weight="600" fill="#0f172a">SIMple</text>
+  <text x="480" y="212" text-anchor="middle" font-size="12" fill="#475569">APDU → GSMTAP</text>
+
   <line x1="225" y1="246" x2="425" y2="278" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="480" y1="230" x2="480" y2="278" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="735" y1="246" x2="535" y2="278" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- GSMTAP listener -->

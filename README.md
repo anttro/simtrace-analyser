@@ -13,7 +13,7 @@ GSMTAP into this analyser.
 
 ![SIMtrace Analyser UI](frontend.png)
 
-![Capture and analysis: SIMtrace2 hardware is read by simtrace2-pysniff or the original simtrace2-sniff, and FX2 hardware by the sigrok_iso7816_stream decoder; the sniffers and the decoder stream GSMTAP-SIM to the UDP :4729 listener. The server can also read SIMtrace2 hardware directly over USB with the bundled pysniff code in-process, and imports PCAP/COMPRION traces from files. simtrace-analyser-server decodes and stores the traffic in SQLite and serves the web UI](architecture_en.svg)
+![Capture and analysis: SIMtrace2 hardware is read by simtrace2-pysniff or the original simtrace2-sniff, and FX2 hardware by the sigrok_iso7816_stream decoder; the sniffers, the decoder and SIMple stream GSMTAP-SIM to the UDP :4729 listener. The server can also read SIMtrace2 hardware directly over USB with the bundled pysniff code in-process, and imports PCAP/COMPRION traces from files. simtrace-analyser-server decodes and stores the traffic in SQLite and serves the web UI](architecture_en.svg)
 
 ## Prerequisites
 
@@ -115,8 +115,8 @@ simtrace-analyser-server --capture gsmtap
 Open **http://127.0.0.1:8081/** in a browser.  `Ctrl+C` stops the server.
 
 - `--capture gsmtap` (default) — listen for GSMTAP-SIM on UDP 4729, e.g. from
-  `simtrace2-pysniff`, the original `simtrace2-sniff` or
-  `sigrok_iso7816_stream`;
+  `simtrace2-pysniff`, the original `simtrace2-sniff`,
+  `sigrok_iso7816_stream` or [SIMple](https://github.com/anttro/simple);
 - `--capture direct` — read SIMtrace2 hardware directly (the bundled sniffer
   code runs inside the server and talks to the device over USB; needs PyUSB;
   Windows also needs the driver swap, see [USB Device Access](#usb-device-access));
@@ -135,8 +135,8 @@ bundled into the package on install) on the same origin.  Three capture
 modes:
 
 ```sh
-# Listen for GSMTAP from simtrace2-pysniff, the original simtrace2-sniff or
-# sigrok_iso7816_stream:
+# Listen for GSMTAP from simtrace2-pysniff, the original simtrace2-sniff,
+# sigrok_iso7816_stream or SIMple:
 simtrace-analyser-server --capture gsmtap
 
 # Capture directly from SIMtrace2 hardware (the bundled sniffer code reads the

@@ -13,7 +13,7 @@ SIM/UICC из UDP-потока GSMTAP (или импортирует файлы 
 
 ![Интерфейс SIMtrace Analyser](frontend.png)
 
-![Захват и анализ: оборудование SIMtrace2 читает simtrace2-pysniff или оригинальный simtrace2-sniff, а оборудование FX2 — декодер sigrok_iso7816_stream; оба источника передают GSMTAP-SIM слушателю UDP :4729. Сервер также может читать оборудование SIMtrace2 напрямую по USB встроенным кодом pysniff внутри сервера и импортирует трассы PCAP/COMPRION из файлов. simtrace-analyser-server декодирует и сохраняет трафик в SQLite и раздаёт веб-интерфейс](architecture_ru.svg)
+![Захват и анализ: оборудование SIMtrace2 читает simtrace2-pysniff или оригинальный simtrace2-sniff, а оборудование FX2 — декодер sigrok_iso7816_stream; они и SIMple передают GSMTAP-SIM слушателю UDP :4729. Сервер также может читать оборудование SIMtrace2 напрямую по USB встроенным кодом pysniff внутри сервера и импортирует трассы PCAP/COMPRION из файлов. simtrace-analyser-server декодирует и сохраняет трафик в SQLite и раздаёт веб-интерфейс](architecture_ru.svg)
 
 ## Требования
 
@@ -117,8 +117,8 @@ simtrace-analyser-server --capture gsmtap
 сервер.
 
 - `--capture gsmtap` (по умолчанию) — слушать GSMTAP-SIM на UDP 4729,
-  например от `simtrace2-pysniff`, оригинального `simtrace2-sniff` или
-  `sigrok_iso7816_stream`;
+  например от `simtrace2-pysniff`, оригинального `simtrace2-sniff`,
+  `sigrok_iso7816_stream` или [SIMple](https://github.com/anttro/simple);
 - `--capture direct` — читать оборудование SIMtrace2 напрямую (встроенный код
   сниффера работает внутри сервера и обращается к устройству по USB; нужен
   PyUSB; в Windows также нужна замена драйвера, см.
@@ -138,8 +138,8 @@ simtrace-analyser-server --capture gsmtap
 Три режима захвата:
 
 ```sh
-# Слушать GSMTAP от simtrace2-pysniff, оригинального simtrace2-sniff
-# или sigrok_iso7816_stream:
+# Слушать GSMTAP от simtrace2-pysniff, оригинального simtrace2-sniff,
+# sigrok_iso7816_stream или SIMple:
 simtrace-analyser-server --capture gsmtap
 
 # Захват напрямую с оборудования SIMtrace2 (встроенный код сниффера читает
