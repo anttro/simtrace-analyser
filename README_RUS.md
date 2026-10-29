@@ -2,7 +2,7 @@
 
 [English](README.md) | Русский
 
-📢 Новости и обновления проекта: [сайт](https://atroshin.ru) · [Telegram-канал](https://t.me/youeyeseesee)
+📢 Новости и обновления проекта: [сайт](https://sim-tools.ru) · [Telegram-канал](https://t.me/youeyeseesee)
 
 Анализатор APDU-трассировок в формате GSMTAP-SIM — захватывает обмен с
 SIM/UICC из UDP-потока GSMTAP (или импортирует файлы PCAP/PCAPNG),
@@ -341,7 +341,7 @@ TS 51.011), поэтому FID, повторно используемый в р�
 
 ### Размещённый интерфейс (лендинг)
 
-Автономная копия интерфейса размещена на **https://simtrace.atroshin.ru**.
+Автономная копия интерфейса размещена на **https://simtrace.ru**.
 Это только интерфейс: укажите в нём (Settings → Server URL) адрес
 локально запущенного `simtrace-analyser-server`.
 
@@ -578,7 +578,7 @@ Python 3 должен быть в `PATH` (проверьте `python --version` 
 
 SIMple, SIMtrace Analyser и sigrok_iso7816_stream — три автономных
 инструмента для работы с SIM/UICC-картами, представленные на одном
-[сайте](https://atroshin.ru) и в одном [Telegram-канале](https://t.me/youeyeseesee).
+[сайте](https://sim-tools.ru) и в одном [Telegram-канале](https://t.me/youeyeseesee).
 Каждый полностью независим — устанавливайте только нужные вам:
 
 - **[SIMple](https://github.com/anttro/simple)** — мастерская для UICC/SIM:

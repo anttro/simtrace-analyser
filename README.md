@@ -2,7 +2,7 @@
 
 English | [Русский](README_RUS.md)
 
-📢 Project news and updates: [website](https://atroshin.ru) · [Telegram channel](https://t.me/youeyeseesee)
+📢 Project news and updates: [website](https://sim-tools.ru) · [Telegram channel](https://t.me/youeyeseesee)
 
 APDU trace analyser for the GSMTAP-SIM format — captures SIM/UICC
 communication from a UDP GSMTAP stream (or imports PCAP/PCAPNG files),
@@ -337,7 +337,7 @@ serve a different UI directory (default: the bundled frontend, or
 
 ### Hosted UI (landing page)
 
-A standalone copy of the UI is hosted at **https://simtrace.atroshin.ru**.
+A standalone copy of the UI is hosted at **https://simtrace.ru**.
 It is a pure frontend: point it (Settings → Server URL) at a locally running
 `simtrace-analyser-server`.
 
@@ -563,7 +563,7 @@ prompt).
 
 SIMple, SIMtrace Analyser and sigrok_iso7816_stream are three standalone
 tools for working with SIM/UICC cards, published together on the same
-[website](https://atroshin.ru) and [news channel](https://t.me/youeyeseesee).
+[website](https://sim-tools.ru) and [news channel](https://t.me/youeyeseesee).
 Each one is fully independent — install only the tools you need:
 
 - **[SIMple](https://github.com/anttro/simple)** — a UICC workbench: APDU
