@@ -1,15 +1,16 @@
-# SIMtrace Analyser — an APDU trace analyser for GSMTAP-SIM captures
+# SIMtrace Analyser — an APDU trace analyser
 
 English | [Русский](README_RUS.md)
 
 📢 Project news and updates: [website](https://sim-tools.ru) · [Telegram channel](https://t.me/youeyeseesee)
 
-APDU trace analyser for the GSMTAP-SIM format — captures SIM/UICC
-communication from a UDP GSMTAP stream (or imports PCAP/PCAPNG files),
-decodes it, and serves an installable web app for browsing.  The repository
-also bundles **simtrace2-pysniff**, a Python replacement for
-`simtrace2-sniff` that captures from Osmocom SIMtrace2 hardware and can feed
-GSMTAP into this analyser.
+An APDU trace analyser for the GSMTAP format (from Osmocom) — captures
+SIM/UICC traffic from a UDP GSMTAP stream or directly from Osmocom SIMtrace2
+hardware, imports PCAP/PCAPNG files or the COMPRION text format, decodes it,
+and displays it in a convenient web interface (PWA).  The repository also
+bundles **simtrace2-pysniff**, a Python replacement for `simtrace2-sniff`
+that captures traffic from Osmocom SIMtrace2 and relays it as GSMTAP/UDP
+without analysing it.
 
 ![SIMtrace Analyser UI](frontend.png)
 

@@ -1,15 +1,15 @@
-# SIMtrace Analyser — анализатор APDU-трассировок GSMTAP-SIM
+# SIMtrace Analyser — анализатор APDU-трейсов
 
 [English](README.md) | Русский
 
 📢 Новости и обновления проекта: [сайт](https://sim-tools.ru) · [Telegram-канал](https://t.me/youeyeseesee)
 
-Анализатор APDU-трассировок в формате GSMTAP-SIM — захватывает обмен с
-SIM/UICC из UDP-потока GSMTAP (или импортирует файлы PCAP/PCAPNG),
-декодирует его и отдаёт устанавливаемое веб-приложение для просмотра.
-В репозиторий также включён **simtrace2-pysniff** — замена `simtrace2-sniff`
-на Python, которая захватывает трафик с оборудования Osmocom SIMtrace2
-и может передавать GSMTAP этому анализатору.
+Анализатор APDU-трейсов в формате GSMTAP (от Osmocom) — захватывает обмен с
+SIM/UICC из UDP-потока GSMTAP или напрямую с оборудования Osmocom
+SIMtrace2, импортирует файлы PCAP/PCAPNG или текстовый формат COMPRION,
+декодирует его и отображает в удобном веб-интерфейсе (PWA). В репозиторий
+также включён **simtrace2-pysniff** — замена `simtrace2-sniff` на Python
+для захвата трафика с Osmocom SIMtrace2 и трансляции GSMTAP/UDP без анализа.
 
 ![Интерфейс SIMtrace Analyser](frontend.png)
 
@@ -585,7 +585,7 @@ SIMple, SIMtrace Analyser и sigrok_iso7816_stream — три автономны
   конструкторы APDU, OTA SCP80/SCP81, симуляция SIM Toolkit и профилирование
   карт.
 - **[SIMtrace Analyser](https://github.com/anttro/simtrace-analyser)** —
-  анализатор APDU-трассировок GSMTAP-SIM.
+  анализатор APDU-трейсов GSMTAP-SIM.
 - **[sigrok_iso7816_stream](https://github.com/anttro/sigrok_iso7816_stream)** —
   пассивный ISO 7816-сниффер на дешёвом логическом анализаторе FX2.
 
