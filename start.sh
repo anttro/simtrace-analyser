@@ -8,6 +8,20 @@
 set -euo pipefail
 shopt -s nullglob
 
+# Windows guard: start.sh is the native Linux/macOS launcher.  Under WSL the
+# Linux guest cannot reach the Windows SIMtrace2 USB device, and a Git Bash /
+# MSYS2 / MinGW / Cygwin shell has no Linux /sys + /dev/bus/usb view for the
+# udev pre-flight below.  Use start.bat from cmd.exe or PowerShell, which drives
+# the Windows Python/PyUSB stack.  A deliberate WSL/Cygwin flow can run
+# `python -m simtrace_analyser` directly.
+if grep -qi microsoft /proc/version 2>/dev/null || \
+   uname -s 2>/dev/null | grep -qiE 'MINGW|MSYS|CYGWIN'; then
+    echo "Error: start.sh is the Linux/macOS helper and cannot run on Windows" >&2
+    echo "(WSL / MSYS2 / MinGW / Cygwin detected)." >&2
+    echo "Use start.bat from a Windows command prompt (cmd.exe / PowerShell) instead." >&2
+    exit 2
+fi
+
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 CAPTURE="${CAPTURE:-gsmtap}"

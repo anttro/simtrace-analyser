@@ -47,7 +47,7 @@ http://127.0.0.1:8081/.
 The wheel includes the UI, so the server serves it by itself:
 
 ```sh
-pip install ./simtrace_analyser-2.7.13-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.14-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -61,7 +61,7 @@ Every artifact is on the
 CLI can pick the latest one:
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.13/simtrace_analyser-2.7.13-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.14/simtrace_analyser-2.7.14-py3-none-any.whl
 # or:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
@@ -69,7 +69,7 @@ pip install ./simtrace_analyser-*.whl
 
 ### 2. Zip (no installer)
 
-Download `simtrace-analyser-2.7.13.zip` from the release page and extract it
+Download `simtrace-analyser-2.7.14.zip` from the release page and extract it
 anywhere: it is the runtime tree (the Python packages, the web UI, the launchers
 and the docs — no tests, no git).  The archive works on any OS; then run:
 
@@ -166,6 +166,11 @@ start.bat --capture gsmtap
 start.bat --capture direct
 start.bat --capture disabled
 ```
+
+On Windows use `start.bat` / `sniff-start.bat` from `cmd.exe` or PowerShell:
+the `.sh` launchers refuse to run in WSL (the Linux guest cannot reach the
+Windows SIMtrace2 USB device) and in Git Bash / MSYS2 / MinGW / Cygwin (no
+Linux `/sys` + `/dev/bus/usb` view for the udev checks).
 
 Options pass through unchanged (`./start.sh --capture direct --port 8080`).
 
