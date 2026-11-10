@@ -2559,7 +2559,24 @@ class TestQualifiers(unittest.TestCase):
 
 
 class TestFileDescriptor(unittest.TestCase):
-    """Audit: TS 102 221 Table 11.5 file descriptor byte coding."""
+    """TS 102 221 V18.4.0 Table 11.5 "File descriptor byte", p. 91 (clause
+    11.1.1.4.3).
+
+    Descriptor layout (clause 11.1.1.4.3, p. 90): descriptor byte, then a
+    mandatory data-coding byte, then record length (2 bytes) and number of
+    records (1 byte) — the latter two mandatory for linear-fixed/cyclic
+    files and "otherwise they are not applicable".  There is no "number of
+    DFs/EFs" field in the descriptor: the second byte of the 0x82 DO is the
+    data-coding byte for every file type (ISO 7816-4 Table 12 says the same;
+    corpus MF FCP `82 02 78 21` = descriptor 0x78 + data coding 0x21).
+
+    b7 = shareable; b6-b4 = file type; b3-b1 = EF structure under "Not all
+    set to 1" in b6-b4: 001 transparent, 010 linear fixed, 110 cyclic, 100
+    and 111 RFU; 011 and 101 are blank rows (no meaning defined).  BER-TLV
+    is a separate row: b6-b4 = 111 with b3-b1 = 001 -> 0x39 non-shareable /
+    0x79 shareable.  ISO 7816-4:2005 Table 14 differs (110/111 cyclic);
+    the ETSI/3GPP table wins for UICC.
+    """
 
     def _fdb(self, hexstr):
         from simtrace_analyser.decode import _decode_file_descriptor
@@ -2575,10 +2592,123 @@ class TestFileDescriptor(unittest.TestCase):
         self.assertEqual(r['file_type'], 'Working EF')
         self.assertEqual(r['structure'], 'transparent')
 
-    def test_cyclic_is_100_not_110(self):
-        # TS 221 T11.5 overrides ISO: 100 = cyclic, 110 = BER-TLV
-        self.assertEqual(self._fdb('04')['structure'], 'cyclic')
-        self.assertEqual(self._fdb('06')['structure'], 'BER-TLV')
+    def test_cyclic_is_110_not_100(self):
+        # Table 11.5: b3-b1 = 110 is cyclic, 100 and 111 are RFU.
+        r = self._fdb('06')
+        self.assertEqual(r['file_type'], 'Working EF')
+        self.assertEqual(r['structure'], 'cyclic')
+        r = self._fdb('0e')  # b6-b4 = 001 (Internal EF)
+        self.assertEqual(r['file_type'], 'Internal EF')
+        self.assertEqual(r['structure'], 'cyclic')
+
+    def test_rfu_structure_bits(self):
+        # Table 11.5: b3-b1 = 100 and 111 are RFU.
+        self.assertEqual(self._fdb('04')['structure'], 'RFU')
+        self.assertEqual(self._fdb('07')['structure'], 'RFU')
+
+    def test_blank_structure_bits_have_no_structure(self):
+        # Table 11.5: b3-b1 = 011 and 101 are blank rows - no meaning, so
+        # they are not reported as RFU either.
+        self.assertNotIn('structure', self._fdb('03'))
+        self.assertNotIn('structure', self._fdb('05'))
+
+    def test_ber_tlv_is_39_or_79(self):
+        # Table 11.5: b6-b4 = 111 with b3-b1 = 001 -> BER-TLV structure.
+        r = self._fdb('39')
+        self.assertEqual(r['file_type'], 'Working EF')
+        self.assertEqual(r['structure'], 'BER-TLV')
+        self.assertEqual(r['shareable'], 'not shareable')
+        r = self._fdb('79')
+        self.assertEqual(r['file_type'], 'Working EF')
+        self.assertEqual(r['structure'], 'BER-TLV')
+        self.assertEqual(r['shareable'], 'shareable')
+
+    def test_ber_tlv_data_coding(self):
+        # Clause 11.1.1.4.3 (p. 90): after the descriptor byte comes the
+        # data coding byte; record length/number of records are only for
+        # linear-fixed/cyclic files, so they are absent here.
+        r = self._fdb('3921')
+        self.assertEqual(r['structure'], 'BER-TLV')
+        self.assertEqual(r['data_coding'], '0x21')
+        self.assertNotIn('record_length', r)
+        self.assertNotIn('num_records', r)
+
+    def test_df_or_adf_is_38_not_ber_tlv(self):
+        # Table 11.5: b6-b4 = 111 with b3-b1 = 000 -> DF or ADF.
+        r = self._fdb('38')
+        self.assertEqual(r['file_type'], 'DF or ADF')
+        self.assertNotIn('structure', r)
+        self.assertEqual(self._fdb('78')['file_type'], 'DF or ADF')
+        # Clause 11.1.1.4.3: the second byte is the data-coding byte, for a
+        # DF/ADF too — there is no "number of DFs/EFs" field.
+        r = self._fdb('3802')
+        self.assertEqual(r['file_type'], 'DF or ADF')
+        self.assertEqual(r['data_coding'], '0x02')
+        self.assertNotIn('num_dfs_efs', r)
+        r = self._fdb('7821')  # corpus MF FCP `82 02 78 21`
+        self.assertEqual(r['file_type'], 'DF or ADF')
+        self.assertEqual(r['data_coding'], '0x21')
+        self.assertNotIn('num_dfs_efs', r)
+
+    def test_rfu_file_type_uses_data_coding(self):
+        # The 0x82 DO's second byte is the data-coding byte for every file
+        # type, not a "number of DFs/EFs" (clause 11.1.1.4.3 p. 90).
+        r = self._fdb('2021')  # b6-b4 = 100 (RFU file type)
+        self.assertEqual(r['file_type'], 'RFU')
+        self.assertEqual(r['data_coding'], '0x21')
+        self.assertNotIn('num_dfs_efs', r)
+
+    def test_cyclic_record_params(self):
+        # Same shape as the local corpus's EF.ACM 6F39 FCP (not a committed
+        # fixture): `82 05 46 21 00 03 0A` -> shareable Working EF, cyclic,
+        # data coding 0x21, record length 3, 10 records.
+        r = self._fdb('462100030A')
+        self.assertEqual(r['file_type'], 'Working EF')
+        self.assertEqual(r['structure'], 'cyclic')
+        self.assertEqual(r['data_coding'], '0x21')
+        self.assertEqual(r['record_length'], 3)
+        self.assertEqual(r['num_records'], 10)
+
+    def test_non_record_file_has_no_record_params(self):
+        # Clause 11.1.1.4.3: record length/number of records are "not
+        # applicable" outside linear-fixed/cyclic files, even if the bytes
+        # are present.
+        r = self._fdb('012100300A')
+        self.assertEqual(r['structure'], 'transparent')
+        self.assertEqual(r['data_coding'], '0x21')
+        self.assertNotIn('record_length', r)
+        self.assertNotIn('num_records', r)
+
+    def test_fcp_ber_tlv_sfi_fallback(self):
+        # BER-TLV EF (`82 02 39 21`) with no `88` DO: the SFI falls back to
+        # the FID's five least-significant bits (2F06 & 0x1F = 6).
+        from simtrace_analyser.decode import _decode_fcp
+        r = _decode_fcp(bytes.fromhex('62088202392183022F06'))
+        fd = r['file_descriptor']
+        self.assertEqual(fd['file_type'], 'Working EF')
+        self.assertEqual(fd['structure'], 'BER-TLV')
+        self.assertEqual(fd['data_coding'], '0x21')
+        self.assertEqual(r['sfi'], 6)
+
+    def test_fcp_df_or_adf_has_no_sfi(self):
+        from simtrace_analyser.decode import _decode_fcp
+        r = _decode_fcp(bytes.fromhex('620782013883023F00'))
+        self.assertEqual(r['file_descriptor']['file_type'], 'DF or ADF')
+        self.assertNotIn('sfi', r)
+
+    def test_remaining_111_combinations_are_rfu(self):
+        # Table 11.5: b6-b4 = 111 with b3-b1 other than 000/001 stays RFU.
+        r = self._fdb('3e')  # b3-b1 = 110
+        self.assertEqual(r['file_type'], 'RFU')
+        self.assertNotIn('structure', r)
+
+    def test_record_file_helper(self):
+        from simtrace_analyser.decode import _is_record_file
+        self.assertTrue(_is_record_file({'structure': 'cyclic'}))
+        self.assertFalse(_is_record_file({'structure': 'BER-TLV'}))
+        # Documented best-effort path: an unknown structure allows decoding.
+        self.assertTrue(_is_record_file({}))
+        self.assertTrue(_is_record_file(None))
 
     def test_type_bits_b6_b4(self):
         # 0x09 = 0b00001001: type bits b6b5b4=001 (Internal), structure 001

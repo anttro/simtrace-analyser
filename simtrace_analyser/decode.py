@@ -1382,17 +1382,29 @@ def _decode_tr_result(body):
 _FILE_TYPES = {
     0b000: 'Working EF',
     0b001: 'Internal EF',
-    0b111: 'DF or ADF',
+    # b6-b4 = 111 is not unconditional: TS 102 221 Table 11.5 gives
+    # 'DF or ADF' only for b3-b1 = 000 and 'BER-TLV structure' for
+    # b3-b1 = 001 (handled in _decode_file_descriptor).
 }
 _EF_STRUCTURES = {
-    # TS 102 221 Table 11.5 (overrides ISO 7816-4 Table 14, where 110 =
-    # cyclic and 100 = linear variable): 100 = cyclic, 110 = BER-TLV.
+    # TS 102 221 V18.4.0 Table 11.5 (p. 91), structure bits b3-b1 under
+    # "Not all set to 1" in b6-b4: 001 transparent, 010 linear fixed,
+    # 110 cyclic, 100 and 111 RFU.  011 and 101 are blank rows — the table
+    # defines no meaning for them, so they are omitted here (no 'structure'
+    # key) rather than presented as RFU.  BER-TLV is a separate row
+    # (b6-b4 = 111 with b3-b1 = 001, bytes 0x39/0x79), not a structure code.
+    # ISO 7816-4:2005 Table 14 differs (110 = cyclic fixed, 111 = cyclic
+    # fixed TLV plus separate b6-b4 = 111 rows for BER-TLV/SIMPLE-TLV);
+    # the ETSI/3GPP table wins for UICC.
     0b000: 'no information',
     0b001: 'transparent',
     0b010: 'linear fixed',
-    0b100: 'cyclic',
-    0b110: 'BER-TLV',
+    0b100: 'RFU',
+    0b110: 'cyclic',
+    0b111: 'RFU',
 }
+# EF structures whose READ/UPDATE RECORD bodies are decoded.
+_RECORD_STRUCTURES = ('linear fixed', 'cyclic')
 _LIFE_CYCLE = {
     0x00: 'no information given',
     0x01: 'creation state',
@@ -1405,25 +1417,50 @@ _LIFE_CYCLE = {
 
 
 def _decode_file_descriptor(value):
-    """Decode a file descriptor byte string (TS 102 221 Table 11.5)."""
+    """Decode a file descriptor byte string (TS 102 221 Table 11.5, p. 91).
+
+    Layout per clause 11.1.1.4.3 (p. 90): descriptor byte, then a mandatory
+    data-coding byte, then record length (2 bytes) and number of records
+    (1 byte).  The record fields are mandatory for linear-fixed/cyclic files
+    and "otherwise they are not applicable".
+
+    b7 = shareable; b6-b4 = file type; b3-b1 = EF structure (or, for
+    b6-b4 = 111, the DF/ADF vs BER-TLV distinction per Table 11.5).
+    """
     if not value:
         return {}
     b = value[0]
     ft = (b >> 3) & 0x07  # bits b6-b4 = file type (1-based; 0-based 5..3)
+    structure = b & 0x07  # bits b3-b1
     result = {
         'shareable': 'shareable' if (b & 0x40) else 'not shareable',
         'file_type': _FILE_TYPES.get(ft, 'RFU'),
     }
-    if ft in (0b000, 0b001):  # EF
-        result['structure'] = _EF_STRUCTURES.get(b & 0x07, 'RFU')
-        if len(value) >= 2:
-            result['data_coding'] = f'0x{value[1]:02X}'
-        if len(value) >= 4:
-            result['record_length'] = int.from_bytes(value[2:4], 'big')
+    if ft == 0b111:
+        # Table 11.5's dedicated rows: b3-b1 = 000 -> DF or ADF,
+        # b3-b1 = 001 -> BER-TLV structure (0x39 non-shareable / 0x79
+        # shareable); every other b3-b1 value stays RFU.
+        if structure == 0b000:
+            result['file_type'] = 'DF or ADF'
+        elif structure == 0b001:
+            result['file_type'] = 'Working EF'
+            result['structure'] = 'BER-TLV'
+        else:
+            result['file_type'] = 'RFU'
+    elif ft in (0b000, 0b001):  # Working EF / Internal EF
+        # A blank structure row (011/101) leaves 'structure' unset.
+        if structure in _EF_STRUCTURES:
+            result['structure'] = _EF_STRUCTURES[structure]
+    # Clause 11.1.1.4.3: the data-coding byte follows the descriptor byte for
+    # every file type; there is no "number of DFs/EFs" field in the descriptor
+    # (the 0x82 DO's second byte is the data-coding byte, ISO 7816-4 T12).
+    if len(value) >= 2:
+        result['data_coding'] = f'0x{value[1]:02X}'
+    # Record length and number of records exist only for record-based EFs.
+    if result.get('structure') in _RECORD_STRUCTURES and len(value) >= 4:
+        result['record_length'] = int.from_bytes(value[2:4], 'big')
         if len(value) >= 5:
             result['num_records'] = value[4]
-    elif len(value) >= 2:
-        result['num_dfs_efs'] = value[1]
     return result
 
 
@@ -3538,9 +3575,6 @@ def _decode_file_data(fid, raw, p1=None, df=None):
     out['fid'] = fid
     out['ef'] = _file_name(fid, df)
     return out
-
-
-_RECORD_STRUCTURES = ('linear fixed', 'cyclic')
 
 
 def _is_record_file(sel):
