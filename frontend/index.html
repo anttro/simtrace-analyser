@@ -211,6 +211,7 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
    scrolls.  The negative right margin cancels the topbar's 16px padding, so
    its right edge lines up with the panel's. */
 .trace-topbar .side-view-select { width: var(--side-panel-w); flex: 0 0 auto; margin-left: auto; margin-right: -16px; }
+.file-view-live { color: var(--text-muted); font-size: 11px; padding: 0 8px 6px; }
 .file-op { display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; word-break: break-word; }
 .file-op:hover { background: var(--bg-input); }
 .file-op-read { color: var(--text-muted); }
@@ -543,6 +544,7 @@ const STATE = {
     sideView: 'map',
     filesData: null,
     filesSessionId: null,
+    filesMessageCount: 0,   // STATE.messages.length the timeline was built from
     filesImages: {},
     pendingDeleteId: null,
     serverAvailable: false,
@@ -2148,7 +2150,15 @@ function renderSidePanel() {
     mapEl.style.display = showMap ? '' : 'none';
     el('file-view').style.display = STATE.sideView === 'files' ? '' : 'none';
     el('side-view-select').value = STATE.sideView;
-    if (STATE.sideView === 'files') renderFileView();
+    if (STATE.sideView === 'files') {
+        // A live capture re-renders this panel on every poll tick; the Files
+        // view re-decodes the session on its own throttle instead.
+        if (STATE.captureActive && STATE.sessionViewId === null) {
+            maybeRefreshLiveFileView();
+        } else {
+            renderFileView();
+        }
+    }
 }
 
 // ──────────────────── Files view (per-file operation timeline) ────────────────────
@@ -2250,63 +2260,187 @@ function hexImageHtml(image, key) {
     return {html: html, used: used};
 }
 
-async function renderFileView() {
+let _filesFetching = null;   // the session id currently being fetched
+let _filesFetchStart = 0;
+let _filesRequest = 0;       // invalidates a response released by the timeout
+let _filesLiveAt = 0;
+let _filesJumpTimer = null;
+const FILES_LIVE_REFRESH_MS = 5000;
+const FILES_FETCH_TIMEOUT_MS = 10000;
+
+// The session the Files view shows: an explicitly opened saved session wins,
+// then the running capture, then the session the last live view was built
+// from (so stopping the capture leaves the final timeline on screen).
+function fileViewSessionId() {
+    if (STATE.sessionViewId !== null) return STATE.sessionViewId;
+    if (STATE.captureActive && STATE.currentSessionId !== null) {
+        return STATE.currentSessionId;
+    }
+    if (STATE.filesSessionId !== null && STATE.filesData !== null) {
+        return STATE.filesSessionId;
+    }
+    return null;
+}
+
+// A live capture's Files view follows the running session and refreshes on a
+// throttle; a saved session is fetched once per visit.  *options.force*
+// refetches, *options.silent* keeps the old timeline (and DOM) on a failed
+// live refresh instead of flashing an error.
+async function renderFileView(options = {}) {
+    const force = !!(options && options.force);
+    const silent = !!(options && options.silent);
     const view = el('file-view');
-    if (STATE.sessionViewId === null) {
+    const sid = fileViewSessionId();
+    if (sid === null) {
         view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Open a saved session from the Sessions tab.')}</div>`;
         return;
     }
-    const sid = STATE.sessionViewId;
-    let data = STATE.filesData;
+    let live = STATE.sessionViewId === null && STATE.captureActive &&
+        STATE.currentSessionId === sid;
+    let data = STATE.filesData !== null && STATE.filesSessionId === sid
+        ? STATE.filesData : null;
     // A failure is never cached: only a well-formed payload is remembered, so
-    // the next visit retries instead of showing a stale error.
-    if (data === null || STATE.filesSessionId !== sid ||
-        !Array.isArray(data.timeline)) {
-        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Loading…')}</div>`;
+    // the next visit retries instead of showing a stale error.  A live view
+    // refetches only when the capture added messages since the last build.
+    const stale = data === null || !Array.isArray(data.timeline) ||
+        (live && STATE.filesMessageCount !== STATE.messages.length);
+    // The browser's fetch has no timeout: release a stalled live fetch so
+    // the throttle can retry, and invalidate its eventual response.
+    if (_filesFetching === sid &&
+        Date.now() - _filesFetchStart >= FILES_FETCH_TIMEOUT_MS) {
+        _filesFetching = null;
+        _filesRequest += 1;
+    }
+    const sameFetch = _filesFetching === sid;
+    if ((stale || force) && !sameFetch) {
+        const hadData = data !== null;
+        if (!hadData) {
+            view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Loading…')}</div>`;
+        }
+        const request = ++_filesRequest;
+        const fetchedAtCount = STATE.messages.length;
+        _filesFetching = sid;
+        _filesFetchStart = Date.now();
         try {
             const payload = await API.getSessionFiles(sid);
-            if (STATE.sessionViewId !== sid) return;   // the view moved on
+            if (request !== _filesRequest) return;
+            const nowSid = fileViewSessionId();
+            // A different session means the view moved on; null means the
+            // capture stopped while this fetch was in flight - keep the
+            // final payload as the stopped snapshot.
+            if (nowSid !== null && nowSid !== sid) return;
+            live = STATE.sessionViewId === null && STATE.captureActive &&
+                STATE.currentSessionId === sid;
             if (!payload || !Array.isArray(payload.timeline)) {
                 throw new Error((payload && payload.error) || t('Failed to load files'));
             }
             data = payload;
             STATE.filesData = payload;
             STATE.filesSessionId = sid;
+            // Use the count from before the request: messages that arrived
+            // while it was in flight may not be in this payload, so the next
+            // poll must refresh them instead of being considered fresh.
+            STATE.filesMessageCount = fetchedAtCount;
+            // The cached change images are cumulative for the session, so a
+            // live refresh invalidates them; the throttle clock runs between
+            // fetches, an explicit one included.
+            if (live) {
+                STATE.filesImages = {};
+                _filesLiveAt = Date.now();
+            }
         } catch (e) {
-            if (STATE.sessionViewId !== sid) return;
+            if (request !== _filesRequest) return;
+            if (fileViewSessionId() !== sid) return;
+            // A silent live refresh keeps the previous timeline on screen.
+            if (silent && hadData) return;
             STATE.filesData = null;
             STATE.filesSessionId = null;
             view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Failed to load files')}: ${escapeHtml((e && e.message) || '')}</div>`;
             return;
+        } finally {
+            if (request === _filesRequest && _filesFetching === sid) {
+                _filesFetching = null;
+            }
         }
-    }
-    const timeline = data.timeline;
-    if (!timeline.length) {
-        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('No file operations recorded')}</div>`;
+    } else if (data === null) {
+        // Another call is already fetching this session.
+        view.innerHTML = `<div class="empty-state" style="height:auto;padding:24px;">${t('Loading…')}</div>`;
         return;
     }
-    view.innerHTML = timeline.map(op => {
-        const diff = op.change_ref
-            ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">${op.kind === 'card_change' ? t('Changed on card!') : t('Show diff')}</button>`
-            : '';
-        return `<div class="file-op ${fileOpClass(op.kind)}" data-idx="${op.index}">
-            <span>${escapeHtml(fileOpLabel(op))}</span>${diff}
-        </div>`;
-    }).join('');
+    const timeline = data.timeline;
+    // Keep the side panel where the reader left it; a reader already at the
+    // bottom stays pinned there as the live timeline grows.
+    const panel = el('side-panel');
+    const scrollTop = panel ? (panel.scrollTop || 0) : 0;
+    const atBottom = panel
+        ? (panel.scrollHeight || 0) - (panel.clientHeight || 0) - scrollTop <= 4
+        : false;
+    const note = live
+        ? `<div class="file-view-live">${t('Live — updates while capturing')}</div>` : '';
+    if (!timeline.length) {
+        view.innerHTML = note +
+            `<div class="empty-state" style="height:auto;padding:24px;">${t('No file operations recorded')}</div>`;
+    } else {
+        view.innerHTML = note + timeline.map(op => {
+            const diff = op.change_ref
+                ? `<button class="file-op-diff" data-diff="${escapeHtml(op.change_ref.file)}|${op.change_ref.idx}" title="${t('Show the change')}">${op.kind === 'card_change' ? t('Changed on card!') : t('Show diff')}</button>`
+                : '';
+            return `<div class="file-op ${fileOpClass(op.kind)}" data-idx="${op.index}">
+                <span>${escapeHtml(fileOpLabel(op))}</span>${diff}
+            </div>`;
+        }).join('');
+    }
+    // A hidden panel has no geometry (scrollHeight 0): leave its scroll alone
+    // so returning to the tab does not reset the reader's position.
+    if (panel && panel.scrollHeight) {
+        panel.scrollTop = atBottom ? panel.scrollHeight : scrollTop;
+    }
+}
+
+// Drop the fetch guard and invalidate any response still in flight.
+function invalidateFilesFetch() {
+    _filesFetching = null;
+    _filesRequest += 1;
+}
+
+// The live poll appends messages every 500 ms; the Files view re-decodes the
+// session on a throttle instead of once per tick.
+function maybeRefreshLiveFileView() {
+    if (!STATE.captureActive || STATE.sessionViewId !== null) return;
+    if (STATE.currentSessionId === null) return;
+    if (STATE.sideView !== 'files' || STATE.activeTab !== 'trace') return;
+    const sid = STATE.currentSessionId;
+    if (_filesFetching === sid) {
+        if (Date.now() - _filesFetchStart < FILES_FETCH_TIMEOUT_MS) return;
+        _filesFetching = null;
+        _filesRequest += 1;
+    }
+    const stale = STATE.filesData === null || STATE.filesSessionId !== sid ||
+        STATE.filesMessageCount !== STATE.messages.length;
+    if (!stale) return;
+    const now = Date.now();
+    if (now - _filesLiveAt < FILES_LIVE_REFRESH_MS) return;
+    _filesLiveAt = now;
+    renderFileView({force: true, silent: true});
 }
 
 async function showFileDiff(fileKey, idx) {
+    const sid = fileViewSessionId();
     const data = STATE.filesData;
     const entry = data && data.files ? data.files[fileKey] : null;
-    if (!entry) return;
+    if (sid === null || STATE.filesSessionId !== sid || !entry) return;
     el('file-diff-sub').textContent = entry.name;
     el('file-diff-body').innerHTML = `<p class="hex-note">${t('Loading…')}</p>`;
     el('file-diff-modal').classList.add('show');
-    const cacheKey = `${STATE.sessionViewId}|${fileKey}|${idx}`;
+    const cacheKey = `${sid}|${fileKey}|${idx}`;
     let image = STATE.filesImages[cacheKey];
     try {
         if (!image) {
-            image = await API.getSessionFileImage(STATE.sessionViewId, fileKey, idx);
+            image = await API.getSessionFileImage(sid, fileKey, idx);
+            if (fileViewSessionId() !== sid) {   // the view moved on
+                el('file-diff-modal').classList.remove('show');
+                return;
+            }
             if (!image || !image.before) {
                 throw new Error((image && image.error) || t('Failed to load files'));
             }
@@ -2366,13 +2500,32 @@ function renderFileDiff(image) {
 
 // Load the pages up to *idx* (the message list is fetched in pages) and focus
 // the message — used by the Files timeline rows.
-async function jumpToMessage(idx) {
-    if (STATE.sessionViewId === null || idx === null || idx === undefined) return;
+async function jumpToMessage(idx, retry = false) {
+    const sid = fileViewSessionId();
+    if (sid === null || idx === null || idx === undefined) return;
+    if (!retry && _filesJumpTimer !== null) {
+        clearTimeout(_filesJumpTimer);
+        _filesJumpTimer = null;
+    }
     try {
-        while (STATE.messages.length <= idx) {
-            const data = await API.getSession(STATE.sessionViewId, STATE.messages.length);
-            if (!data.messages || !data.messages.length) break;
-            STATE.messages.push(...data.messages);
+        // A saved session's list is paged; a live capture is already filling
+        // STATE.messages, so a row beyond it waits for the next poll (one
+        // retry) instead of starting a second fetch of the running session.
+        if (STATE.sessionViewId !== null) {
+            while (STATE.messages.length <= idx) {
+                const data = await API.getSession(sid, STATE.messages.length);
+                if (!data.messages || !data.messages.length) break;
+                STATE.messages.push(...data.messages);
+            }
+        }
+        if (idx >= STATE.messages.length) {
+            if (STATE.sessionViewId === null && !retry) {
+                _filesJumpTimer = setTimeout(() => {
+                    _filesJumpTimer = null;
+                    if (fileViewSessionId() === sid) jumpToMessage(idx, true);
+                }, 600);
+            }
+            return;
         }
         // Render without the stick-to-bottom: focusMessage() scrolls to the
         // record (the render only materializes its element).
@@ -2560,7 +2713,7 @@ function matchesFilter(m, i, filterSet) {
 }
 
 function renderTraceEmptyState() {
-    if (STATE.captureActive || STATE.sessionViewId) return;
+    if (STATE.captureActive || STATE.sessionViewId || STATE.messages.length) return;
     const list = el('apdu-list');
     const connCls = STATE.serverAvailable ? 'connected' : 'disconnected';
     const modeText = captureModeText();
@@ -2611,7 +2764,7 @@ function renderMessages(skipScroll, forceStick) {
     renderSidePanel();
     renderFilterMenu();
 
-    if (!STATE.captureActive && !STATE.sessionViewId) {
+    if (!STATE.captureActive && !STATE.sessionViewId && !STATE.messages.length) {
         renderTraceEmptyState();
         return;
     }
@@ -2715,6 +2868,19 @@ function startPolling() {
             const data = await API.getLatest(_lastAfter);
             STATE.deviceConnected = data.device_connected;
             if (data.active) {
+                if (data.session_id !== STATE.currentSessionId) {
+                    // Another client started a capture: drop the old stream
+                    // and Files cache before appending this session's batch.
+                    STATE.messages = [];
+                    _lastAfter = 0;
+                    STATE.mapExpanded.clear();
+                    STATE.filesData = null;
+                    STATE.filesSessionId = null;
+                    STATE.filesMessageCount = 0;
+                    STATE.filesImages = {};
+                    _filesLiveAt = 0;
+                    invalidateFilesFetch();
+                }
                 STATE.captureActive = true;
                 STATE.currentSessionId = data.session_id;
             }
@@ -2722,10 +2888,16 @@ function startPolling() {
                 STATE.messages.push(...data.messages);
                 _lastAfter = data.next_after;
                 renderMessages();
+                maybeRefreshLiveFileView();
             }
             if (!data.active && STATE.captureActive) {
                 STATE.captureActive = false;
                 renderMessages();
+                // Fetch the final operations and drop the live note; the
+                // last timeline stays as a snapshot.  Drop an in-flight fetch
+                // so the forced one is not skipped.
+                invalidateFilesFetch();
+                if (STATE.sideView === 'files') renderFileView({force: true, silent: true});
             }
         } catch (e) {}
     }, 500);
@@ -2750,6 +2922,13 @@ async function startCapture() {
         STATE.selectedIdx = null;
         _lastAfter = 0;
         STATE.mapExpanded.clear();
+        // The Files view follows the new capture from scratch.
+        STATE.filesData = null;
+        STATE.filesSessionId = null;
+        STATE.filesMessageCount = 0;
+        STATE.filesImages = {};
+        _filesLiveAt = 0;
+        invalidateFilesFetch();
         buildTypeCounts();
         buildTraceMap();
         renderSidePanel();
@@ -2778,6 +2957,12 @@ async function stopCapture() {
     STATE.sessionViewId = null;
     updateCaptureButton();
     updateStatus();
+    // Fetch the final operations and drop the live note; the last timeline
+    // stays on screen (the stopped session's snapshot) until another session
+    // is opened or a capture starts.  Drop an in-flight fetch first so the
+    // forced one is not skipped by the single-flight guard.
+    invalidateFilesFetch();
+    if (STATE.sideView === 'files') renderFileView({force: true, silent: true});
 }
 
 function updateCaptureButton() {
@@ -3129,7 +3314,10 @@ async function loadSession(id) {
         STATE.sessionViewId = id;
         STATE.filesData = null;
         STATE.filesSessionId = null;
+        STATE.filesMessageCount = 0;
         STATE.filesImages = {};
+        _filesLiveAt = 0;
+        invalidateFilesFetch();
         STATE.selectedIdx = null;
         STATE.sessionStarted = data.session.started;
         STATE.captureActive = false;
@@ -3271,6 +3459,7 @@ function disconnectServer() {
         _connTimer = null;
     }
     STATE.serverAvailable = false;
+    STATE.captureActive = false;
     STATE.serverName = '';
     STATE.serverVersion = '';
     STATE.captureMode = '';
@@ -3289,9 +3478,11 @@ function disconnectServer() {
     updateCaptureButton();
     stopPolling();
     renderTraceEmptyState();
+    if (STATE.sideView === 'files') renderFileView();
 }
 
 async function checkConnection() {
+    const wasAvailable = STATE.serverAvailable;
     try {
         const data = await API.status();
         STATE.serverAvailable = true;
@@ -3317,15 +3508,28 @@ async function checkConnection() {
                 STATE.messages = [];
                 _lastAfter = 0;
                 STATE.mapExpanded.clear();
+                // The Files view follows the capture that was just adopted.
+                STATE.filesData = null;
+                STATE.filesSessionId = null;
+                STATE.filesMessageCount = 0;
+                STATE.filesImages = {};
+                _filesLiveAt = 0;
+                invalidateFilesFetch();
             }
             STATE.captureActive = true;
             STATE.currentSessionId = data.session_id;
             startPolling();
+            if (STATE.sideView === 'files') {
+                _filesLiveAt = 0;
+                maybeRefreshLiveFileView();
+            }
         } else {
             STATE.captureActive = false;
+            if (STATE.sideView === 'files') renderFileView();
         }
         updateCaptureButton();
         renderTraceEmptyState();
+        if (!wasAvailable && STATE.sideView === 'files') renderFileView();
         if (!STATE.deepLinkHandled) {
             STATE.deepLinkHandled = true;
             const m = location.hash.match(/^#session=(\d+)$/);
@@ -3333,6 +3537,7 @@ async function checkConnection() {
         }
     } catch (e) {
         STATE.serverAvailable = false;
+        STATE.captureActive = false;
         STATE.captureMode = '';
         STATE.serverName = '';
         STATE.serverVersion = '';
@@ -3369,6 +3574,7 @@ async function checkConnection() {
         el('status-text').textContent = t('Not connected');
         updateCaptureButton();
         renderTraceEmptyState();
+        if (STATE.sideView === 'files') renderFileView();
     }
 }
 
@@ -3377,6 +3583,12 @@ function switchTab(name) {
     STATE.activeTab = name;
     document.querySelectorAll('.header-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+    if (name === 'trace' && STATE.sideView === 'files') {
+        // The Files view may have missed messages while another tab was up:
+        // an explicit return refreshes now instead of waiting for the throttle.
+        _filesLiveAt = 0;
+        maybeRefreshLiveFileView();
+    }
     if (name === 'sessions') loadSessions();
     if (name === 'settings') checkConnection();
 }
@@ -3389,7 +3601,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.15';
+const PWA_VERSION = '2.7.16';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3582,6 +3794,7 @@ const LANG_RU = {
     'Capture is disabled — only pre-captured traces (saved sessions / PCAP import) are available.': 'Захват отключён — доступны только ранее записанные трассировки (сохранённые сессии / импорт PCAP).',
     'Capture unavailable': 'Захват недоступен',
     'Open a saved session from the Sessions tab.': 'Откройте сохранённую сессию на вкладке «Сессии».',
+    'Live — updates while capturing': 'В реальном времени — обновляется во время захвата',
     'Capture disabled': 'Захват отключён',
 };
 
@@ -3619,6 +3832,9 @@ function toggleLang() {
     updateStatus();
     updateCaptureButton();
     renderMessages();
+    // The live side-panel path only re-fetches on new messages; a language
+    // switch must redraw the cached timeline with the new strings.
+    if (STATE.sideView === 'files') renderFileView();
     loadSessions();
     checkConnection();
     if (el('comprion-modal').classList.contains('show')) renderComprionDialog();
@@ -3807,6 +4023,9 @@ function init() {
 
     $on('side-view-select', 'change', () => {
         STATE.sideView = el('side-view-select').value;
+        // Selecting the Files view is an explicit action: refresh it now
+        // rather than waiting out the live throttle.
+        if (STATE.sideView === 'files') _filesLiveAt = 0;
         renderSidePanel();
     });
     $on('file-view', 'click', e => {

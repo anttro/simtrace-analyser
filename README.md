@@ -47,7 +47,7 @@ http://127.0.0.1:8081/.
 The wheel includes the UI, so the server serves it by itself:
 
 ```sh
-pip install ./simtrace_analyser-2.7.14-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.16-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -61,7 +61,7 @@ Every artifact is on the
 CLI can pick the latest one:
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.14/simtrace_analyser-2.7.14-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.16/simtrace_analyser-2.7.16-py3-none-any.whl
 # or:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
@@ -69,7 +69,7 @@ pip install ./simtrace_analyser-*.whl
 
 ### 2. Zip (no installer)
 
-Download `simtrace-analyser-2.7.14.zip` from the release page and extract it
+Download `simtrace-analyser-2.7.16.zip` from the release page and extract it
 anywhere: it is the runtime tree (the Python packages, the web UI, the launchers
 and the docs — no tests, no git).  The archive works on any OS; then run:
 
@@ -310,6 +310,14 @@ as their DF identity, named from EF.DIR when the trace surfaced it.  Bounds: the
 image freezes past 64 KB of observed bytes per file (`image_truncated`) and the
 change log keeps the last 1000 events per file (`changes_total` keeps counting).
 Counters are returned by the API but not shown in this view yet.
+
+The view also works **during a live capture**: it follows the running session
+(the timeline grows as new file operations arrive) and refreshes itself every
+few seconds while it is visible, marked *Live — updates while capturing*.
+Clicking a row for an APDU the trace has not fetched yet waits for the next
+live poll; **Show diff** works the same way as for a saved session.  Stopping
+the capture leaves the final timeline on screen (no live mark); opening a saved
+session still stops the capture first.
 
 File names are **DF-scoped**: `simtrace_analyser/ef_tables.py` holds the complete
 per-DF file tables and SFI lists extracted from the pinned specs (TS 102 221,

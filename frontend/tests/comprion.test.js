@@ -372,7 +372,12 @@ test('Files view: the view selector (topbar) and the timeline are wired', () => 
 	// The trailing link: "Changed on card!" for a card-side change and
 	// "Show diff" for an update row — both open the change modal.
 	assert.match(src, />\$\{op\.kind === 'card_change' \? t\('Changed on card!'\) : t\('Show diff'\)\}<\/button>/);
-	assert.match(src, /API\.getSessionFileImage\(STATE\.sessionViewId, fileKey, idx\)/);
+	assert.match(src, /API\.getSessionFileImage\(sid, fileKey, idx\)/);
+	// The Files view resolves its session through one helper (saved > live >
+	// stopped snapshot), so the live capture and a saved session share the
+	// same click/diff paths.
+	assert.match(src, /function fileViewSessionId\(\)/);
+	assert.match(src, /const sid = fileViewSessionId\(\);\n    const data = STATE\.filesData;/);
 	assert.match(src, /getSessionFileImage\(id, key, change\)/);
 	assert.match(src, /files\/image\?key=/);
 	assert.match(src, /if \(row\) jumpToMessage\(Number\(row\.dataset\.idx\)\);/);
@@ -391,7 +396,8 @@ test('Files view: strings carry Russian translations', () => {
 		'{c} bytes changed', '{n} bytes newly observed', 'No changes', 'sec',
 		'Showing the first {n} bytes of the image',
 		'The image is frozen (size cap reached) — later changes are not tracked.',
-		'No file operations recorded', 'Failed to load files', 'Loading…']) {
+		'No file operations recorded', 'Failed to load files', 'Loading…',
+		'Live — updates while capturing']) {
 		assert.ok(keys.has(s), 'no LANG_RU entry for: ' + s);
 	}
 });
@@ -410,8 +416,15 @@ eval(
 	extractFunc(src, 'fileOpClass') + '\n' +
 	extractFunc(src, 'fileOpVerb') + '\n' +
 	extractFunc(src, 'fileOpLabel') + '\n' +
+	'var _filesFetching = null;\n' +
+	'var _filesFetchStart = 0;\n' +
+	'var _filesRequest = 0;\n' +
+	'var _filesLiveAt = 0;\n' +
+	'var FILES_FETCH_TIMEOUT_MS = 10000;\n' +
+	extractFunc(src, 'fileViewSessionId') + '\n' +
 	extractFunc(src, 'renderFileView') + '\n' +
-	'function __filesApi() { return API; }'
+	'function __filesApi() { return API; }\n' +
+	'function __filesFetching() { return _filesFetching; }'
 );
 
 function fetchReply(status, body) {
@@ -488,6 +501,301 @@ test('Files view: a response for a session left meanwhile is ignored', async () 
 	assert.doesNotMatch(el('file-view').innerHTML, /STALE/);
 	assert.equal(STATE.filesData, null);
 	assert.equal(STATE.filesSessionId, null);
+});
+
+// ── Files view during a live capture ──────────────────────────────────
+const LIVE_TIMELINE = {
+	timeline: [{kind: 'read', index: 1, file: {name: 'EF_LOCI'}}],
+	files: {}, timeline_total: 1,
+};
+
+function resetFilesState() {
+	STATE.sessionViewId = null;
+	STATE.captureActive = false;
+	STATE.currentSessionId = null;
+	STATE.filesData = null;
+	STATE.filesSessionId = null;
+	STATE.filesMessageCount = 0;
+	STATE.filesImages = {};
+	STATE.messages = [];
+}
+
+test('Files view: the session resolves saved > live > stopped snapshot', () => {
+	resetFilesState();
+	STATE.sessionViewId = 5;
+	STATE.captureActive = true;
+	STATE.currentSessionId = 9;
+	STATE.filesSessionId = 9;
+	STATE.filesData = {timeline: []};
+	assert.equal(fileViewSessionId(), 5, 'a saved session wins');
+	STATE.sessionViewId = null;
+	assert.equal(fileViewSessionId(), 9, 'the running capture is next');
+	STATE.captureActive = false;
+	STATE.currentSessionId = null;
+	assert.equal(fileViewSessionId(), 9, 'the stopped snapshot stays');
+	STATE.filesSessionId = null;
+	STATE.filesData = null;
+	assert.equal(fileViewSessionId(), null, 'nothing to show');
+});
+
+test('Files view: a live render fetches the running session and marks it live', async () => {
+	resetFilesState();
+	const urls = [];
+	__fetchImpl = async url => {
+		urls.push(url);
+		return {ok: true, status: 200, json: async () => LIVE_TIMELINE};
+	};
+	STATE.captureActive = true;
+	STATE.currentSessionId = 21;
+	STATE.messages = [{}, {}, {}];
+	await renderFileView();
+	assert.equal(urls.length, 1);
+	assert.match(urls[0], /\/api\/sessions\/21\/files$/);
+	assert.match(el('file-view').innerHTML, /Live — updates while capturing/);
+	assert.match(el('file-view').innerHTML, /Read EF_LOCI/);
+	assert.equal(STATE.filesSessionId, 21);
+	assert.equal(STATE.filesMessageCount, 3);
+	assert.equal(__filesFetching(), null);
+});
+
+test('Files view: the live view refetches only when new messages arrived', async () => {
+	resetFilesState();
+	let calls = 0;
+	__fetchImpl = async () => {
+		calls++;
+		return {ok: true, status: 200, json: async () => LIVE_TIMELINE};
+	};
+	STATE.captureActive = true;
+	STATE.currentSessionId = 22;
+	STATE.messages = [{}, {}];
+	STATE.filesSessionId = 22;
+	STATE.filesData = LIVE_TIMELINE;
+	STATE.filesMessageCount = 2;
+	STATE.filesImages = {cached: {}};
+	await renderFileView();
+	assert.equal(calls, 0, 'no new messages -> cached timeline');
+	assert.match(el('file-view').innerHTML, /Live — updates while capturing/);
+	assert.deepEqual(STATE.filesImages, {cached: {}}, 'no refresh -> images kept');
+	// A new message makes the cached timeline stale.
+	STATE.messages.push({});
+	await renderFileView();
+	assert.equal(calls, 1);
+	assert.equal(STATE.filesMessageCount, 3);
+	assert.deepEqual(STATE.filesImages, {}, 'a live refresh drops the change images');
+});
+
+test('Files view: a silent live refresh keeps the old timeline on error', async () => {
+	resetFilesState();
+	__fetchImpl = async () => ({ok: false, status: 500, json: async () => ({error: 'boom'})});
+	STATE.captureActive = true;
+	STATE.currentSessionId = 23;
+	STATE.messages = [{}, {}];
+	STATE.filesSessionId = 23;
+	STATE.filesData = LIVE_TIMELINE;
+	STATE.filesMessageCount = 2;
+	await renderFileView({force: true, silent: true});
+	assert.match(el('file-view').innerHTML, /Read EF_LOCI/, 'the old view stays');
+	assert.doesNotMatch(el('file-view').innerHTML, /Failed to load files/);
+	assert.equal(STATE.filesSessionId, 23, 'the cached data is kept');
+	// Without a cached timeline the reason is still shown.
+	STATE.filesData = null;
+	STATE.filesSessionId = null;
+	await renderFileView({force: true, silent: true});
+	assert.match(el('file-view').innerHTML, /Failed to load files/);
+	assert.match(el('file-view').innerHTML, /boom/);
+});
+
+test('Files view: a stopped capture shows its snapshot without fetching', async () => {
+	resetFilesState();
+	let calls = 0;
+	__fetchImpl = async () => {
+		calls++;
+		return {ok: true, status: 200, json: async () => LIVE_TIMELINE};
+	};
+	STATE.filesSessionId = 24;
+	STATE.filesData = LIVE_TIMELINE;
+	await renderFileView();
+	assert.equal(calls, 0);
+	assert.match(el('file-view').innerHTML, /Read EF_LOCI/);
+	assert.doesNotMatch(el('file-view').innerHTML, /updates while capturing/,
+		'no live mark on a stopped snapshot');
+});
+
+test('Files view: the side panel keeps its scroll position', async () => {
+	resetFilesState();
+	__fetchImpl = async () => ({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+	STATE.captureActive = true;
+	STATE.currentSessionId = 27;
+	STATE.messages = [{}];
+	const panel = dlgEl('side-panel');
+	panel.scrollTop = 120;
+	panel.scrollHeight = 800;
+	panel.clientHeight = 200;
+	await renderFileView();
+	assert.equal(panel.scrollTop, 120, 'a reader further up stays there');
+	// A reader already at the bottom follows the (re-rendered) content.
+	panel.scrollTop = 600;
+	await renderFileView();
+	assert.equal(panel.scrollTop, 800);
+});
+
+test('Files view: a saved session never shows the live mark', async () => {
+	resetFilesState();
+	__fetchImpl = async () => ({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+	STATE.sessionViewId = 25;
+	STATE.captureActive = true;         // a capture runs elsewhere
+	STATE.currentSessionId = 26;
+	await renderFileView();
+	assert.match(el('file-view').innerHTML, /Read EF_LOCI/);
+	assert.doesNotMatch(el('file-view').innerHTML, /updates while capturing/);
+	assert.equal(STATE.filesSessionId, 25, 'the saved session is cached');
+});
+
+test('Files view: a live fetch finishing after stop becomes the snapshot', async () => {
+	resetFilesState();
+	let resolveIt;
+	__fetchImpl = () => new Promise(r => { resolveIt = r; });
+	STATE.captureActive = true;
+	STATE.currentSessionId = 31;
+	STATE.messages = [{}, {}];
+	const render = renderFileView();
+	assert.equal(__filesFetching(), 31);
+	// The capture stops while the request is in flight.
+	STATE.captureActive = false;
+	STATE.currentSessionId = null;
+	resolveIt({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+	await render;
+	assert.match(el('file-view').innerHTML, /Read EF_LOCI/);
+	assert.doesNotMatch(el('file-view').innerHTML, /updates while capturing/);
+	assert.equal(STATE.filesSessionId, 31, 'the final payload is the snapshot');
+});
+
+test('Files view: a stalled fetch releases after the timeout', async () => {
+	resetFilesState();
+	const realNow = Date.now;
+	let now = 1000;
+	let calls = 0;
+	let resolveFirst;
+	Date.now = () => now;
+	try {
+		__fetchImpl = () => {
+			calls++;
+			if (calls === 1) return new Promise(r => { resolveFirst = r; });
+			return Promise.resolve({
+				ok: true, status: 200,
+				json: async () => ({...LIVE_TIMELINE,
+					timeline: [{kind: 'read', index: 1, file: {name: 'NEW'}}]}),
+			});
+		};
+		STATE.captureActive = true;
+		STATE.currentSessionId = 32;
+		STATE.messages = [{}];
+		const first = renderFileView();          // starts, stays pending
+		assert.equal(calls, 1);
+		await renderFileView();                  // same fetch -> Loading only
+		assert.equal(calls, 1);
+		now += 11000;                            // the fetch is now stalled
+		await renderFileView();                  // releases and retries
+		assert.equal(calls, 2);
+		assert.match(el('file-view').innerHTML, /Read NEW/);
+		// The old response must not overwrite the retried one.
+		resolveFirst({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+		await first;
+		assert.doesNotMatch(el('file-view').innerHTML, /EF_LOCI/);
+	} finally {
+		Date.now = realNow;
+	}
+});
+
+test('Files view: messages arriving during a fetch keep it stale', async () => {
+	resetFilesState();
+	let resolveIt;
+	let calls = 0;
+	__fetchImpl = () => {
+		calls++;
+		if (calls === 1) return new Promise(r => { resolveIt = r; });
+		return Promise.resolve({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+	};
+	STATE.captureActive = true;
+	STATE.currentSessionId = 34;
+	STATE.messages = [{}, {}];
+	const render = renderFileView();
+	STATE.messages.push({});          // the poll appends while the fetch runs
+	resolveIt({ok: true, status: 200, json: async () => LIVE_TIMELINE});
+	await render;
+	// The payload was built from the first two messages; the third must
+	// trigger the next live refresh.
+	assert.equal(STATE.filesMessageCount, 2);
+	await renderFileView();
+	assert.equal(calls, 2);
+	assert.equal(STATE.filesMessageCount, 3);
+});
+
+test('Files view: a late rejection of a released fetch is ignored', async () => {
+	resetFilesState();
+	const realNow = Date.now;
+	let now = 1000;
+	let calls = 0;
+	let rejectFirst;
+	Date.now = () => now;
+	try {
+		__fetchImpl = () => {
+			calls++;
+			if (calls === 1) return new Promise((_r, rej) => { rejectFirst = rej; });
+			return Promise.resolve({
+				ok: true, status: 200,
+				json: async () => ({...LIVE_TIMELINE,
+					timeline: [{kind: 'read', index: 1, file: {name: 'NEW'}}]}),
+			});
+		};
+		STATE.captureActive = true;
+		STATE.currentSessionId = 33;
+		STATE.messages = [{}];
+		const first = renderFileView();
+		assert.equal(calls, 1);
+		now += 11000;
+		await renderFileView();
+		assert.equal(calls, 2);
+		assert.match(el('file-view').innerHTML, /Read NEW/);
+		rejectFirst(new Error('late failure'));
+		await first;
+		assert.doesNotMatch(el('file-view').innerHTML, /Failed to load files/);
+		assert.match(el('file-view').innerHTML, /Read NEW/);
+	} finally {
+		Date.now = realNow;
+	}
+});
+
+test('Files view: the live poll throttles the refresh (source pins)', () => {
+	// The side panel re-renders on every poll tick, so the Files view goes
+	// through the throttled live path while a capture is running.
+	const side = extractFunc(src, 'renderSidePanel');
+	assert.match(side, /maybeRefreshLiveFileView\(\)/);
+	const poll = extractFunc(src, 'startPolling');
+	assert.match(poll, /maybeRefreshLiveFileView\(\)/);
+	const live = extractFunc(src, 'maybeRefreshLiveFileView');
+	assert.match(live, /STATE\.captureActive/);
+	assert.match(live, /STATE\.sideView !== 'files'/);
+	assert.match(live, /FILES_LIVE_REFRESH_MS/);
+	assert.match(live, /renderFileView\(\{force: true, silent: true\}\)/);
+	// Both stop paths fetch the final operations and drop the live note;
+	// a language switch redraws the cached timeline.
+	assert.match(extractFunc(src, 'stopCapture'),
+		/renderFileView\(\{force: true, silent: true\}\)/);
+	const pollBody = extractFunc(src, 'startPolling');
+	assert.match(pollBody, /renderFileView\(\{force: true, silent: true\}\)/);
+	assert.match(extractFunc(src, 'toggleLang'),
+		/if \(STATE\.sideView === 'files'\) renderFileView\(\)/);
+	assert.match(extractFunc(src, 'renderFileView'),
+		/if \(request !== _filesRequest\) return;/);
+	assert.match(extractFunc(src, 'stopCapture'), /invalidateFilesFetch\(\)/);
+	assert.match(extractFunc(src, 'startPolling'), /invalidateFilesFetch\(\)/);
+	assert.match(extractFunc(src, 'disconnectServer'),
+		/STATE\.captureActive = false;/);
+	// An explicit view switch / tab return refreshes at once.
+	assert.match(extractFunc(src, 'switchTab'), /_filesLiveAt = 0;/);
+	const handler = src.slice(src.indexOf("$on('side-view-select', 'change'"));
+	assert.match(handler.slice(0, 400), /_filesLiveAt = 0;/);
 });
 
 // ── Change-details modal rendering (stubbed DOM) ───────────────────────

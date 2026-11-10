@@ -23,6 +23,8 @@ function focusMessage(idx) {
 	focused.push(idx);
 }
 eval(
+	'var _filesJumpTimer = null;\n' +
+	extractFunc(src, 'fileViewSessionId') + '\n' +
 	extractFunc(src, 'jumpToMessage') + '\n' +
 	extractFunc(src, 'shouldStickToBottom') + '\n'
 );
@@ -56,6 +58,27 @@ test('jumpToMessage no-ops without a session view', async () => {
 	assert.deepEqual(focused, []);
 });
 
+test('jumpToMessage waits for the live poll instead of paging', async () => {
+	renders = [];
+	focused = [];
+	// The live capture fills STATE.messages itself; a timeline row beyond the
+	// fetched messages must not start a paged fetch of the running session.
+	STATE = {
+		sessionViewId: null, captureActive: true, currentSessionId: 9,
+		filesSessionId: 9, filesData: {timeline: []}, filesMessageCount: 2,
+		messages: [{}, {}],
+	};
+	API = { getSession: async () => { throw new Error('must not page live'); } };
+	await jumpToMessage(5);
+	assert.deepEqual(renders, []);
+	assert.deepEqual(focused, []);
+	// The poll appends the messages, then the click goes through.
+	STATE.messages.push({}, {}, {}, {});
+	await jumpToMessage(5);
+	assert.deepEqual(renders, [[true, undefined]]);
+	assert.deepEqual(focused, [5]);
+});
+
 test('shouldStickToBottom: only a reader at the bottom follows new content', () => {
 	const list = (scrollTop, clientHeight, scrollHeight) => ({ scrollTop, clientHeight, scrollHeight });
 	// At the bottom / within the slack → follow.
@@ -82,6 +105,17 @@ test('jumpToMessage renders with skipScroll (source pin)', () => {
 	const body = extractFunc(src, 'jumpToMessage');
 	assert.match(body, /renderMessages\(true\);/);
 	assert.match(body, /focusMessage\(idx\);/);
+	// A live row beyond STATE.messages retries once after the next poll; it
+	// never starts a paged fetch of the running session.
+	assert.match(body, /_filesJumpTimer = setTimeout\(\(\) => \{/);
+	assert.match(body, /jumpToMessage\(idx, true\)/);
+});
+
+test('a stopped snapshot keeps its messages rendered (source pin)', () => {
+	const body = extractFunc(src, 'renderMessages');
+	assert.match(body, /if \(!STATE\.captureActive && !STATE\.sessionViewId && !STATE\.messages\.length\)/);
+	assert.match(extractFunc(src, 'renderTraceEmptyState'),
+		/STATE\.captureActive \|\| STATE\.sessionViewId \|\| STATE\.messages\.length/);
 });
 
 test('a new session/capture lands at the bottom (source pins)', () => {
