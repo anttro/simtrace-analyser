@@ -1,4 +1,4 @@
-const CACHE = 'simtrace-analyser-v98';
+const CACHE = 'simtrace-analyser-v99';
 
 const PRECACHE = [
     'index.html',
@@ -36,6 +36,12 @@ self.addEventListener('fetch', e => {
     // content and fall back to cache only when offline.
     if (!e.request.url.startsWith('http')) return;
     if (e.request.method !== 'GET') return;
+    const url = new URL(e.request.url);
+    if (url.origin !== self.location.origin) return;
+    // API responses are live data - status, sessions, and PCAP downloads.
+    // Never intercept/cache them: the UI must see fresh state, and a download
+    // must go straight to the browser/download manager.
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
     e.respondWith(
         fetch(e.request)
             .then(r => {

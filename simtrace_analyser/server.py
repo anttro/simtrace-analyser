@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from datetime import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 
 from .capture import CaptureManager, GsmtapListener, DirectSniffer, _log
@@ -56,6 +56,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
+        self.send_header('Cache-Control', 'no-store')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
@@ -68,6 +69,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', len(data))
         self.send_header('Content-Disposition', _content_disposition(filename))
+        self.send_header('Cache-Control', 'no-store')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Private-Network', 'true')
         self.end_headers()
