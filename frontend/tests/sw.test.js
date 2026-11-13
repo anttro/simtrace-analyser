@@ -71,8 +71,8 @@ test('cross-origin requests are left to the browser', () => {
 	assert.deepEqual(fetched, []);
 });
 
-test('the API bypass and the v99 cache are pinned', () => {
-	assert.match(SRC, /const CACHE = 'simtrace-analyser-v99';/);
+test('the API bypass and the v100 cache are pinned', () => {
+	assert.match(SRC, /const CACHE = 'simtrace-analyser-v100';/);
 	assert.match(SRC, /url\.origin !== self\.location\.origin/);
 	assert.match(SRC, /url\.pathname === '\/api' \|\| url\.pathname\.startsWith\('\/api\/'\)/);
 	assert.match(SRC, /must go straight to the browser\/download manager/);

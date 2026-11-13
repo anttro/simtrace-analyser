@@ -175,6 +175,12 @@ body { font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(-
 .apdu-gap .apdu-type { color: var(--warn); }
 .apdu-gap .apdu-data { color: var(--warn); }
 .device-warn { padding: 8px 12px; font-size: 12px; color: var(--warn); background: var(--warning-bg); border-bottom: 1px solid var(--warn); }
+/* Paged saved sessions: the "load more" footer at the end of the list */
+.load-more { display: flex; justify-content: center; padding: 10px 0 6px; }
+.load-more button { padding: 6px 16px; background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.load-more button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.load-more button:disabled { opacity: 0.5; cursor: default; }
 
 /* APDU detail panel */
 .apdu-detail { display: flex; flex-direction: column; flex: 0 0 var(--detail-height, 30%); overflow-y: auto; background: var(--bg-panel); }
@@ -534,6 +540,8 @@ const STATE = {
     currentSessionName: null,
     currentSessionRawName: null,
     sessionViewId: null,
+    sessionTotal: 0,       // the saved session's message count (the list is paged)
+    loadingMore: false,    // a "load more" page is being fetched
     sessionStarted: null,
     livePoller: null,
     messages: [],
@@ -2498,6 +2506,29 @@ function renderFileDiff(image) {
         (image.image_truncated ? `<p class="hex-note">${t('The image is frozen (size cap reached) — later changes are not tracked.')}</p>` : '');
 }
 
+// One in-flight request per session page.  The Files-view jump and the
+// "load more" button derive their offset from STATE.messages.length, so they
+// can ask for the same page; the second caller joins the first request
+// instead of appending the same rows twice.
+const _sessionPageRequests = new Map();
+
+function fetchSessionPage(sid, offset) {
+    const key = sid + ':' + offset;
+    let req = _sessionPageRequests.get(key);
+    if (!req) {
+        req = API.getSession(sid, offset);
+        _sessionPageRequests.set(key, req);
+        // Drop the entry only while it is still ours (a newer request for the
+        // same page may have replaced it).  Both branches are handled by the
+        // same callback: a rejected request is the caller's to report.
+        const done = () => {
+            if (_sessionPageRequests.get(key) === req) _sessionPageRequests.delete(key);
+        };
+        req.then(done, done);
+    }
+    return req;
+}
+
 // Load the pages up to *idx* (the message list is fetched in pages) and focus
 // the message — used by the Files timeline rows.
 async function jumpToMessage(idx, retry = false) {
@@ -2513,12 +2544,35 @@ async function jumpToMessage(idx, retry = false) {
         // retry) instead of starting a second fetch of the running session.
         if (STATE.sessionViewId !== null) {
             while (STATE.messages.length <= idx) {
-                const data = await API.getSession(sid, STATE.messages.length);
-                if (!data.messages || !data.messages.length) break;
+                const from = STATE.messages.length;
+                const data = await fetchSessionPage(sid, from);
+                // The reader switched sessions while the page was on its way.
+                if (STATE.sessionViewId !== sid) return;
+                // Keep the status bar/footer in step with the paged list.
+                if (typeof data.total === 'number') STATE.sessionTotal = data.total;
+                // A concurrent caller (the "load more" button, another jump)
+                // appended this page already — re-check and go on.
+                if (STATE.messages.length !== from) continue;
+                if (!data.messages || !data.messages.length) {
+                    // Stop offering a page the server says is empty.
+                    STATE.sessionTotal = STATE.messages.length;
+                    break;
+                }
                 STATE.messages.push(...data.messages);
             }
         }
         if (idx >= STATE.messages.length) {
+            // The paged fetch moved the loaded count even though the record
+            // is still out of reach: refresh the status bar/footer.  (A live
+            // capture has nothing to page, so it just waits for the poll.)
+            if (STATE.sessionViewId !== null) {
+                // The target is not in the session: refresh the footer/status
+                // without throwing the APDU list back to the top.
+                const list = el('apdu-list');
+                const scrollTop = list ? list.scrollTop : 0;
+                renderMessages(true);
+                if (list) list.scrollTop = scrollTop;
+            }
             if (STATE.sessionViewId === null && !retry) {
                 _filesJumpTimer = setTimeout(() => {
                     _filesJumpTimer = null;
@@ -2802,11 +2856,31 @@ function renderMessages(skipScroll, forceStick) {
         </div>`;
     }).join('');
 
+    // A paged saved session carries a footer until every page is in.  It is
+    // about the loaded dataset, not the visible rows, so the filter/search
+    // does not hide it.
+    if (STATE.sessionViewId !== null && STATE.messages.length < STATE.sessionTotal) {
+        const footer = STATE.loadingMore
+            ? `<div class="load-more"><button id="load-more-btn" disabled>${t('Loading…')}</button></div>`
+            : `<div class="load-more"><button id="load-more-btn">${t('Load more')} (${STATE.messages.length} / ${STATE.sessionTotal})</button></div>`;
+        list.insertAdjacentHTML('beforeend', footer);
+    }
+
     if (stick) list.scrollTop = list.scrollHeight;
     updateStatus();
 }
 
 function $(selector, root) { return (root || document).querySelector(selector); }
+
+// The status bar's message counter.  A saved session's list is fetched in
+// pages, so it shows how much of the session is loaded ("500 / 923
+// messages") until the last page is in; a live capture has it all.
+function messagesCountText(loaded, total) {
+    if (total > loaded) {
+        return t('{a} / {b} messages').replace('{a}', loaded).replace('{b}', total);
+    }
+    return t('{n} messages').replace('{n}', loaded);
+}
 
 function updateStatus() {
     const dot = el('status-dot');
@@ -2824,7 +2898,8 @@ function updateStatus() {
         dot.classList.add('off');
         text.textContent = t('Not connected');
     }
-    count.textContent = t('{n} messages').replace('{n}', STATE.messages.length);
+    const total = STATE.sessionViewId !== null ? STATE.sessionTotal : STATE.messages.length;
+    count.textContent = messagesCountText(STATE.messages.length, total);
     updateDeviceWarn();
     updateCaptureChip();
 }
@@ -2918,6 +2993,8 @@ async function startCapture() {
         STATE.captureActive = true;
         STATE.currentSessionId = data.session_id;
         STATE.sessionStarted = data.started;
+        STATE.sessionTotal = 0;
+        STATE.loadingMore = false;
         STATE.messages = [];
         STATE.selectedIdx = null;
         _lastAfter = 0;
@@ -2955,6 +3032,8 @@ async function stopCapture() {
     STATE.captureActive = false;
     STATE.currentSessionId = null;
     STATE.sessionViewId = null;
+    STATE.sessionTotal = 0;
+    STATE.loadingMore = false;
     updateCaptureButton();
     updateStatus();
     // Fetch the final operations and drop the live note; the last timeline
@@ -3312,6 +3391,8 @@ async function loadSession(id) {
 
         const data = await API.getSession(id, 0);
         STATE.sessionViewId = id;
+        STATE.sessionTotal = typeof data.total === 'number' ? data.total : data.messages.length;
+        STATE.loadingMore = false;
         STATE.filesData = null;
         STATE.filesSessionId = null;
         STATE.filesMessageCount = 0;
@@ -3334,6 +3415,47 @@ async function loadSession(id) {
         history.replaceState(null, '', '#session=' + id);
     } catch (e) {
         alert(t('Failed to load session'));
+    }
+}
+
+// Append the next page of a saved session's message list.  The button sits at
+// the bottom of the list, so the reader's scroll position is captured and
+// restored around the render (a plain re-render would leave them at the top
+// of the longer list).
+async function loadMoreMessages() {
+    if (STATE.sessionViewId === null || STATE.loadingMore) return;
+    if (STATE.messages.length >= STATE.sessionTotal) return;
+    const sid = STATE.sessionViewId;
+    const list = el('apdu-list');
+    const scrollTop = list.scrollTop;
+    STATE.loadingMore = true;
+    renderMessages(true);
+    list.scrollTop = scrollTop;
+    try {
+        // Another caller (a Files-view jump) may already be fetching (or have
+        // appended) this page; the shared request hands both the same answer.
+        const from = STATE.messages.length;
+        const data = await fetchSessionPage(sid, from);
+        // The reader switched sessions while the page was on its way.
+        if (STATE.sessionViewId !== sid) return;
+        if (typeof data.total === 'number') STATE.sessionTotal = data.total;
+        // A concurrent caller appended it already: take the total, not a
+        // second copy of the rows.
+        if (STATE.messages.length !== from) return;
+        if (data.messages && data.messages.length) {
+            STATE.messages.push(...data.messages);
+        } else {
+            // Nothing left to fetch — stop offering the same empty page.
+            STATE.sessionTotal = STATE.messages.length;
+        }
+    } catch (e) {
+        if (STATE.sessionViewId === sid) alert(t('Failed to load session'));
+    } finally {
+        if (STATE.sessionViewId === sid) {
+            STATE.loadingMore = false;
+            renderMessages(true);
+            list.scrollTop = scrollTop;
+        }
     }
 }
 
@@ -3505,7 +3627,22 @@ async function checkConnection() {
                 // A different capture session than the one we were viewing —
                 // reset the stream so we re-fetch it from the start.
                 STATE.currentSessionId = data.session_id;
+                // Drop a viewed saved session: its id would otherwise mix the
+                // live messages into that session (and a page still in flight
+                // could set the saved total back).
+                STATE.sessionViewId = null;
+                STATE.currentSessionName = null;
+                STATE.currentSessionRawName = null;
+                el('session-name-display').style.display = 'none';
+                // A file:// page cannot rewrite the history URL; that must not
+                // look like a lost connection.  A #session=<id> deep link is
+                // still pending on the first poll — leave it for loadSession.
+                if (STATE.deepLinkHandled) {
+                    try { history.replaceState(null, '', location.pathname); } catch (e) { /* file:// */ }
+                }
                 STATE.messages = [];
+                STATE.sessionTotal = 0;
+                STATE.loadingMore = false;
                 _lastAfter = 0;
                 STATE.mapExpanded.clear();
                 // The Files view follows the capture that was just adopted.
@@ -3601,7 +3738,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.17';
+const PWA_VERSION = '2.7.18';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -3762,6 +3899,8 @@ const LANG_RU = {
     'Copy link': 'Копировать ссылку',
     'Share link': 'Ссылка для общего доступа',
     '{n} messages': '{n} сообщений',
+    '{a} / {b} messages': '{a} / {b} сообщений',
+    'Load more': 'Загрузить ещё',
     '{n} session(s) · {size}': '{n} сессий · {size}',
     '{n} session · {size}': '{n} сессия · {size}',
     'Importing…': 'Импорт…',
@@ -4069,6 +4208,10 @@ function init() {
     connectServer();
 
     el('apdu-list').addEventListener('click', e => {
+        if (e.target.closest('#load-more-btn')) {
+            loadMoreMessages();
+            return;
+        }
         const entry = e.target.closest('.apdu-entry');
         if (!entry) return;
         const idx = parseInt(entry.dataset.idx);

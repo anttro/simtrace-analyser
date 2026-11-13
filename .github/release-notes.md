@@ -9,15 +9,15 @@ The UI is then served at http://127.0.0.1:8081/.  If your system Python is
 externally managed (PEP 668 — common on Arch and Fedora), install into a
 virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
 
-**Highlights in 2.7.16**
+**Highlights in 2.7.18**
 
-- The Files view now follows a live capture: it refreshes while visible,
-  supports row jumps and Show diff live, and keeps the final timeline on
-  screen after the capture stops.
-- EF file-descriptor decoding now follows TS 102 221 V18.4.0 Table 11.5
-  (p. 91): cyclic EFs (`110`) decode their READ/UPDATE RECORD bodies,
-  BER-TLV EFs (`0x39`/`0x79`) are recognised, and the fabricated
-  `num_dfs_efs` field is gone.
+- Saved sessions now page in the Trace view: the status bar shows
+  loaded / total, and a **Load more** button appends the next page (a
+  923-message session no longer stops at 500).
+- API traffic and PCAP downloads bypass the service worker (the worker
+  previously cached every GET); API JSON/download responses are
+  `Cache-Control: no-store`, so a download goes straight to the browser
+  and status data stays live.
 
 The source archive is the same tree a clone would have: unzip it and run
 `./start.sh` (Linux/macOS) or `start.bat` (Windows).  Direct SIMtrace2 capture

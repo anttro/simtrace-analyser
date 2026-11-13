@@ -47,7 +47,7 @@ http://127.0.0.1:8081/.
 Wheel содержит интерфейс внутри пакета, поэтому сервер отдаёт его сам:
 
 ```sh
-pip install ./simtrace_analyser-2.7.16-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.18-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -61,7 +61,7 @@ Fedora), сначала создайте виртуальное окружени
 CLI — выбрать последнюю:
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.16/simtrace_analyser-2.7.16-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.18/simtrace_analyser-2.7.18-py3-none-any.whl
 # или:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
@@ -69,7 +69,7 @@ pip install ./simtrace_analyser-*.whl
 
 ### 2. Zip (без установки)
 
-Скачайте `simtrace-analyser-2.7.16.zip` со страницы релиза и распакуйте в любое
+Скачайте `simtrace-analyser-2.7.18.zip` со страницы релиза и распакуйте в любое
 место: это рабочее дерево (пакеты Python, интерфейс, скрипты запуска и документация —
 без тестов и git). Архив подходит для любой ОС. Затем запустите.
 
@@ -575,7 +575,7 @@ Python 3 должен быть в `PATH` (проверьте `python --version` 
 
 **Интерфейс SIMtrace Analyser** ([`frontend/`](frontend/)):
 
-- Окно трассировки с режимами «Карта»/«Список» — proactive,
+- Окно трассировки с режимами «Обзор»/«Список» — proactive,
   TERMINAL RESPONSE, ENVELOPE и AUTH-команды выделяются в режиме карты
 - Сессии с прямыми ссылками (`#session=N`), импорт PCAP
   (`.pcap/.pcapng/.cap`), импорт трасс COMPRION (текстовый экспорт
@@ -584,7 +584,11 @@ Python 3 должен быть в `PATH` (проверьте `python --version` 
   сессии»: FETCH, TERMINAL PROFILE и все команды с ответом SW 91xx;
   «Файловые операции»: SELECT,
   READ/UPDATE BINARY и READ/UPDATE RECORD, вместе с GET RESPONSE, несущим
-  данные выбранной команды)
+  данные выбранной команды).  Сохранённая сессия открывается первыми
+  500 сообщениями — в строке состояния показано «загружено / всего», а кнопка
+  **«Загрузить ещё»** в конце списка добавляет следующую страницу, не сдвигая
+  позицию чтения; панели «Статистика»/«Обзор» и фильтр команд учитывают только
+  загруженные страницы, пока не загружены все
 - **PWA** (progressive web app): устанавливается на рабочий стол или домашний
   экран и работает офлайн; тёмная тема, интерфейс на английском/русском
 

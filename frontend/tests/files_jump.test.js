@@ -22,9 +22,14 @@ function renderMessages(skipScroll, forceStick) {
 function focusMessage(idx) {
 	focused.push(idx);
 }
+const pageMapSrc = src.match(/const _sessionPageRequests = new Map\(\);/);
+assert.ok(pageMapSrc, '_sessionPageRequests not found');
+
 eval(
 	'var _filesJumpTimer = null;\n' +
 	extractFunc(src, 'fileViewSessionId') + '\n' +
+	pageMapSrc[0].replace(/^const /, 'var ') + '\n' +
+	extractFunc(src, 'fetchSessionPage') + '\n' +
 	extractFunc(src, 'jumpToMessage') + '\n' +
 	extractFunc(src, 'shouldStickToBottom') + '\n'
 );
