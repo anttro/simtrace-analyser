@@ -568,7 +568,7 @@ const API_BASE = () => STATE.serverUrl;
 
 // The Trace view's page size.  2,000 decoded messages are ~1.5 MiB of JSON
 // and decode in ~0.3 s on the reference host (500 was a conservative
-default); common sessions fit in one page and scrolling loads the rest.
+// default); common sessions fit in one page and scrolling loads the rest.
 const SESSION_PAGE_SIZE = 2000;
 
 const INS_NAMES = {
@@ -3756,7 +3756,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.19';
+const PWA_VERSION = '2.7.20';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {

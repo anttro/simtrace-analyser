@@ -9,9 +9,12 @@ The UI is then served at http://127.0.0.1:8081/.  If your system Python is
 externally managed (PEP 668 — common on Arch and Fedora), install into a
 virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
 
-**Highlights in 2.7.19**
+**Highlights in 2.7.20**
 
-- Saved sessions now load **2,000 messages per page**, so common sessions
+- Fixes the broken 2.7.19 PWA: a page-size comment lost its `//`, so the
+  inline script failed to parse and no tab worked.  2.7.19 has been
+  withdrawn.
+- Saved sessions load **2,000 messages per page**, so common sessions
   (923 / 1,810 / 1,991 messages) open in one request instead of stopping at
   500; larger sessions page as before.
 - Scrolling the APDU list near the bottom loads the next page

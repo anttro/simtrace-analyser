@@ -47,7 +47,7 @@ http://127.0.0.1:8081/.
 Wheel содержит интерфейс внутри пакета, поэтому сервер отдаёт его сам:
 
 ```sh
-pip install ./simtrace_analyser-2.7.19-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.20-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -61,7 +61,7 @@ Fedora), сначала создайте виртуальное окружени
 CLI — выбрать последнюю:
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.19/simtrace_analyser-2.7.19-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.20/simtrace_analyser-2.7.20-py3-none-any.whl
 # или:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
@@ -69,7 +69,7 @@ pip install ./simtrace_analyser-*.whl
 
 ### 2. Zip (без установки)
 
-Скачайте `simtrace-analyser-2.7.19.zip` со страницы релиза и распакуйте в любое
+Скачайте `simtrace-analyser-2.7.20.zip` со страницы релиза и распакуйте в любое
 место: это рабочее дерево (пакеты Python, интерфейс, скрипты запуска и документация —
 без тестов и git). Архив подходит для любой ОС. Затем запустите.
 
