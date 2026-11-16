@@ -1,4 +1,4 @@
-const CACHE = 'simtrace-analyser-v100';
+const CACHE = 'simtrace-analyser-v101';
 
 const PRECACHE = [
     'index.html',

@@ -1,9 +1,10 @@
-// A saved session's message list is fetched in pages (the API caps a page at
-// 500).  The Trace view used to show only the first page with no way to see
-// the rest, and the status bar claimed "500 messages" for a 923-message
-// session.  The counter now reports loaded/total and a footer button appends
-// the next page without throwing the reader back to the top; the Files-view
-// jump and the button share one request per page so no row is duplicated.
+// A saved session's message list is fetched in pages (the API page size is
+// 2,000; these fixtures use 500-row pages for brevity).  The Trace view used
+// to show only the first page with no way to see the rest, and the status bar
+// claimed "500 messages" for a 923-message session.  The counter now reports
+// loaded/total, scrolling auto-loads, and the footer button appends the next
+// page without throwing the reader back to the top; the Files-view jump and
+// the button share one request per page so no row is duplicated.
 
 const fs = require('node:fs');
 const path = require('node:path');

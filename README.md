@@ -47,7 +47,7 @@ http://127.0.0.1:8081/.
 The wheel includes the UI, so the server serves it by itself:
 
 ```sh
-pip install ./simtrace_analyser-2.7.18-py3-none-any.whl
+pip install ./simtrace_analyser-2.7.19-py3-none-any.whl
 simtrace-analyser-server --capture gsmtap
 ```
 
@@ -61,7 +61,7 @@ Every artifact is on the
 CLI can pick the latest one:
 
 ```sh
-pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.18/simtrace_analyser-2.7.18-py3-none-any.whl
+pip install https://github.com/anttro/simtrace-analyser/releases/download/v2.7.19/simtrace_analyser-2.7.19-py3-none-any.whl
 # or:
 gh release download --pattern '*.whl'
 pip install ./simtrace_analyser-*.whl
@@ -69,7 +69,7 @@ pip install ./simtrace_analyser-*.whl
 
 ### 2. Zip (no installer)
 
-Download `simtrace-analyser-2.7.18.zip` from the release page and extract it
+Download `simtrace-analyser-2.7.19.zip` from the release page and extract it
 anywhere: it is the runtime tree (the Python packages, the web UI, the launchers
 and the docs — no tests, no git).  The archive works on any OS; then run:
 
@@ -569,9 +569,10 @@ prompt).
   and/or the conversation presets (*Proactive sessions*: FETCH, TERMINAL
   PROFILE and every command answered with SW 91xx; *File operations*: SELECT,
   READ/UPDATE BINARY and READ/UPDATE RECORD, with the GET RESPONSE carrying a
-  selected command's data).  A saved session opens its first 500 messages —
-  the status bar shows *loaded / total* and a **Load more** button at the end
-  of the list appends the next page without moving the reader's position; the
+  selected command's data).  A saved session opens its first 2,000 messages —
+  the status bar shows *loaded / total*.  Scrolling to the end of the APDU
+  list loads the next page automatically (the **Load more** button remains
+  for an explicit request) without moving the reader's position; the
   side-panel Stats/Map views and the command filter count only the pages
   loaded so far until every page is in
 - Installable **PWA** (progressive web app: installs to the desktop or home

@@ -566,6 +566,11 @@ const STATE = {
 
 const API_BASE = () => STATE.serverUrl;
 
+// The Trace view's page size.  2,000 decoded messages are ~1.5 MiB of JSON
+// and decode in ~0.3 s on the reference host (500 was a conservative
+default); common sessions fit in one page and scrolling loads the rest.
+const SESSION_PAGE_SIZE = 2000;
+
 const INS_NAMES = {
     'a4': 'SELECT', 'a0': 'SELECT', '70': 'MANAGE CHANNEL',
     'b0': 'READ BINARY', 'b1': 'READ RECORD',
@@ -1243,7 +1248,7 @@ const API = {
     },
     status()        { return this._fetch('GET', '/api/status'); },
     listSessions()  { return this._fetch('GET', '/api/sessions'); },
-    getSession(id, offset)  { return this._fetch('GET', `/api/sessions/${id}?offset=${offset || 0}&limit=500`); },
+    getSession(id, offset)  { return this._fetch('GET', `/api/sessions/${id}?offset=${offset || 0}&limit=${SESSION_PAGE_SIZE}`); },
     renameSession(id, name) { return this._fetch('PATCH', `/api/sessions/${id}/name`, { name }); },
     deleteSession(id)       { return this._fetch('DELETE', `/api/sessions/${id}`); },
     startCapture()          { return this._fetch('POST', '/api/capture/start'); },
@@ -3418,6 +3423,19 @@ async function loadSession(id) {
     }
 }
 
+// Reaching the end of the APDU list loads the next page without a click.
+const AUTO_LOAD_MARGIN = 200;
+
+function maybeLoadMoreOnScroll() {
+    if (STATE.sessionViewId === null || STATE.loadingMore) return;
+    if (STATE.messages.length >= STATE.sessionTotal) return;
+    const list = el('apdu-list');
+    if (!list) return;
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - AUTO_LOAD_MARGIN) {
+        loadMoreMessages();
+    }
+}
+
 // Append the next page of a saved session's message list.  The button sits at
 // the bottom of the list, so the reader's scroll position is captured and
 // restored around the render (a plain re-render would leave them at the top
@@ -3738,7 +3756,7 @@ function onSearchChange() {
 }
 
 // ──────────────────── Versioning ────────────────────
-const PWA_VERSION = '2.7.18';
+const PWA_VERSION = '2.7.19';
 const MIN_SERVER_VERSION = '2.3.0';
 
 function parseVersion(v) {
@@ -4207,6 +4225,7 @@ function init() {
 
     connectServer();
 
+    el('apdu-list').addEventListener('scroll', maybeLoadMoreOnScroll, { passive: true });
     el('apdu-list').addEventListener('click', e => {
         if (e.target.closest('#load-more-btn')) {
             loadMoreMessages();

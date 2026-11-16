@@ -9,15 +9,13 @@ The UI is then served at http://127.0.0.1:8081/.  If your system Python is
 externally managed (PEP 668 — common on Arch and Fedora), install into a
 virtual environment first (`python3 -m venv .venv && . .venv/bin/activate`).
 
-**Highlights in 2.7.18**
+**Highlights in 2.7.19**
 
-- Saved sessions now page in the Trace view: the status bar shows
-  loaded / total, and a **Load more** button appends the next page (a
-  923-message session no longer stops at 500).
-- API traffic and PCAP downloads bypass the service worker (the worker
-  previously cached every GET); API JSON/download responses are
-  `Cache-Control: no-store`, so a download goes straight to the browser
-  and status data stays live.
+- Saved sessions now load **2,000 messages per page**, so common sessions
+  (923 / 1,810 / 1,991 messages) open in one request instead of stopping at
+  500; larger sessions page as before.
+- Scrolling the APDU list near the bottom loads the next page
+  automatically; the **Load more** button remains as an explicit fallback.
 
 The source archive is the same tree a clone would have: unzip it and run
 `./start.sh` (Linux/macOS) or `start.bat` (Windows).  Direct SIMtrace2 capture
